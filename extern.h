@@ -92,10 +92,15 @@ struct	tal {
 	size_t		  pkeysz; /* length of pkey */
 };
 
+/*
+ * A manifest, RFC 6486.
+ * This consists of a bunch of files found in the same directory as the
+ * manifest file.
+ */
 struct	mft {
-	char		 *file;
-	char		**files;
-	size_t		  filesz;
+	char		 *file; /* full path of MFT file */
+	char		**files; /* filenames (CER/ROA/CRL, no path) */
+	size_t		  filesz; /* number of filenames */
 };
 
 struct	roa {

@@ -103,34 +103,16 @@ static int
 repo_lookup(int fd, int verb, struct repotab *rt,
 	const char *uri, const struct repo **repo)
 {
-	const char	*host, *cp, *mod;
+	const char	*host, *mod;
 	size_t		 hostsz, modsz, i;
 	struct repo	*rp;
 	void		*pp;
 
-	if (strncasecmp(uri, "rsync://", 8)) {
-		WARNX(verb, "%s: not an rsync URI", uri);
+	if (!rsync_uri_parse(verb, &host, &hostsz,
+	    &mod, &modsz, NULL, NULL, NULL, uri)) {
+		WARNX1(verb, "rsync_uri_parse");
 		return 0;
 	}
-
-	/* Scan until hostname ends. */
-
-	host = uri + 8;
-	if ((mod = strchr(host, '/')) == NULL) {
-		WARNX(verb, "%s: malformed rsync URI", uri);
-		return 0;
-	} else if ((hostsz = (size_t)(mod - host)) == 0) {
-		WARNX(verb, "%s: malformed rsync URI", uri);
-		return -1;
-	}
-
-	/* Scan until module ends. */
-
-	mod++;
-	if ((cp = strchr(mod, '/')) == NULL)
-		modsz = strlen(mod);
-	else
-		modsz = (size_t)(cp - mod);
 
 	/* Look up in repository table. */
 
@@ -311,27 +293,25 @@ static int
 queue_add_from_mft(int fd, int verb, struct entryq *q,
 	const char *mft, const char *file)
 {
-	size_t	 	 sz;
+	size_t	 	 sz = strlen(file);
 	char		*cp, *nfile;
-	enum rtype	 type;
+	enum rtype	 type = RTYPE_EOF;
 
 	assert(strncmp(mft, BASE_DIR, strlen(BASE_DIR)) == 0);
+	assert(sz > 4);
 
-	/* Sanitise and determine the file type. */
+	/* Determine the file type, ignoring revocation lists. */
 
-	if (strchr(file, '/') != NULL) {
-		WARNX(verb, "%s: must not contain path", file);
-		return 0;
-	} else if ((type = rtype_resolve(verb, file)) == RTYPE_EOF) {
-		WARNX(verb, "%s: unknown file type", file);
+	if (strcasecmp(file + sz - 4, ".crl") == 0)
+		type = RTYPE_CRL;
+	else if (strcasecmp(file + sz - 4, ".cer") == 0)
+		type = RTYPE_CER;
+	else if (strcasecmp(file + sz - 4, ".roa") == 0)
+		type = RTYPE_ROA;
+
+	assert(type != RTYPE_EOF);
+	if (type == RTYPE_CRL)
 		return 1;
-	} else if (type == RTYPE_CRL) {
-		/* Ignore revocation lists. */
-		return 1;
-	} else if (type != RTYPE_CER && type != RTYPE_ROA) {
-		WARNX(verb, "%s: invalid file type", file);
-		return 0;
-	}
 
 	/* Construct local path from filename. */
 
@@ -360,7 +340,6 @@ queue_add_from_mft(int fd, int verb, struct entryq *q,
 		free(nfile);
 		return 0;
 	}
-
 	LOG(verb, "%s: added: %s", file, nfile);
 	return 1;
 }
@@ -386,43 +365,36 @@ queue_add_from_mft_set(int fd, int verb,
 
 /*
  * Add a local TAL file (RFC 7730) to the queue of files to fetch.
+ * The "file" path has not been sanitised at all.
  * Returns zero on failure, non-zero on success.
  */
 static int
 queue_add_tal(int fd, int verb, struct entryq *q, const char *file)
 {
-	enum rtype	 type;
 	char		*nfile;
+	size_t		 sz = strlen(file);
 
-	if ((type = rtype_resolve(verb, file)) == RTYPE_EOF) {
-		WARNX(verb, "%s: unknown file type", file);
-		return 1;
-	} else if (type != RTYPE_TAL) {
+	if (sz <= 4 || strcasecmp(file + sz - 4, ".tal")) {
 		WARNX(verb, "%s: invalid file type", file);
 		return 0;
-	} 
-	
-	if ((nfile = strdup(file)) == NULL) {
+	} else if ((nfile = strdup(file)) == NULL) {
 		ERR("strdup");
 		return 0;
 	}
 
-	/* Not in a repository, so don't check for loading. */
+	/* Not in a repository, so directly add to queue. */
 
-	if (!queue_add(fd, verb, q, nfile, type, NULL)) {
+	if (!queue_add(fd, verb, q, nfile, RTYPE_TAL, NULL)) {
 		WARNX1(verb, "queue_add");
 		free(nfile);
 		return 0;
 	}
-
 	LOG(verb, "%s: added", file);
 	return 1;
 }
 
 /*
  * Add rsync URIs (CER) from a TAL file, RFC 7730.
- * We use "ident" to re-write the URI into our file-system, such that a
- * URI of rsync://foo/bar/baz becomes BASE_DIR/ident/bar/baz.
  * Returns zero on failure, non-zero on success.
  */
 static int
@@ -430,20 +402,11 @@ queue_add_from_tal(int proc, int rsync, int verb,
 	struct entryq *q, const char *uri, struct repotab *rt)
 {
 	char		  *nfile;
-	enum rtype	   type;
 	const struct repo *repo;
 
-	/* FIXME: assert as tal_parse() should guarantee. */
-
-	if ((type = rtype_resolve(verb, uri)) == RTYPE_EOF) {
-		WARNX(verb, "%s: unknown file type", uri);
-		return 0;
-	} else if (type != RTYPE_CER) {
-		WARNX(verb, "%s: invalid file type", uri);
-		return 0;
-	}
-
 	/* Look up the repository. */
+
+	assert(rtype_resolve(verb, uri) == RTYPE_CER);
 
 	if (!repo_lookup(rsync, verb, rt, uri, &repo)) {
 		WARNX1(verb, "repo_lookup");
@@ -456,12 +419,11 @@ queue_add_from_tal(int proc, int rsync, int verb,
 	    BASE_DIR, repo->host, repo->module, uri) < 0) {
 		WARN("asprintf");
 		return 0;
-	} else if (!queue_add(proc, verb, q, nfile, type, repo)) {
+	} else if (!queue_add(proc, verb, q, nfile, RTYPE_CER, repo)) {
 		WARNX1(verb, "queue_add");
 		free(nfile);
 		return 0;
 	}
-
 	LOG(verb, "%s: added: %s", uri, nfile);
 	return 1;
 }
@@ -525,7 +487,6 @@ queue_add_from_cert(int proc, int rsync, int verb,
 		free(nfile);
 		return 0;
 	}
-
 	LOG(verb, "%s: added: %s", uri, nfile);
 	return 1;
 }
@@ -779,7 +740,7 @@ proc_parser(int fd, int verb)
 		case RTYPE_CER:
 			x = cert_parse(vverb, NULL, entp->uri);
 			if (x == NULL) {
-				WARNX1(verb, "tal_parse");
+				WARNX1(verb, "cert_parse");
 				goto out;
 			}
 			if (!cert_buffer(&b, &bsz, &bmax, verb, x)) {
