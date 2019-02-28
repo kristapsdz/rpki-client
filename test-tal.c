@@ -41,7 +41,7 @@ main(int argc, char *argv[])
 	argc -= optind;
 
 	for (i = 0; i < (size_t)argc; i++) {
-		if (NULL == (tal = tal_parse_file(verb, argv[i])))
+		if (NULL == (tal = tal_parse(verb, argv[i])))
 			break;
 		tal_print(tal);
 		tal_free(tal);

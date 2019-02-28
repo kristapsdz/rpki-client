@@ -82,14 +82,14 @@ struct	cert {
  * The TAL file conforms to RFC 7730.
  * It is the top-level structure of RPKI and defines where we can find
  * certificates for TAs (trust anchors).
- * It also includes the public key for later verifying those trust anchor
+ * It also includes the public key for verifying those trust anchor
  * certificates.
  */
 struct	tal {
-	char		 *ident; /* identifier for TAL */
-	char		**uri; /* URI confirming to rsync URI schema */
-	size_t		  urisz; /* length of uri */
-	EVP_PKEY	 *pubkey; /* public key for the TA's certificate */
+	char		**uri; /* well-formed rsync URIs */
+	size_t		  urisz; /* number of URIs */
+	unsigned char	 *pkey; /* DER-encoded public key */
+	size_t		  pkeysz; /* length of pkey */
 };
 
 struct	mft {
@@ -100,6 +100,18 @@ struct	mft {
 
 struct	roa {
 	uint32_t	 asid; /* asID of ROA */
+};
+
+/*
+ * Resource types.
+ */
+enum	rtype {
+	RTYPE_EOF = 0,
+	RTYPE_TAL,
+	RTYPE_MFT,
+	RTYPE_ROA,
+	RTYPE_CER,
+	RTYPE_CRL
 };
 
 #define ERR(_fmt, ...) \
@@ -125,7 +137,7 @@ __BEGIN_DECLS
 
 int		 tal_buffer(char **, size_t *, size_t *, int, const struct tal *);
 void		 tal_free(struct tal *);
-struct tal	*tal_parse_file(int, const char *);
+struct tal	*tal_parse(int, const char *);
 struct tal	*tal_read(int, int);
 
 int		 cert_buffer(char **, size_t *, size_t *, int, const struct cert *);
@@ -135,67 +147,47 @@ struct cert	*cert_read(int, int);
 
 int		 mft_buffer(char **, size_t *, size_t *, int, const struct mft *);
 void		 mft_free(struct mft *);
-struct mft 	*mft_parse_file(int, X509 *, const char *);
+struct mft 	*mft_parse(int, X509 *, const char *);
 struct mft 	*mft_read(int, int);
 
 int		 roa_buffer(char **, size_t *, size_t *, int, const struct roa *);
 void		 roa_free(struct roa *);
-struct roa 	*roa_parse_file(int, X509 *, const char *);
+struct roa 	*roa_parse(int, X509 *, const char *);
 struct roa	*roa_read(int, int);
 
-/*
- * Helper functions.
- */
-
-const ASN1_OCTET_STRING *
-	 cms_parse_validate(int, X509 *, 
-		const char *, const char *);
-
-/*
- * Logging functions.
- */
-
-void	 rpki_log_open(void);
-void	 rpki_log_close(void);
-
-/* 
- * Don't use these directly: use the WARNX-type macros instead. 
- */
-
-void	 rpki_err(const char *, 
-		size_t, const char *, ...)
-		__attribute__((format(printf, 3, 4)))
-		__attribute__((noreturn));
-void	 rpki_errx(const char *, 
-		size_t, const char *, ...)
-		__attribute__((format(printf, 3, 4)))
-		__attribute__((noreturn));
-void	 rpki_warn(const char *, 
-		size_t, const char *, ...)
-		__attribute__((format(printf, 3, 4)));
-void	 rpki_warnx(int, int, const char *, 
-		size_t, const char *, ...)
-		__attribute__((format(printf, 5, 6)));
-void	 rpki_log(int, const char *, 
-		size_t, const char *, ...)
-		__attribute__((format(printf, 4, 5)));
-void	 rpki_cryptox(int, const char *,
-		size_t, const char *, ...)
-		__attribute__((format(printf, 4, 5)));
-
-/* Low-level IO functions. */
-
-int	 socket_blocking(int, int);
-int	 socket_nonblocking(int, int);
-int	 simple_buffer(char **, size_t *, size_t *, const void *, size_t);
-int	 simple_read(int, int, void *, size_t);
-int	 simple_write(int, const void *, size_t);
-int	 buf_buffer(char **, size_t *, size_t *, int, const void *, size_t);
-int	 buf_read_alloc(int, int, void **, size_t *);
-int	 buf_write(int, int, const void *, size_t);
-int	 str_buffer(char **, size_t *, size_t *, int, const char *);
-int	 str_read(int, int, char **);
-int	 str_write(int, int, const char *);
+const ASN1_OCTET_STRING
+ 		*cms_parse_validate(int, X509 *, const char *, const char *);
+int	 	 rsync_uri_parse(int, const char **, size_t *,
+			const char **, size_t *, const char **, size_t *,
+			enum rtype *, const char *);
+int	 	 rsync_uri_check(int, const char *);
+void		 rpki_log_open(void);
+void		 rpki_log_close(void);
+void		 rpki_err(const char *, size_t, const char *, ...)
+			__attribute__((format(printf, 3, 4)))
+			__attribute__((noreturn));
+void		 rpki_errx(const char *, size_t, const char *, ...)
+			__attribute__((format(printf, 3, 4)))
+			__attribute__((noreturn));
+void		 rpki_warn(const char *, size_t, const char *, ...)
+			__attribute__((format(printf, 3, 4)));
+void		 rpki_warnx(int, int, const char *, size_t, const char *, ...)
+			__attribute__((format(printf, 5, 6)));
+void		 rpki_log(int, const char *, size_t, const char *, ...)
+			__attribute__((format(printf, 4, 5)));
+void		 rpki_cryptox(int, const char *, size_t, const char *, ...)
+			__attribute__((format(printf, 4, 5)));
+int		 socket_blocking(int, int);
+int		 socket_nonblocking(int, int);
+int		 simple_buffer(char **, size_t *, size_t *, const void *, size_t);
+int		 simple_read(int, int, void *, size_t);
+int		 simple_write(int, const void *, size_t);
+int		 buf_buffer(char **, size_t *, size_t *, int, const void *, size_t);
+int		 buf_read_alloc(int, int, void **, size_t *);
+int		 buf_write(int, int, const void *, size_t);
+int		 str_buffer(char **, size_t *, size_t *, int, const char *);
+int		 str_read(int, int, char **);
+int		 str_write(int, int, const char *);
 
 __END_DECLS
 

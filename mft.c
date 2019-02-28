@@ -198,7 +198,7 @@ out:
  * Returns zero on failure, non-zero on success.
  */
 struct mft *
-mft_parse_file(int verb, X509 *cacert, const char *fn)
+mft_parse(int verb, X509 *cacert, const char *fn)
 {
 	struct parse		 p;
 	const ASN1_OCTET_STRING *os;

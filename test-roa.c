@@ -50,7 +50,7 @@ main(int argc, char *argv[])
 	}
 
 	for (i = 0; i < (size_t)argc; i++) {
-		p = roa_parse_file(verb, x, argv[i]);
+		p = roa_parse(verb, x, argv[i]);
 		if (NULL == p)
 			break;
 		roa_free(p);
