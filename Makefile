@@ -3,6 +3,7 @@ OBJS	 = cms.o \
 	   log.o \
 	   mft.o \
 	   roa.o \
+	   rsync.o \
 	   tal.o \
 	   cert.o
 ALLOBJS	 = $(OBJS) \

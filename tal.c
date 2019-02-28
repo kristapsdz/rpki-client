@@ -12,7 +12,8 @@
 
 /*
  * Inner function for parsing RFC 7730 from a file stream.
- * See tal_parse_file() for details.
+ * Returns a valid pointer on success, NULL otherwise.
+ * The pointer must be freed with tal_free().
  */
 static struct tal *
 tal_parse_stream(int verb, const char *fn, FILE *f)
@@ -23,81 +24,85 @@ tal_parse_stream(int verb, const char *fn, FILE *f)
 	ssize_t		 linelen, ssz;
 	int		 rc = 0;
 	struct tal	*tal = NULL;
-	const unsigned char *sv;
+	enum rtype	 rp;
 
-	/* Initial allocation. */
-
-	if (NULL == (tal = calloc(1, sizeof(struct tal)))) {
+	if ((tal = calloc(1, sizeof(struct tal))) == NULL) {
 		WARN("calloc");
 		return NULL;
 	}
 
-	if ((tal->ident = strdup(fn)) == NULL) {
-		WARN("strdup");
-		goto out;
-	} 
-
 	/* Begin with the URI section. */
 
-	while (-1 != (linelen = getline(&line, &linesize, f))) {
+	while ((linelen = getline(&line, &linesize, f)) != -1) {
 		lineno++;
 		assert(linelen);
-		assert('\n' == line[linelen - 1]);
+		assert(line[linelen - 1] == '\n');
 		line[--linelen] = '\0';
-		if (linelen && '\r' == line[linelen - 1]) 
+		if (linelen && line[linelen - 1] == '\r') 
 			line[--linelen] = '\0';
 
 		/* Zero-length line is end of section. */
 
-		if (0 == linelen)
+		if (linelen == 0)
 			break;
 
 		/* Append to list of URIs. */
 
 		pp = reallocarray(tal->uri, 
 			tal->urisz + 1, sizeof(char *));
-		if (NULL == pp) {
+		if (pp == NULL) {
 			WARN("reallocarray");
 			goto out;
 		}
 		tal->uri = pp;
 		tal->uri[tal->urisz] = strdup(line);
-		if (NULL == tal->uri[tal->urisz]) {
+		if (tal->uri[tal->urisz] == NULL) {
 			WARN("strdup");
 			goto out;
 		}
-		LOG(verb, "%s: parsed URI: %s", 
-			fn, tal->uri[tal->urisz]);
 		tal->urisz++;
+
+		/* Make sure we're a proper rsync URI. */
+
+		if (!rsync_uri_parse(verb, NULL, NULL, 
+		    NULL, NULL, NULL, NULL, &rp, line)) {
+			WARNX1(verb, "rsync_uri_parse");
+			goto out;
+		} else if (rp != RTYPE_CER) {
+			WARNX(verb, "%s: not a certificate", line);
+			goto out;
+		}
+
+		LOG(verb, "%s: parsed certificate: %s", fn, line);
 	}
 
 	if (ferror(f)) {
 		WARN("%s: getline", fn);
 		goto out;
-	} else if (0 == tal->urisz) {
+	} else if (tal->urisz == 0) {
 		WARNX(verb, "%s: zero URIs", fn);
 		goto out;
 	}
 
 	/* Now the BASE64-encoded public key. */
 
-	while (-1 != (linelen = getline(&line, &linesize, f))) {
+	while ((linelen = getline(&line, &linesize, f)) != -1) {
 		lineno++;
 		assert(linelen);
-		assert('\n' == line[linelen - 1]);
+		assert(line[linelen - 1] == '\n');
 		line[--linelen] = '\0';
-		if (linelen && '\r' == line[linelen - 1]) 
+		if (linelen && line[linelen - 1] == '\r') 
 			line[--linelen] = '\0';
 
 		/* Zero-length line can be ignored... ? */
 
-		if (0 == linelen)
+		if (linelen == 0)
 			continue;
 
 		/* Do our base64 decoding in-band. */
 
 		sz = ((linelen + 2) / 3) * 4 + 1;
-		if (NULL == (pp = realloc(b64, b64sz + sz))) {
+		if ((pp = realloc(b64, b64sz + sz)) == NULL) {
 			WARN("realloc");
 			goto out;
 		}
@@ -119,27 +124,23 @@ tal_parse_stream(int verb, const char *fn, FILE *f)
 	if (ferror(f)) {
 		WARN("%s: getline", fn);
 		goto out;
-	} else if (0 == b64sz) {
-		WARNX(verb, "%s: zero-length "
-			"public key string", fn);
+	} else if (b64sz == 0) {
+		WARNX(verb, "%s: zero-length public key", fn);
 		goto out;
 	}
 
 	/* Try the convertion into an encoded public key. */
 
-	sv = b64;
-	tal->pubkey = d2i_PUBKEY(NULL, &sv, b64sz);
-	if (NULL == tal->pubkey) {
-		CRYPTOX(verb, "%s: bad public key", fn);
-		goto out;
-	}
+	tal->pkey = b64;
+	tal->pkeysz = b64sz;
+	b64 = NULL;
 
 	LOG(verb, "%s: parsed %zu URIs", fn, tal->urisz);
 	rc = 1;
 out:
 	free(line);
 	free(b64);
-	if (0 == rc) {
+	if (rc == 0) {
 		tal_free(tal);
 		tal = NULL;
 	}
@@ -153,12 +154,12 @@ out:
  * memory, bad syntax, etc.
  */
 struct tal *
-tal_parse_file(int verb, const char *fn)
+tal_parse(int verb, const char *fn)
 {
 	FILE		*f;
 	struct tal	*p;
 
-	if (NULL == (f = fopen(fn, "r"))) {
+	if ((f = fopen(fn, "r")) == NULL) {
 		WARN("%s: fopen", fn);
 		return NULL;
 	}
@@ -170,27 +171,30 @@ tal_parse_file(int verb, const char *fn)
 }
 
 /*
- * Free a TAL file parsed with tal_parse_file() or the like.
- * Safe to call with a NULL pointer.
+ * Free a TAL pointer.
+ * Safe to call with NULL.
  */
 void
 tal_free(struct tal *p)
 {
 	size_t	 i;
 
-	if (NULL == p)
+	if (p == NULL)
 		return;
 
-	for (i = 0; i < p->urisz; i++)
-		free(p->uri[i]);
+	/* We might set "urisz" before allocating "uri". */
 
-	free(p->ident);
+	if (p->uri != NULL)
+		for (i = 0; i < p->urisz; i++)
+			free(p->uri[i]);
+
+	free(p->pkey);
 	free(p->uri);
 	free(p);
 }
 
 /*
- * Buffer TAL parsed contents.
+ * Buffer TAL parsed contents for writing.
  * See tal_read() for the other side of the pipe.
  * Returns zero on failure, non-zero on success.
  */
@@ -198,101 +202,68 @@ int
 tal_buffer(char **b, size_t *bsz, size_t *bmax,
 	int verb, const struct tal *p)
 {
-	size_t	 	 i;
-	unsigned char	*pkey = NULL;
-	int		 pkeysz, rc = 0;
+	size_t	 i;
+	int	 rc = 0;
 
-	assert(p->ident && '\0' != *p->ident);
-
-	if (!str_buffer(b, bsz, bmax, verb, p->ident)) {
-		WARNX1(verb, "str_write");
-		goto out;
-	} else if ((pkeysz = i2d_PUBKEY(p->pubkey, &pkey)) < 0) {
-		CRYPTOX(verb, "i2d_PUBKEY");
-		goto out;
-	} else if (!buf_buffer(b, bsz, bmax, verb, pkey, pkeysz)) {
-		WARNX1(verb, "buf_write");
+	if (!buf_buffer(b, bsz, bmax, verb, p->pkey, p->pkeysz)) {
+		WARNX1(verb, "buf_buffer");
 		goto out;
 	} else if (!simple_buffer(b, bsz, bmax, &p->urisz, sizeof(size_t))) {
-		WARNX1(verb, "simple_write");
+		WARNX1(verb, "simple_buffer");
 		goto out;
 	}
 
 	for (i = 0; i < p->urisz; i++)
 		if (!str_buffer(b, bsz, bmax, verb, p->uri[i])) {
-			WARNX1(verb, "str_write");
+			WARNX1(verb, "str_buffer");
 			goto out;
 		}
-
 	rc = 1;
 out:
-	free(pkey);
 	return rc;
 }
 
 /*
- * Read parsed TAL contents.
- * See tal_write() for the other side of the pipe.
- * Returns the TAL file, which must be freed with tal_free().
+ * Read parsed TAL contents from descriptor.
+ * See tal_buffer() for the other side of the pipe.
+ * Returns the TAL pointer on success, NULL on failure.
+ * A returned pointer must be freed with tal_free().
  */
 struct tal *
 tal_read(int fd, int verb)
 {
-	size_t		  i, urisz = 0, pkeysz;
-	unsigned char	 *pkey = NULL, *sv;
-	char		**uris = NULL, *ident = NULL;
-	struct tal	 *tal = NULL;
+	size_t		 i;
+	struct tal	*p;
 
-	if (!str_read(fd, verb, &ident)) {
-		WARNX1(verb, "str_read");
-		goto out;
-	} else if (!buf_read_alloc(fd, verb, (void **)&pkey, &pkeysz)) {
-		WARNX1(verb, "buf_read_alloc");
-		goto out;
-	}
-	assert(pkeysz > 0);
-
-	if (!simple_read(fd, verb, &urisz, sizeof(size_t))) {
-		WARNX1(verb, "simple_read");
-		goto out;
-	}
-	assert(urisz > 0);
-
-	if ((uris = calloc(urisz, sizeof(char *))) == NULL) {
+	if ((p = calloc(1, sizeof(struct tal))) == NULL) {
 		WARN("calloc");
 		goto out;
 	}
-	for (i = 0; i < urisz; i++)
-		if (!str_read(fd, verb, &uris[i])) {
+	if (!buf_read_alloc(fd, verb, (void **)&p->pkey, &p->pkeysz)) {
+		WARNX1(verb, "buf_read_alloc");
+		goto out;
+	}
+	assert(p->pkeysz > 0);
+
+	if (!simple_read(fd, verb, &p->urisz, sizeof(size_t))) {
+		WARNX1(verb, "simple_read");
+		goto out;
+	}
+	assert(p->urisz > 0);
+
+	if ((p->uri = calloc(p->urisz, sizeof(char *))) == NULL) {
+		WARN("calloc");
+		goto out;
+	}
+	for (i = 0; i < p->urisz; i++)
+		if (!str_read(fd, verb, &p->uri[i])) {
 			WARNX1(verb, "str_read");
 			goto out;
 		}
 
-	/* Now copy into an allocated TAL object. */
-
-	if ((tal = calloc(1, sizeof(struct tal))) == NULL)
-		ERR("calloc");
-
-	tal->ident = ident;
-	tal->urisz = urisz;
-	tal->uri = uris;
-	sv = pkey;
-	tal->pubkey = d2i_PUBKEY(NULL,
-		(const unsigned char **)&sv, pkeysz);
-	if (tal->pubkey == NULL) {
-		CRYPTOX(verb, "d2i_PUBKEY");
-		goto out;
-	}
-	free(pkey);
-	return tal;
+	return p;
 out:
-	if (NULL != uris)
-		for (i = 0; i < urisz; i++)
-			free(uris[i]);
-	free(uris);
-	free(ident);
-	free(pkey);
-	free(uris);
+	tal_free(p);
 	return NULL;
 }
 

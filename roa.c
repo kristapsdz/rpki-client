@@ -131,7 +131,7 @@ out:
 }
 
 struct roa *
-roa_parse_file(int verb, X509 *cacert, const char *fn)
+roa_parse(int verb, X509 *cacert, const char *fn)
 {
 	struct parse		 p;
 	const ASN1_OCTET_STRING	*os;

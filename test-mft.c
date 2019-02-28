@@ -62,7 +62,7 @@ main(int argc, char *argv[])
 	}
 
 	for (i = 0; i < (size_t)argc; i++) {
-		p = mft_parse_file(verb, x, argv[i]);
+		p = mft_parse(verb, x, argv[i]);
 		if (NULL == p)
 			break;
 		mft_print(p);

@@ -21,18 +21,6 @@
  */
 #define	BASE_DIR "/tmp/rpki-client"
 
-/*
- * The type of resource that we need to parse or are parsing.
- */
-enum	rtype {
-	RTYPE_EOF = 0,
-	RTYPE_TAL,
-	RTYPE_MFT,
-	RTYPE_ROA,
-	RTYPE_CER,
-	RTYPE_CRL
-};
-
 struct	repo {
 	char	*host;
 	char	*module;
@@ -69,25 +57,14 @@ static void	 proc_rsync(int, int) __attribute__((noreturn));
  * Returns the type of RTYPE_EOF if not found.
  */
 static enum rtype
-rtype_resolve(const char *file)
+rtype_resolve(int verb, const char *uri)
 {
-	size_t	sz = strlen(file);
+	enum rtype	 rp;
 
-	if (sz <= 4)
-		return RTYPE_EOF;
+	(void)rsync_uri_parse(verb, NULL,
+		NULL, NULL, NULL, NULL, NULL, &rp, uri);
 
-	if (strcasecmp(file + sz - 4, ".roa") == 0)
-		return RTYPE_ROA;
-	else if (strcasecmp(file + sz - 4, ".mft") == 0)
-		return RTYPE_MFT;
-	else if (strcasecmp(file + sz - 4, ".cer") == 0)
-		return RTYPE_CER;
-	else if (strcasecmp(file + sz - 4, ".tal") == 0)
-		return RTYPE_TAL;
-	else if (strcasecmp(file + sz - 4, ".crl") == 0)
-		return RTYPE_CRL;
-
-	return RTYPE_EOF;
+	return rp;
 }
 
 /*
@@ -345,7 +322,7 @@ queue_add_from_mft(int fd, int verb, struct entryq *q,
 	if (strchr(file, '/') != NULL) {
 		WARNX(verb, "%s: must not contain path", file);
 		return 0;
-	} else if ((type = rtype_resolve(file)) == RTYPE_EOF) {
+	} else if ((type = rtype_resolve(verb, file)) == RTYPE_EOF) {
 		WARNX(verb, "%s: unknown file type", file);
 		return 1;
 	} else if (type == RTYPE_CRL) {
@@ -417,7 +394,7 @@ queue_add_tal(int fd, int verb, struct entryq *q, const char *file)
 	enum rtype	 type;
 	char		*nfile;
 
-	if ((type = rtype_resolve(file)) == RTYPE_EOF) {
+	if ((type = rtype_resolve(verb, file)) == RTYPE_EOF) {
 		WARNX(verb, "%s: unknown file type", file);
 		return 1;
 	} else if (type != RTYPE_TAL) {
@@ -458,7 +435,7 @@ queue_add_from_tal(int proc, int rsync, int verb,
 
 	/* FIXME: assert as tal_parse() should guarantee. */
 
-	if ((type = rtype_resolve(uri)) == RTYPE_EOF) {
+	if ((type = rtype_resolve(verb, uri)) == RTYPE_EOF) {
 		WARNX(verb, "%s: unknown file type", uri);
 		return 0;
 	} else if (type != RTYPE_CER) {
@@ -522,7 +499,7 @@ queue_add_from_cert(int proc, int rsync, int verb,
 
 	/* FIXME: assert as cert_parse() should guarantee. */
 
-	if ((type = rtype_resolve(uri)) == RTYPE_EOF) {
+	if ((type = rtype_resolve(verb, uri)) == RTYPE_EOF) {
 		WARNX(verb, "%s: unknown file type", uri);
 		return 0;
 	} else if (type != RTYPE_MFT) {
@@ -788,9 +765,9 @@ proc_parser(int fd, int verb)
 
 		switch (entp->type) {
 		case RTYPE_TAL:
-			tal = tal_parse_file(vverb, entp->uri);
+			tal = tal_parse(vverb, entp->uri);
 			if (tal == NULL) {
-				WARNX1(verb, "tal_parse_file");
+				WARNX1(verb, "tal_parse");
 				goto out;
 			}
 			if (!tal_buffer(&b, &bsz, &bmax, verb, tal)) {
@@ -802,7 +779,7 @@ proc_parser(int fd, int verb)
 		case RTYPE_CER:
 			x = cert_parse(vverb, NULL, entp->uri);
 			if (x == NULL) {
-				WARNX1(verb, "tal_parse_file");
+				WARNX1(verb, "tal_parse");
 				goto out;
 			}
 			if (!cert_buffer(&b, &bsz, &bmax, verb, x)) {
@@ -812,9 +789,9 @@ proc_parser(int fd, int verb)
 			cert_free(x);
 			break;
 		case RTYPE_MFT:
-			mft = mft_parse_file(vverb, NULL, entp->uri);
+			mft = mft_parse(vverb, NULL, entp->uri);
 			if (mft == NULL) {
-				WARNX1(verb, "mft_parse_file");
+				WARNX1(verb, "mft_parse");
 				goto out;
 			}
 			if (!mft_buffer(&b, &bsz, &bmax, verb, mft)) {
@@ -824,9 +801,9 @@ proc_parser(int fd, int verb)
 			mft_free(mft);
 			break;
 		case RTYPE_ROA:
-			roa = roa_parse_file(vverb, NULL, entp->uri);
+			roa = roa_parse(vverb, NULL, entp->uri);
 			if (roa == NULL) {
-				WARNX1(verb, "roa_parse_file");
+				WARNX1(verb, "roa_parse");
 				goto out;
 			}
 			if (!roa_buffer(&b, &bsz, &bmax, verb, roa)) {
