@@ -129,7 +129,7 @@ tal_parse_stream(int verb, const char *fn, FILE *f)
 		goto out;
 	}
 
-	/* Try the convertion into an encoded public key. */
+	/* FIXME: try converting into an encoded public key. */
 
 	tal->pkey = b64;
 	tal->pkeysz = b64sz;

@@ -41,9 +41,10 @@ mft_parse_flist(struct parse *p, const ASN1_OCTET_STRING *os)
 	const ASN1_TYPE		*type;
 	const ASN1_IA5STRING	*str;
 	const unsigned char     *d;
-	size_t		         dsz;
+	size_t		         dsz, sz;
 	int		 	 i, rc = 0;
 	void			*pp;
+	const char		*cp;
 
 	d = os->data;
 	dsz = os->length;
@@ -93,9 +94,29 @@ mft_parse_flist(struct parse *p, const ASN1_OCTET_STRING *os)
 			WARN("strdup");
 			goto out;
 		}
-		p->res->filesz++;
+		cp = p->res->files[p->res->filesz++];
 		sk_ASN1_TYPE_free(sseq);
 		sseq = NULL;
+
+		/* 
+		 * Make sure we're just a pathname and either a CRL,
+		 * ROA, or CER.
+		 */
+
+		if (strchr(cp, '/') != NULL) {
+			MFT_WARNX(p, "%s: name with path: %s", p->fn, cp);
+			goto out;
+		} else if ((sz = strlen(cp)) <= 4) {
+			MFT_WARNX(p, "%s: name too short: %s", p->fn, cp);
+			goto out;
+		}
+
+		if (strcasecmp(cp + sz - 4, ".roa") &&
+		    strcasecmp(cp + sz - 4, ".cer") &&
+		    strcasecmp(cp + sz - 4, ".crl")) {
+			MFT_WARNX(p, "%s: unknown suffix: %s", p->fn, cp);
+			goto out;
+		}
 	}
 
 	rc = 1;
