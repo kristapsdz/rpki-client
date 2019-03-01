@@ -155,7 +155,7 @@ struct tal	*tal_read(int, int);
 
 int		 cert_buffer(char **, size_t *, size_t *, int, const struct cert *);
 void		 cert_free(struct cert *);
-struct cert	*cert_parse(int, X509 *, const char *);
+struct cert	*cert_parse(int, X509 *, const char *, const unsigned char *);
 struct cert	*cert_read(int, int);
 
 int		 mft_buffer(char **, size_t *, size_t *, int, const struct mft *);

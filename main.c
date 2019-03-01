@@ -75,7 +75,7 @@ rtype_resolve(int verb, const char *uri)
  * On success, the entry's memory must be freed.
  */
 static int
-queue_read(int fd, int verb, struct entry *ent)
+entry_read(int fd, int verb, struct entry *ent)
 {
 	ssize_t	 ssz;
 
@@ -173,17 +173,17 @@ repo_lookup(int fd, int verb, struct repotab *rt,
 }
 
 static struct entry *
-queue_dequeue(int fd, int verb, struct entryq *q)
+entryq_next(int fd, int verb, struct entryq *q)
 {
 	struct entry	 ent;
 	struct entry	*entp;
 	int		 c;
 
-	if ((c = queue_read(fd, verb, &ent)) < 0) {
-		WARNX1(verb, "queue_read");
+	if ((c = entry_read(fd, verb, &ent)) < 0) {
+		WARNX1(verb, "entry_read");
 		return NULL;
 	} else if (c == 0) {
-		WARNX1(verb, "queue_read: unexpected end of file");
+		WARNX1(verb, "entry_read: unexpected end of file");
 		return NULL;
 	}
 
@@ -200,10 +200,10 @@ queue_dequeue(int fd, int verb, struct entryq *q)
 }
 
 /*
- * Like queue_write() but into a buffer.
+ * Like entry_write() but into a buffer.
  */
 static int
-queue_buffer(char **b, size_t *bsz, size_t *bmax,
+entry_buffer(char **b, size_t *bsz, size_t *bmax,
 	int verb, const struct entry *ent)
 {
 
@@ -226,7 +226,7 @@ queue_buffer(char **b, size_t *bsz, size_t *bmax,
  * Returns zero on failure, non-zero on success.
  */
 static int
-queue_write(int fd, int verb, const struct entry *ent)
+entry_write(int fd, int verb, const struct entry *ent)
 {
 
 	if (!simple_write(fd, &ent->type, sizeof(enum rtype)))
@@ -249,7 +249,7 @@ queue_write(int fd, int verb, const struct entry *ent)
  * Returns zero on failure, non-zero on success.
  */
 static int
-queue_flush(int fd, int verb,
+entryq_flush(int fd, int verb,
 	struct entryq *q, const struct repo *repo)
 {
 	struct entry	*p;
@@ -258,8 +258,8 @@ queue_flush(int fd, int verb,
 		if (p->repo < 0 || repo->id != (size_t)p->repo)
 			continue;
 		LOG(verb, "%s: flushing after repository load", p->uri);
-		if (!queue_write(fd, verb, p)) {
-			WARNX1(verb, "queue_write");
+		if (!entry_write(fd, verb, p)) {
+			WARNX1(verb, "entry_write");
 			return 0;
 		}
 	}
@@ -271,7 +271,7 @@ queue_flush(int fd, int verb,
  * Returns zero on failure, non-zero on success.
  */
 static int
-queue_add(int fd, int verb, struct entryq *q,
+entryq_add(int fd, int verb, struct entryq *q,
 	char *file, enum rtype type, const struct repo *rp,
 	const unsigned char *dgst)
 {
@@ -297,8 +297,8 @@ queue_add(int fd, int verb, struct entryq *q,
 	 * been loaded.
 	 */
 
-	if ((NULL == rp || rp->loaded) && !queue_write(fd, verb, p)) {
-		WARNX1(verb, "queue_write");
+	if ((NULL == rp || rp->loaded) && !entry_write(fd, verb, p)) {
+		WARNX1(verb, "entry_write");
 		return 0;
 	}
 	return 1;
@@ -355,8 +355,8 @@ queue_add_from_mft(int fd, int verb, struct entryq *q,
 	 * that the repository has already been loaded.
 	 */
 
-	if (!queue_add(fd, verb, q, nfile, type, NULL, file->hash)) {
-		WARNX1(verb, "queue_add");
+	if (!entryq_add(fd, verb, q, nfile, type, NULL, file->hash)) {
+		WARNX1(verb, "entryq_add");
 		free(nfile);
 		return 0;
 	}
@@ -404,8 +404,8 @@ queue_add_tal(int fd, int verb, struct entryq *q, const char *file)
 
 	/* Not in a repository, so directly add to queue. */
 
-	if (!queue_add(fd, verb, q, nfile, RTYPE_TAL, NULL, NULL)) {
-		WARNX1(verb, "queue_add");
+	if (!entryq_add(fd, verb, q, nfile, RTYPE_TAL, NULL, NULL)) {
+		WARNX1(verb, "entryq_add");
 		free(nfile);
 		return 0;
 	}
@@ -439,8 +439,9 @@ queue_add_from_tal(int proc, int rsync, int verb,
 	    BASE_DIR, repo->host, repo->module, uri) < 0) {
 		WARN("asprintf");
 		return 0;
-	} else if (!queue_add(proc, verb, q, nfile, RTYPE_CER, repo, NULL)) {
-		WARNX1(verb, "queue_add");
+	}
+	if (!entryq_add(proc, verb, q, nfile, RTYPE_CER, repo, NULL)) {
+		WARNX1(verb, "entryq_add");
 		free(nfile);
 		return 0;
 	}
@@ -502,8 +503,9 @@ queue_add_from_cert(int proc, int rsync, int verb,
 	    BASE_DIR, repo->host, repo->module, uri) < 0) {
 		WARN("asprintf");
 		return 0;
-	} else if (!queue_add(proc, verb, q, nfile, type, repo, NULL)) {
-		WARNX1(verb, "queue_add");
+	}
+	if (!entryq_add(proc, verb, q, nfile, type, repo, NULL)) {
+		WARNX1(verb, "entryq_add");
 		free(nfile);
 		return 0;
 	}
@@ -680,11 +682,11 @@ proc_parser(int fd, int verb)
 				WARNX1(verb, "socket_blocking");
 				goto out;
 			}
-			if ((c = queue_read(fd, verb, &ent)) < 0) {
-				WARNX1(verb, "queue_read");
+			if ((c = entry_read(fd, verb, &ent)) < 0) {
+				WARNX1(verb, "entry_read");
 				goto out;
 			} else if (c == 0) {
-				WARNX(verb, "queue_read: "
+				WARNX(verb, "entry_read: "
 					"unexpected end of file");
 				goto out;
 			}
@@ -739,8 +741,8 @@ proc_parser(int fd, int verb)
 		entp = TAILQ_FIRST(&q);
 		assert(entp != NULL);
 
-		if (!queue_buffer(&b, &bsz, &bmax, verb, entp)) {
-			WARNX1(verb, "queue_buffer");
+		if (!entry_buffer(&b, &bsz, &bmax, verb, entp)) {
+			WARNX1(verb, "entry_buffer");
 			goto out;
 		}
 
@@ -758,7 +760,8 @@ proc_parser(int fd, int verb)
 			tal_free(tal);
 			break;
 		case RTYPE_CER:
-			x = cert_parse(vverb, NULL, entp->uri);
+			x = cert_parse(vverb, NULL, entp->uri,
+				entp->has_dgst ? entp->dgst : NULL);
 			if (x == NULL) {
 				WARNX1(verb, "cert_parse");
 				goto out;
@@ -818,7 +821,7 @@ out:
  * For ROAs, we want to extract the valid/invalid info.
  */
 static int
-queue_process(int proc, int rsync, int verb,
+entry_process(int proc, int rsync, int verb,
 	struct entryq *q, const struct entry *ent, struct repotab *rt)
 {
 	struct tal	*tal = NULL;
@@ -1059,8 +1062,8 @@ main(int argc, char *argv[])
 			rt.repos[i].loaded = 1;
 			LOG(verb, "%s/%s/%s: loaded", BASE_DIR,
 				rt.repos[i].host, rt.repos[i].module);
-			if (!queue_flush(proc, verb, &q, &rt.repos[i])) {
-				WARNX1(verb, "queue_flush");
+			if (!entryq_flush(proc, verb, &q, &rt.repos[i])) {
+				WARNX1(verb, "entryq_flush");
 				goto out;
 			}
 		}
@@ -1071,12 +1074,12 @@ main(int argc, char *argv[])
 		 */
 
 		if ((pfd[1].revents & POLLIN)) {
-			if ((ent = queue_dequeue(proc, verb, &q)) == NULL) {
-				WARNX1(verb, "queue_dequeue");
+			if ((ent = entryq_next(proc, verb, &q)) == NULL) {
+				WARNX1(verb, "entryq_next");
 				goto out;
 			}
-			if (!queue_process(proc, rsync, verb, &q, ent, &rt)) {
-				WARNX1(verb, "queue_process");
+			if (!entry_process(proc, rsync, verb, &q, ent, &rt)) {
+				WARNX1(verb, "entry_process");
 				goto out;
 			}
 			fprintf(stderr, "%s\n", ent->uri);

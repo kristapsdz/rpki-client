@@ -327,7 +327,7 @@ mft_buffer(char **b, size_t *bsz, size_t *bmax,
 			WARNX1(verb, "str_buffer");
 			return 0;
 		}
-		if (!buf_buffer(b, bsz, bmax, verb,
+		if (!simple_buffer(b, bsz, bmax,
 		    p->files[i].hash, SHA256_DIGEST_LENGTH)) {
 			WARNX1(verb, "buf_buffer");
 			return 0;
@@ -357,7 +357,10 @@ mft_read(int fd, int verb)
 	} else if (!simple_read(fd, verb, &p->filesz, sizeof(size_t))) {
 		WARNX1(verb, "simple_read");
 		goto out;
-	} else if ((p->files = calloc(p->filesz, sizeof(char *))) == NULL) {
+	}
+	
+	p->files = calloc(p->filesz, sizeof(struct mftfile));
+	if (p->files == NULL)  {
 		WARN("calloc");
 		goto out;
 	}
@@ -367,8 +370,8 @@ mft_read(int fd, int verb)
 			WARNX1(verb, "str_read");
 			goto out;
 		}
-		if (!simple_read(fd, verb, &p->files[i].hash,
-		    SHA256_DIGEST_LENGTH)) {
+		if (!simple_read(fd, verb,
+		    p->files[i].hash, SHA256_DIGEST_LENGTH)) {
 			WARNX1(verb, "str_read");
 			goto out;
 		}

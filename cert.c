@@ -1116,16 +1116,20 @@ out:
  * On success, free the pointer with cert_free().
  */
 struct cert *
-cert_parse(int verbose, X509 *cacert, const char *fn)
+cert_parse(int verbose, X509 *cacert,
+	const char *fn, const unsigned char *dgst)
 {
-	int	 	 rc = 0, extsz, c;
+	int	 	 rc = 0, extsz, c, sz;
 	size_t		 i;
 	X509		*x = NULL;
 	X509_EXTENSION	*ext = NULL;
 	ASN1_OBJECT	*obj;
 	struct parse	 p;
 	char		 objn[128];
-	BIO		*bio = NULL;
+	BIO		*bio = NULL, *shamd;
+	EVP_MD		*md;
+	unsigned char	 mdbuf[EVP_MAX_MD_SIZE];
+
 
 	memset(&p, 0, sizeof(struct parse));
 	p.fn = fn;
@@ -1139,9 +1143,52 @@ cert_parse(int verbose, X509 *cacert, const char *fn)
 	if (NULL == (bio = BIO_new_file(fn, "rb"))) {
 		X509_CRYPTOX(&p, "%s: BIO_new_file", p.fn);
 		goto out;
-	} else if (NULL == (x = d2i_X509_bio(bio, NULL))) {
+	}
+
+	/*
+	 * If we have a digest specified, create an MD chain that will
+	 * automatically compute a digest during the X509 creation.
+	 */
+
+	if (dgst != NULL) {
+		if ((shamd = BIO_new(BIO_f_md())) == NULL) {
+			X509_CRYPTOX(&p, "%s: BIO_new", p.fn);
+			goto out;
+		} else if (!BIO_set_md(shamd, EVP_sha256())) {
+			X509_CRYPTOX(&p, "%s: BIO_set_md", p.fn);
+			goto out;
+		}
+		bio = BIO_push(shamd, bio);
+	}
+
+	if (NULL == (x = d2i_X509_bio(bio, NULL))) {
 		X509_CRYPTOX(&p, "%s: d2i_X509_bio", p.fn);
 		goto out;
+	}
+	
+	/*
+	 * If we have a digest, find it in the chain (we'll already have
+	 * made it, so assert otherwise) and verify it.
+	 */
+
+	if (dgst != NULL) {
+		shamd = BIO_find_type(bio, BIO_TYPE_MD);
+		assert(shamd != NULL);
+		if (!BIO_get_md(shamd, &md)) {
+			X509_CRYPTOX(&p, "%s: BIO_get_md", p.fn);
+			goto out;
+		}
+		assert(EVP_MD_type(md) == NID_sha256);
+		sz = BIO_gets(shamd, mdbuf, EVP_MAX_MD_SIZE);
+		if (sz < 0) {
+			X509_CRYPTOX(&p, "%s: BIO_gets", p.fn);
+			goto out;
+		}
+		assert(sz == SHA256_DIGEST_LENGTH);
+		if (memcmp(mdbuf, dgst, SHA256_DIGEST_LENGTH)) {
+			X509_WARNX(&p, "%s: bad digest", p.fn);
+			goto out;
+		}
 	}
 	
 	/* 
@@ -1210,7 +1257,7 @@ cert_parse(int verbose, X509 *cacert, const char *fn)
 
 	rc = 1;
 out:
-	BIO_free(bio);
+	BIO_free_all(bio);
 	X509_free(x);
 	if (0 == rc)
 		cert_free(p.res);
