@@ -165,11 +165,12 @@ struct mft 	*mft_read(int, int);
 
 int		 roa_buffer(char **, size_t *, size_t *, int, const struct roa *);
 void		 roa_free(struct roa *);
-struct roa 	*roa_parse(int, X509 *, const char *);
+struct roa 	*roa_parse(int, X509 *, const char *, const unsigned char *);
 struct roa	*roa_read(int, int);
 
 const ASN1_OCTET_STRING
- 		*cms_parse_validate(int, X509 *, const char *, const char *);
+ 		*cms_parse_validate(int, X509 *, const char *,
+			const char *, const unsigned char *);
 int	 	 rsync_uri_parse(int, const char **, size_t *,
 			const char **, size_t *, const char **, size_t *,
 			enum rtype *, const char *);

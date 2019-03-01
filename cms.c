@@ -15,26 +15,69 @@
  * Return the eContent as an octet string or NULL on failure.
  */
 const ASN1_OCTET_STRING *
-cms_parse_validate(int verb, 
-	X509 *cacert, const char *fn, const char *oid)
+cms_parse_validate(int verb, X509 *cacert,
+	const char *fn, const char *oid, const unsigned char *dgst)
 {
 	const ASN1_OBJECT  *obj;
 	ASN1_OCTET_STRING **os = NULL;
-	BIO 		   *bio = NULL;
+	BIO 		   *bio = NULL, *shamd;
 	CMS_ContentInfo    *cms;
 	char 		    buf[128];
-	int		    rc = 0;
+	int		    rc = 0, sz;
 	STACK_OF(X509)	   *certs = NULL;
 	X509		   *cert;
-
-	/* Parse CMS file from input. */
+	EVP_MD		   *md;
+	unsigned char	    mdbuf[EVP_MAX_MD_SIZE];
 
 	if (NULL == (bio = BIO_new_file(fn, "rb"))) {
 		CRYPTOX(verb, "%s: BIO_new_file", fn);
 		goto out;
-	} else if (NULL == (cms = d2i_CMS_bio(bio, NULL))) {
+	}
+
+	/*
+	 * If we have a digest specified, create an MD chain that will
+	 * automatically compute a digest during the CMS creation.
+	 */
+
+	if (dgst != NULL) {
+		if ((shamd = BIO_new(BIO_f_md())) == NULL) {
+			CRYPTOX(verb, "%s: BIO_new", fn);
+			goto out;
+		} else if (!BIO_set_md(shamd, EVP_sha256())) {
+			CRYPTOX(verb, "%s: BIO_set_md", fn);
+			goto out;
+		}
+		bio = BIO_push(shamd, bio);
+	}
+
+	if (NULL == (cms = d2i_CMS_bio(bio, NULL))) {
 		CRYPTOX(verb, "%s: d2i_CMS_bio", fn);
 		goto out;
+	}
+
+	/*
+	 * If we have a digest, find it in the chain (we'll already have
+	 * made it, so assert otherwise) and verify it.
+	 */
+
+	if (dgst != NULL) {
+		shamd = BIO_find_type(bio, BIO_TYPE_MD);
+		assert(shamd != NULL);
+		if (!BIO_get_md(shamd, &md)) {
+			CRYPTOX(verb, "%s: BIO_get_md", fn);
+			goto out;
+		}
+		assert(EVP_MD_type(md) == NID_sha256);
+		sz = BIO_gets(shamd, mdbuf, EVP_MAX_MD_SIZE);
+		if (sz < 0) {
+			CRYPTOX(verb, "%s: BIO_gets", fn);
+			goto out;
+		}
+		assert(sz == SHA256_DIGEST_LENGTH);
+		if (memcmp(mdbuf, dgst, SHA256_DIGEST_LENGTH)) {
+			WARNX(verb, "%s: bad digest", fn);
+			goto out;
+		}
 	}
 
 	/* Check the CMS object's eContentType. */
@@ -82,7 +125,7 @@ cms_parse_validate(int verb,
 	else
 		rc = 1;
 out:
-	BIO_free(bio);
+	BIO_free_all(bio);
 	sk_X509_free(certs);
 	return rc ? *os : NULL;
 }

@@ -259,7 +259,7 @@ mft_parse(int verb, X509 *cacert, const char *fn)
 	p.verbose = verb;
 
 	os = cms_parse_validate(verb, cacert, 
-		fn, "1.2.840.113549.1.9.16.1.26");
+		fn, "1.2.840.113549.1.9.16.1.26", NULL);
 
 	if (os == NULL) {
 		MFT_WARNX1(&p, "cms_parse_validate");
