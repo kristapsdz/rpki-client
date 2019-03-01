@@ -748,6 +748,7 @@ proc_parser(int fd, int verb)
 
 		switch (entp->type) {
 		case RTYPE_TAL:
+			assert(!entp->has_dgst);
 			tal = tal_parse(vverb, entp->uri);
 			if (tal == NULL) {
 				WARNX1(verb, "tal_parse");
@@ -773,6 +774,7 @@ proc_parser(int fd, int verb)
 			cert_free(x);
 			break;
 		case RTYPE_MFT:
+			assert(!entp->has_dgst);
 			mft = mft_parse(vverb, NULL, entp->uri);
 			if (mft == NULL) {
 				WARNX1(verb, "mft_parse");
@@ -785,7 +787,8 @@ proc_parser(int fd, int verb)
 			mft_free(mft);
 			break;
 		case RTYPE_ROA:
-			roa = roa_parse(vverb, NULL, entp->uri);
+			assert(entp->has_dgst);
+			roa = roa_parse(vverb, NULL, entp->uri, entp->dgst);
 			if (roa == NULL) {
 				WARNX1(verb, "roa_parse");
 				goto out;

@@ -131,7 +131,8 @@ out:
 }
 
 struct roa *
-roa_parse(int verb, X509 *cacert, const char *fn)
+roa_parse(int verb, X509 *cacert,
+	const char *fn, const unsigned char *dgst)
 {
 	struct parse		 p;
 	const ASN1_OCTET_STRING	*os;
@@ -143,7 +144,7 @@ roa_parse(int verb, X509 *cacert, const char *fn)
 	/* OID from section 2, RFC 6482. */
 
 	os = cms_parse_validate(verb, cacert, 
-		fn, "1.2.840.113549.1.9.16.1.24");
+		fn, "1.2.840.113549.1.9.16.1.24", dgst);
 
 	if (NULL == os) {
 		ROA_WARNX1(&p, "cms_parse_validate");
