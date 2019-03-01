@@ -14,7 +14,7 @@
 struct	parse {
 	const char	 *fn; /* manifest file name */
 	int		  verbose; /* parse verbosity */
-	struct mft	 *res;
+	struct mft	 *res; /* result object */
 };
 
 /* 
@@ -49,32 +49,30 @@ mft_parse_flist(struct parse *p, const ASN1_OCTET_STRING *os)
 	d = os->data;
 	dsz = os->length;
 	seq = d2i_ASN1_SEQUENCE_ANY(NULL, &d, dsz);
-	if (NULL == seq) {
+	if (seq == NULL) {
 		MFT_CRYPTOX(p, "%s: want ASN.1 sequence", p->fn);
 		goto out;
 	} 
 
 	for (i = 0; i < sk_ASN1_TYPE_num(seq); i++) {
 		type = sk_ASN1_TYPE_value(seq, i);
-		if (V_ASN1_SEQUENCE != type->type) {
+		if (type->type != V_ASN1_SEQUENCE) {
 			MFT_WARNX(p, "%s: want ASN.1 sequence", p->fn);
 			goto out;
 		}
+
 		d = type->value.octet_string->data;
 		dsz = type->value.octet_string->length;
 		sseq = d2i_ASN1_SEQUENCE_ANY(NULL, &d, dsz);
-		if (NULL == sseq) {
-			MFT_CRYPTOX(p, "%s: want "
-				"ASN.1 sequence", p->fn);
+		if (sseq == NULL) {
+			MFT_CRYPTOX(p, "%s: want ASN.1 sequence", p->fn);
 			goto out;
-		} else if (2 != sk_ASN1_TYPE_num(sseq)) {
-			MFT_WARNX(p, "%s: want only "
-				"two elements", p->fn);
+		} else if (sk_ASN1_TYPE_num(sseq) != 2) {
+			MFT_WARNX(p, "%s: want only two elements", p->fn);
 			goto out;
 		}
 
-		if (V_ASN1_IA5STRING != 
-		    sk_ASN1_TYPE_value(sseq, 0)->type) {
+		if (sk_ASN1_TYPE_value(sseq, 0)->type != V_ASN1_IA5STRING) {
 			MFT_WARNX(p, "%s: want "
 				"V_ASN1_IA5STRING", p->fn);
 			goto out;
@@ -82,7 +80,7 @@ mft_parse_flist(struct parse *p, const ASN1_OCTET_STRING *os)
 
 		pp = reallocarray(p->res->files, 
 			p->res->filesz + 1, sizeof(char *));
-		if (NULL == pp) {
+		if (pp == NULL) {
 			WARN("reallocarray");
 			goto out;
 		}
@@ -90,7 +88,7 @@ mft_parse_flist(struct parse *p, const ASN1_OCTET_STRING *os)
 		str = sk_ASN1_TYPE_value(sseq, 0)->value.ia5string;
 		p->res->files[p->res->filesz] = 
 			strndup(str->data, str->length);
-		if (NULL == p->res->files[p->res->filesz]) {
+		if (p->res->files[p->res->filesz] == NULL) {
 			WARN("strdup");
 			goto out;
 		}
@@ -143,8 +141,7 @@ mft_parse_econtent(const ASN1_OCTET_STRING *os, struct parse *p)
 	d = os->data;
 	dsz = os->length;
 
-	seq = d2i_ASN1_SEQUENCE_ANY(NULL, &d, dsz);
-	if (NULL == seq) {
+	if ((seq = d2i_ASN1_SEQUENCE_ANY(NULL, &d, dsz)) == NULL) {
 		MFT_CRYPTOX(p, "%s: want ASN.1 sequence", p->fn);
 		goto out;
 	} 
@@ -154,8 +151,8 @@ mft_parse_econtent(const ASN1_OCTET_STRING *os, struct parse *p)
 	 * But it appears that some manifests don't have the version.
 	 */
 
-	if (5 != sk_ASN1_TYPE_num(seq) &&
-	    6 != sk_ASN1_TYPE_num(seq)) {
+	if (sk_ASN1_TYPE_num(seq) != 5 &&
+	    sk_ASN1_TYPE_num(seq) != 6) {
 		MFT_WARNX(p, "%s: want 5 or 6 elements", p->fn);
 		goto out;
 	}
@@ -163,9 +160,9 @@ mft_parse_econtent(const ASN1_OCTET_STRING *os, struct parse *p)
 	/* Start with optional version. */
 
 	i = 0;
-	if (6 == sk_ASN1_TYPE_num(seq)) {
+	if (sk_ASN1_TYPE_num(seq) == 6) {
 		ver = sk_ASN1_TYPE_value(seq, i++);
-		if (V_ASN1_INTEGER != ver->type) {
+		if (ver->type != V_ASN1_INTEGER) {
 			MFT_WARNX(p, "%s: want ASN.1 integer", p->fn);
 			goto out;
 		} 
@@ -175,7 +172,7 @@ mft_parse_econtent(const ASN1_OCTET_STRING *os, struct parse *p)
 	/* Now the manifest sequence number. */
 
 	mftnum = sk_ASN1_TYPE_value(seq, i++);
-	if (V_ASN1_INTEGER != mftnum->type) {
+	if (mftnum->type != V_ASN1_INTEGER) {
 		MFT_WARNX(p, "%s: want ASN.1 integer", p->fn);
 		goto out;
 	}
@@ -184,8 +181,8 @@ mft_parse_econtent(const ASN1_OCTET_STRING *os, struct parse *p)
 
 	thisup = sk_ASN1_TYPE_value(seq, i++);
 	nextup = sk_ASN1_TYPE_value(seq, i++);
-	if (V_ASN1_GENERALIZEDTIME != thisup->type &&
-	    V_ASN1_GENERALIZEDTIME != nextup->type) {
+	if (thisup->type != V_ASN1_GENERALIZEDTIME &&
+	    nextup->type != V_ASN1_GENERALIZEDTIME) {
 		MFT_WARNX(p, "%s: want ASN.1 general time", p->fn);
 		goto out;
 	}
@@ -197,11 +194,10 @@ mft_parse_econtent(const ASN1_OCTET_STRING *os, struct parse *p)
 
 	/* FIXME: more checks defined in RFC 6486 sec. 4.4. */
 
-	if (V_ASN1_SEQUENCE != fl->type) {
+	if (fl->type != V_ASN1_SEQUENCE) {
 		MFT_WARNX(p, "%s: want ASN.1 sequence", p->fn);
 		goto out;
-	}
-	if ( ! mft_parse_flist(p, fl->value.octet_string)) {
+	} else if (!mft_parse_flist(p, fl->value.octet_string)) {
 		MFT_WARNX1(p, "mft_parse_flist");
 		goto out;
 	}
@@ -257,8 +253,9 @@ mft_free(struct mft *p)
 	if (p == NULL)
 		return;
 
-	for (i = 0; i < p->filesz; i++)
-		free(p->files[i]);
+	if (p->files != NULL)
+		for (i = 0; i < p->filesz; i++)
+			free(p->files[i]);
 
 	free(p->file);
 	free(p->files);
