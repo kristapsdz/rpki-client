@@ -82,7 +82,6 @@ cert_print(const struct cert *p)
 		}
 }
 
-
 int
 main(int argc, char *argv[])
 {
@@ -125,7 +124,7 @@ main(int argc, char *argv[])
 	}
 
 	for (i = 0; i < (size_t)argc; i++) {
-		p = cert_parse(verb, x, argv[i]);
+		p = cert_parse(verb, x, argv[i], NULL);
 		if (NULL == p)
 			break;
 		cert_print(p);
