@@ -29,7 +29,7 @@ cms_parse_validate(int verb, X509 *cacert,
 	EVP_MD		   *md;
 	unsigned char	    mdbuf[EVP_MAX_MD_SIZE];
 
-	if (NULL == (bio = BIO_new_file(fn, "rb"))) {
+	if ((bio = BIO_new_file(fn, "rb")) == NULL) {
 		CRYPTOX(verb, "%s: BIO_new_file", fn);
 		goto out;
 	}
@@ -50,7 +50,7 @@ cms_parse_validate(int verb, X509 *cacert,
 		bio = BIO_push(shamd, bio);
 	}
 
-	if (NULL == (cms = d2i_CMS_bio(bio, NULL))) {
+	if ((cms = d2i_CMS_bio(bio, NULL)) == NULL) {
 		CRYPTOX(verb, "%s: d2i_CMS_bio", fn);
 		goto out;
 	}
@@ -84,6 +84,7 @@ cms_parse_validate(int verb, X509 *cacert,
 
 	obj = CMS_get0_eContentType(cms);
 	OBJ_obj2txt(buf, sizeof(buf), obj, 1);
+
 	if (strcmp(buf, oid)) {
 		WARNX(verb, "%s: incorrect OID value", fn);
 		goto out;
@@ -94,17 +95,16 @@ cms_parse_validate(int verb, X509 *cacert,
 	 * be signed by the public key.
 	 */
 
-	if (NULL != cacert) {
-		if ( ! CMS_verify(cms, NULL, NULL, 
-		     NULL, NULL, CMS_NO_SIGNER_CERT_VERIFY)) {
+	if (cacert != NULL) {
+		if (!CMS_verify(cms, NULL, NULL, 
+		    NULL, NULL, CMS_NO_SIGNER_CERT_VERIFY)) {
 			CRYPTOX(verb, "%s: CMS_verify", fn);
 			goto out;
 		}
 		LOG(verb, "%s: verified CMS", fn);
 
 		certs = CMS_get0_signers(cms);
-		if (NULL == certs ||
-		    1 != sk_X509_num(certs)) {
+		if (certs == NULL || sk_X509_num(certs) != 1) {
 			WARNX(verb, "%s: need single signer", fn);
 			goto out;
 		}
@@ -114,13 +114,12 @@ cms_parse_validate(int verb, X509 *cacert,
 			CRYPTOX(verb, "%s: X509_verify", fn);
 			goto out;
 		} 
-
 		LOG(verb, "%s: verified signer", fn);
 	}
 
 	/* Extract eContents and pass to output function. */
 
-	if (NULL == (os = CMS_get0_content(cms)) || NULL == *os)
+	if ((os = CMS_get0_content(cms)) == NULL || *os == NULL)
 		WARNX(verb, "%s: empty CMS content", fn);
 	else
 		rc = 1;
