@@ -16,7 +16,7 @@ mft_print(const struct mft *p)
 
 	assert(p != NULL);
 	for (i = 0; i < p->filesz; i++)
-		fprintf(stderr, "%5zu: %s\n", i + 1, p->files[i]);
+		fprintf(stderr, "%5zu: %s\n", i + 1, p->files[i].file);
 }
 
 

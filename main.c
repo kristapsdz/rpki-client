@@ -40,6 +40,8 @@ struct	repotab {
 struct	entry {
 	enum rtype	   type; /* type of entry (not RTYPE_EOF/CRL) */
 	char		  *uri; /* file or rsync:// URI */
+	int		   has_dgst; /* whether dgst is specified */
+	unsigned char	   dgst[SHA256_DIGEST_LENGTH]; /* optional */
 	ssize_t		   repo; /* repo index or <0 if w/o repo */
 	TAILQ_ENTRY(entry) entries;
 };
@@ -87,11 +89,17 @@ queue_read(int fd, int verb, struct entry *ent)
 	} else if (ssz == 0)
 		return 0;
 
-	if (!str_read(fd, verb, &ent->uri))
+	if (!str_read(fd, verb, &ent->uri)) {
 		WARNX1(verb, "str_read");
-	else
-		return 1;
-	return 0;
+		return 0;
+	} else if (!simple_read(fd, verb, &ent->has_dgst, sizeof(int))) {
+		WARNX1(verb, "simple_read");
+		return 0;
+	} else if (!simple_read(fd, verb, ent->dgst, sizeof(ent->dgst))) {
+		WARNX1(verb, "simple_read");
+		return 0;
+	}
+	return 1;
 }
 
 /*
@@ -203,6 +211,10 @@ queue_buffer(char **b, size_t *bsz, size_t *bmax,
 		WARNX1(verb, "simple_buffer");
 	else if (!str_buffer(b, bsz, bmax, verb, ent->uri))
 		WARNX1(verb, "str_buffer");
+	else if (!simple_buffer(b, bsz, bmax, &ent->has_dgst, sizeof(int)))
+		WARNX1(verb, "simple_buffer");
+	else if (!simple_buffer(b, bsz, bmax, ent->dgst, sizeof(ent->dgst)))
+		WARNX1(verb, "simple_buffer");
 	else
 		return 1;
 
@@ -220,6 +232,10 @@ queue_write(int fd, int verb, const struct entry *ent)
 	if (!simple_write(fd, &ent->type, sizeof(enum rtype)))
 		WARNX1(verb, "simple_write");
 	else if (!str_write(fd, verb, ent->uri))
+		WARNX1(verb, "str_write");
+	else if (!simple_write(fd, &ent->has_dgst, sizeof(int)))
+		WARNX1(verb, "str_write");
+	else if (!simple_write(fd, ent->dgst, sizeof(ent->dgst)))
 		WARNX1(verb, "str_write");
 	else
 		return 1;
@@ -256,7 +272,8 @@ queue_flush(int fd, int verb,
  */
 static int
 queue_add(int fd, int verb, struct entryq *q,
-	char *file, enum rtype type, const struct repo *rp)
+	char *file, enum rtype type, const struct repo *rp,
+	const unsigned char *dgst)
 {
 	struct entry	*p;
 
@@ -267,6 +284,9 @@ queue_add(int fd, int verb, struct entryq *q,
 	p->type = type;
 	p->uri = file;
 	p->repo = NULL != rp ? rp->id : -1;
+	p->has_dgst = dgst != NULL;
+	if (p->has_dgst)
+		memcpy(p->dgst, dgst, sizeof(p->dgst));
 	TAILQ_INSERT_TAIL(q, p, entries);
 
 	if (NULL != rp && 0 == rp->loaded)
@@ -291,9 +311,9 @@ queue_add(int fd, int verb, struct entryq *q,
  */
 static int
 queue_add_from_mft(int fd, int verb, struct entryq *q,
-	const char *mft, const char *file)
+	const char *mft, const struct mftfile *file)
 {
-	size_t	 	 sz = strlen(file);
+	size_t	 	 sz = strlen(file->file);
 	char		*cp, *nfile;
 	enum rtype	 type = RTYPE_EOF;
 
@@ -302,11 +322,11 @@ queue_add_from_mft(int fd, int verb, struct entryq *q,
 
 	/* Determine the file type, ignoring revocation lists. */
 
-	if (strcasecmp(file + sz - 4, ".crl") == 0)
+	if (strcasecmp(file->file + sz - 4, ".crl") == 0)
 		type = RTYPE_CRL;
-	else if (strcasecmp(file + sz - 4, ".cer") == 0)
+	else if (strcasecmp(file->file + sz - 4, ".cer") == 0)
 		type = RTYPE_CER;
-	else if (strcasecmp(file + sz - 4, ".roa") == 0)
+	else if (strcasecmp(file->file + sz - 4, ".roa") == 0)
 		type = RTYPE_ROA;
 
 	assert(type != RTYPE_EOF);
@@ -315,7 +335,7 @@ queue_add_from_mft(int fd, int verb, struct entryq *q,
 
 	/* Construct local path from filename. */
 
-	sz = strlen(file) + strlen(mft);
+	sz = strlen(file->file) + strlen(mft);
 	if ((nfile = calloc(sz + 1, 1)) == NULL) {
 		WARN("calloc");
 		return 0;
@@ -328,19 +348,19 @@ queue_add_from_mft(int fd, int verb, struct entryq *q,
 	assert(cp != NULL);
 	cp++;
 	*cp = '\0';
-	strlcat(nfile, file, sz + 1);
+	strlcat(nfile, file->file, sz + 1);
 
 	/*
 	 * Since we're from the same directory as the MFT file, we know
 	 * that the repository has already been loaded.
 	 */
 
-	if (!queue_add(fd, verb, q, nfile, type, NULL)) {
+	if (!queue_add(fd, verb, q, nfile, type, NULL, file->hash)) {
 		WARNX1(verb, "queue_add");
 		free(nfile);
 		return 0;
 	}
-	LOG(verb, "%s: added: %s", file, nfile);
+	LOG(verb, "%s: added: %s", file->file, nfile);
 	return 1;
 }
 
@@ -355,7 +375,7 @@ queue_add_from_mft_set(int fd, int verb,
 
 	for (i = 0; i < mft->filesz; i++)
 		if (!queue_add_from_mft(fd, verb,
-		    q, mft->file, mft->files[i])) {
+		    q, mft->file, &mft->files[i])) {
 			WARNX1(verb, "queue_add_from_mft");
 			return 0;
 		}
@@ -384,7 +404,7 @@ queue_add_tal(int fd, int verb, struct entryq *q, const char *file)
 
 	/* Not in a repository, so directly add to queue. */
 
-	if (!queue_add(fd, verb, q, nfile, RTYPE_TAL, NULL)) {
+	if (!queue_add(fd, verb, q, nfile, RTYPE_TAL, NULL, NULL)) {
 		WARNX1(verb, "queue_add");
 		free(nfile);
 		return 0;
@@ -419,7 +439,7 @@ queue_add_from_tal(int proc, int rsync, int verb,
 	    BASE_DIR, repo->host, repo->module, uri) < 0) {
 		WARN("asprintf");
 		return 0;
-	} else if (!queue_add(proc, verb, q, nfile, RTYPE_CER, repo)) {
+	} else if (!queue_add(proc, verb, q, nfile, RTYPE_CER, repo, NULL)) {
 		WARNX1(verb, "queue_add");
 		free(nfile);
 		return 0;
@@ -482,7 +502,7 @@ queue_add_from_cert(int proc, int rsync, int verb,
 	    BASE_DIR, repo->host, repo->module, uri) < 0) {
 		WARN("asprintf");
 		return 0;
-	} else if (!queue_add(proc, verb, q, nfile, type, repo)) {
+	} else if (!queue_add(proc, verb, q, nfile, type, repo, NULL)) {
 		WARNX1(verb, "queue_add");
 		free(nfile);
 		return 0;

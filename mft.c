@@ -38,13 +38,12 @@ static int
 mft_parse_flist(struct parse *p, const ASN1_OCTET_STRING *os)
 {
 	const ASN1_SEQUENCE_ANY *seq, *sseq = NULL;
-	const ASN1_TYPE		*type;
-	const ASN1_IA5STRING	*str;
+	const ASN1_TYPE		*type, *file, *hash;
 	const unsigned char     *d;
 	size_t		         dsz, sz;
 	int		 	 i, rc = 0;
 	void			*pp;
-	const char		*cp;
+	struct mftfile		*fent;
 
 	d = os->data;
 	dsz = os->length;
@@ -72,27 +71,48 @@ mft_parse_flist(struct parse *p, const ASN1_OCTET_STRING *os)
 			goto out;
 		}
 
-		if (sk_ASN1_TYPE_value(sseq, 0)->type != V_ASN1_IA5STRING) {
-			MFT_WARNX(p, "%s: want "
-				"V_ASN1_IA5STRING", p->fn);
+		file = sk_ASN1_TYPE_value(sseq, 0);
+		hash = sk_ASN1_TYPE_value(sseq, 1);
+
+		/* First is the filename itself. */
+
+		if (file->type != V_ASN1_IA5STRING) {
+			MFT_WARNX(p, "%s: want ASN.1 IA5string", p->fn);
+			goto out;
+		} else if (hash->type != V_ASN1_BIT_STRING) {
+			MFT_WARNX(p, "%s: want ASN.1 bitstring", p->fn);
 			goto out;
 		}
 
+		/* Verify hash length. */
+		
+		if (hash->value.bit_string->length != SHA256_DIGEST_LENGTH) {
+			MFT_WARNX(p, "%s: invalid SHA256 length", p->fn);
+			goto out;
+		}
+
+		/* Insert the filename and hash value. */
+
 		pp = reallocarray(p->res->files, 
-			p->res->filesz + 1, sizeof(char *));
+			p->res->filesz + 1, sizeof(struct mftfile));
 		if (pp == NULL) {
 			WARN("reallocarray");
 			goto out;
 		}
 		p->res->files = pp;
-		str = sk_ASN1_TYPE_value(sseq, 0)->value.ia5string;
-		p->res->files[p->res->filesz] = 
-			strndup(str->data, str->length);
-		if (p->res->files[p->res->filesz] == NULL) {
+		fent = &p->res->files[p->res->filesz++];
+		memset(fent, 0, sizeof(struct mftfile));
+
+		fent->file = strndup
+			(file->value.ia5string->data, 
+			 file->value.ia5string->length);
+		if (fent->file == NULL) {
 			WARN("strdup");
 			goto out;
 		}
-		cp = p->res->files[p->res->filesz++];
+		memcpy(fent->hash, hash->value.bit_string->data,
+			SHA256_DIGEST_LENGTH);
+
 		sk_ASN1_TYPE_free(sseq);
 		sseq = NULL;
 
@@ -101,18 +121,18 @@ mft_parse_flist(struct parse *p, const ASN1_OCTET_STRING *os)
 		 * ROA, or CER.
 		 */
 
-		if (strchr(cp, '/') != NULL) {
-			MFT_WARNX(p, "%s: name with path: %s", p->fn, cp);
+		if (strchr(fent->file, '/') != NULL) {
+			MFT_WARNX(p, "%s: has path: %s", p->fn, fent->file);
 			goto out;
-		} else if ((sz = strlen(cp)) <= 4) {
-			MFT_WARNX(p, "%s: name too short: %s", p->fn, cp);
+		} else if ((sz = strlen(fent->file)) <= 4) {
+			MFT_WARNX(p, "%s: too short: %s", p->fn, fent->file);
 			goto out;
 		}
 
-		if (strcasecmp(cp + sz - 4, ".roa") &&
-		    strcasecmp(cp + sz - 4, ".cer") &&
-		    strcasecmp(cp + sz - 4, ".crl")) {
-			MFT_WARNX(p, "%s: unknown suffix: %s", p->fn, cp);
+		if (strcasecmp(fent->file + sz - 4, ".roa") &&
+		    strcasecmp(fent->file + sz - 4, ".cer") &&
+		    strcasecmp(fent->file + sz - 4, ".crl")) {
+			MFT_WARNX(p, "%s: bad suffix: %s", p->fn, fent->file);
 			goto out;
 		}
 	}
@@ -135,7 +155,7 @@ mft_parse_econtent(const ASN1_OCTET_STRING *os, struct parse *p)
 	const unsigned char     *d;
 	size_t		         dsz;
 	const ASN1_TYPE	        *ver, *mftnum, *thisup, *nextup,
-			        *flistalg, *fl;
+			        *falg, *fl;
 	int		         i, rc = 0;
 
 	d = os->data;
@@ -187,13 +207,27 @@ mft_parse_econtent(const ASN1_OCTET_STRING *os, struct parse *p)
 		goto out;
 	}
 
-	/* File list algorithm and sequence. */
+	/* 
+	 * FIXME: make sure that we fall within this.
+	 * I can't yet figure out how to convert into and out of the
+	 * generalizedtime tructure.
+	 * This is necessary as per RFC 6486, 6.1, part (3).
+	 */
 
-	flistalg = sk_ASN1_TYPE_value(seq, i++);
+	/* File list algorithm. */
+
+	falg = sk_ASN1_TYPE_value(seq, i++);
+	if (falg->type != V_ASN1_OBJECT) {
+		MFT_WARNX(p, "%s: want ASN.1 OID", p->fn);
+		goto out;
+	} else if (OBJ_obj2nid(falg->value.object) != NID_sha256) {
+		MFT_WARNX(p, "%s: want SHA256 hashing", p->fn);
+		goto out;
+	}
+
+	/* Now the sequence. */
+
 	fl = sk_ASN1_TYPE_value(seq, i++);
-
-	/* FIXME: more checks defined in RFC 6486 sec. 4.4. */
-
 	if (fl->type != V_ASN1_SEQUENCE) {
 		MFT_WARNX(p, "%s: want ASN.1 sequence", p->fn);
 		goto out;
@@ -245,6 +279,10 @@ mft_parse(int verb, X509 *cacert, const char *fn)
 	return NULL;
 }
 
+/*
+ * Free an MFT pointer.
+ * Safe to call with NULL.
+ */
 void
 mft_free(struct mft *p)
 {
@@ -253,9 +291,11 @@ mft_free(struct mft *p)
 	if (p == NULL)
 		return;
 
+	/* We might get our filesz before our file allocation. */
+
 	if (p->files != NULL)
 		for (i = 0; i < p->filesz; i++)
-			free(p->files[i]);
+			free(p->files[i].file);
 
 	free(p->file);
 	free(p->files);
@@ -282,11 +322,17 @@ mft_buffer(char **b, size_t *bsz, size_t *bmax,
 		return 0;
 	}
 
-	for (i = 0; i < p->filesz; i++) 
-		if (!str_buffer(b, bsz, bmax, verb, p->files[i])) {
+	for (i = 0; i < p->filesz; i++) {
+		if (!str_buffer(b, bsz, bmax, verb, p->files[i].file)) {
 			WARNX1(verb, "str_buffer");
 			return 0;
 		}
+		if (!buf_buffer(b, bsz, bmax, verb,
+		    p->files[i].hash, SHA256_DIGEST_LENGTH)) {
+			WARNX1(verb, "buf_buffer");
+			return 0;
+		}
+	}
 
 	return 1;
 }
@@ -316,11 +362,17 @@ mft_read(int fd, int verb)
 		goto out;
 	}
 
-	for (i = 0; i < p->filesz; i++) 
-		if (!str_read(fd, verb, &p->files[i])) {
+	for (i = 0; i < p->filesz; i++) {
+		if (!str_read(fd, verb, &p->files[i].file)) {
 			WARNX1(verb, "str_read");
 			goto out;
 		}
+		if (!simple_read(fd, verb, &p->files[i].hash,
+		    SHA256_DIGEST_LENGTH)) {
+			WARNX1(verb, "str_read");
+			goto out;
+		}
+	}
 
 	return p;
 out:

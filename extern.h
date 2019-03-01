@@ -93,14 +93,22 @@ struct	tal {
 };
 
 /*
+ * Files specified in an MFT have their bodies hashed with SHA256.
+ */
+struct	mftfile {
+	char		*file; /* filename (CER/ROA/CRL, no path) */
+	unsigned char	 hash[SHA256_DIGEST_LENGTH]; /* sha256 of body */
+};
+
+/*
  * A manifest, RFC 6486.
  * This consists of a bunch of files found in the same directory as the
  * manifest file.
  */
 struct	mft {
-	char		 *file; /* full path of MFT file */
-	char		**files; /* filenames (CER/ROA/CRL, no path) */
-	size_t		  filesz; /* number of filenames */
+	char		*file; /* full path of MFT file */
+	struct mftfile	*files; /* file and hash */
+	size_t		 filesz; /* number of filenames */
 };
 
 struct	roa {
