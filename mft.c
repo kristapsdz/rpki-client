@@ -387,37 +387,22 @@ mft_free(struct mft *p)
 
 /*
  * Serialise MFT parsed content into the given buffer.
- * Returns zero on failure, non-zero on success.
+ * See mft_read() for the other side of the pipe.
  */
-int
+void
 mft_buffer(char **b, size_t *bsz, size_t *bmax,
 	int verb, const struct mft *p)
 {
 	size_t		 i;
 
-	if (!str_buffer(b, bsz, bmax, verb, p->file)) {
-		WARNX1(verb, "str_buffer");
-		return 0;
-	}
-	if (!simple_buffer(b, bsz,
-	    bmax, &p->filesz, sizeof(size_t))) {
-		WARNX1(verb, "simple_buffer");
-		return 0;
-	}
+	str_buffer(b, bsz, bmax, verb, p->file);
+	simple_buffer(b, bsz, bmax, &p->filesz, sizeof(size_t));
 
 	for (i = 0; i < p->filesz; i++) {
-		if (!str_buffer(b, bsz, bmax, verb, p->files[i].file)) {
-			WARNX1(verb, "str_buffer");
-			return 0;
-		}
-		if (!simple_buffer(b, bsz, bmax,
-		    p->files[i].hash, SHA256_DIGEST_LENGTH)) {
-			WARNX1(verb, "buf_buffer");
-			return 0;
-		}
+		str_buffer(b, bsz, bmax, verb, p->files[i].file);
+		simple_buffer(b, bsz, bmax,
+			p->files[i].hash, SHA256_DIGEST_LENGTH);
 	}
-
-	return 1;
 }
 
 /*

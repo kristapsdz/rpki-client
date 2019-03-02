@@ -188,31 +188,18 @@ tal_free(struct tal *p)
 /*
  * Buffer TAL parsed contents for writing.
  * See tal_read() for the other side of the pipe.
- * Returns zero on failure, non-zero on success.
  */
-int
+void
 tal_buffer(char **b, size_t *bsz, size_t *bmax,
 	int verb, const struct tal *p)
 {
 	size_t	 i;
-	int	 rc = 0;
 
-	if (!buf_buffer(b, bsz, bmax, verb, p->pkey, p->pkeysz)) {
-		WARNX1(verb, "buf_buffer");
-		goto out;
-	} else if (!simple_buffer(b, bsz, bmax, &p->urisz, sizeof(size_t))) {
-		WARNX1(verb, "simple_buffer");
-		goto out;
-	}
+	buf_buffer(b, bsz, bmax, verb, p->pkey, p->pkeysz);
+	simple_buffer(b, bsz, bmax, &p->urisz, sizeof(size_t));
 
 	for (i = 0; i < p->urisz; i++)
-		if (!str_buffer(b, bsz, bmax, verb, p->uri[i])) {
-			WARNX1(verb, "str_buffer");
-			goto out;
-		}
-	rc = 1;
-out:
-	return rc;
+		str_buffer(b, bsz, bmax, verb, p->uri[i]);
 }
 
 /*

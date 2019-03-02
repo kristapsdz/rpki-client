@@ -1114,7 +1114,6 @@ cert_parse(int verbose, X509 *cacert,
 	EVP_MD		*md;
 	unsigned char	 mdbuf[EVP_MAX_MD_SIZE];
 
-
 	memset(&p, 0, sizeof(struct parse));
 	p.fn = fn;
 	p.verbose = verbose;
@@ -1261,21 +1260,15 @@ cert_free(struct cert *p)
 
 /*
  * Write certificate parsed content.
- * Returns zero on failure, non-zero on success.
+ * See cert_read() for the other side of the pipe.
  */
-int
+void
 cert_buffer(char **b, size_t *bsz, size_t *bmax,
 	int verb, const struct cert *x)
 {
 
-	if (!str_buffer(b, bsz, bmax, verb, x->rep))
-		WARNX1(verb, "str_buffer");
-	else if (!str_buffer(b, bsz, bmax, verb, x->mft))
-		WARNX1(verb, "str_buffer");
-	else
-		return 1;
-
-	return 0;
+	str_buffer(b, bsz, bmax, verb, x->rep);
+	str_buffer(b, bsz, bmax, verb, x->mft);
 }
 
 /*

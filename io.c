@@ -1,6 +1,7 @@
 #include <sys/queue.h>
 
 #include <assert.h>
+#include <err.h>
 #include <fcntl.h>
 #include <stdlib.h>
 #include <string.h>
@@ -47,7 +48,7 @@ simple_write(int fd, const void *res, size_t sz)
 {
 	ssize_t	 ssz;
 
-	if (0 == sz)
+	if (sz == 0)
 		return 1;
 	if ((ssz = write(fd, res, sz)) < 0)
 		WARN("write");
@@ -57,41 +58,32 @@ simple_write(int fd, const void *res, size_t sz)
 /*
  * Like simple_write() but into a buffer.
  */
-int
+void
 simple_buffer(char **b, size_t *bsz,
 	size_t *bmax, const void *res, size_t sz)
 {
-	void	*pp;
 
 	if (*bsz + sz > *bmax) {
-		if ((pp = realloc(*b, *bsz + sz)) == NULL) {
-			WARN("realloc");
-			return 0;
-		}
-		*b = pp;
+		if ((*b = realloc(*b, *bsz + sz)) == NULL)
+			err(EXIT_FAILURE, NULL);
 		*bmax = *bsz + sz;
 	}
 
 	memcpy(*b + *bsz, res, sz);
 	*bsz += sz;
-	return 1;
 }
 
 /*
  * Like buf_write() but into a buffer.
  */
-int
+void
 buf_buffer(char **b, size_t *bsz, size_t *bmax,
 	int verb, const void *p, size_t sz)
 {
 
-	if (!simple_buffer(b, bsz, bmax, &sz, sizeof(size_t)))
-		WARNX1(verb, "simple_buffer");
-	else if (sz > 0 && !simple_buffer(b, bsz, bmax, p, sz))
-		WARNX1(verb, "simple_buffer");
-	else
-		return 1;
-	return 0;
+	simple_buffer(b, bsz, bmax, &sz, sizeof(size_t));
+	if (sz > 0)
+		simple_buffer(b, bsz, bmax, p, sz);
 }
 
 /*
@@ -114,16 +106,12 @@ buf_write(int fd, int verb, const void *p, size_t sz)
 /*
  * Like str_write() but into a buffer.
  */
-int
+void
 str_buffer(char **b, size_t *bsz, size_t *bmax, int verb, const char *p)
 {
 	size_t	 sz = (p == NULL) ? 0 : strlen(p);
 
-	if (!buf_buffer(b, bsz, bmax, verb, p, sz))
-		WARNX1(verb, "buf_write");
-	else
-		return 1;
-	return 0;
+	buf_buffer(b, bsz, bmax, verb, p, sz);
 }
 
 /*
