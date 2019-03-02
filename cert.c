@@ -38,7 +38,7 @@ struct	parse {
 /*
  * Wrapper around ASN1_get_object() that preserves the current start
  * state and returns a more meaningful value.
- * Return zero on failure or the length of the full frame otherwise.
+ * Return zero on failure, non-zero on success.
  */
 static int
 ASN1_frame(struct parse *p, size_t sz,
@@ -46,10 +46,10 @@ ASN1_frame(struct parse *p, size_t sz,
 {
 	int	 ret, pcls;
 
-	assert(NULL != cnt && NULL != *cnt);
+	assert(cnt != NULL && *cnt != NULL);
 	assert(sz > 0);
 	ret = ASN1_get_object(cnt, cntsz, tag, &pcls, sz);
-	if (0x80 & ret) {
+	if ((ret & 0x80)) {
 		X509_CRYPTOX(p, "%s: ASN1_get_object", p->fn);
 		return 0;
 	} 
@@ -68,7 +68,7 @@ append_ip(struct parse *p, const struct x509_ip *ip)
 
 	pp = reallocarray(res->ips, 
 		res->ipsz + 1, sizeof(struct x509_ip));
-	if (NULL == pp) {
+	if (pp == NULL) {
 		WARN("reallocarray");
 		return 0;
 	}
@@ -89,7 +89,7 @@ append_as(struct parse *p, const struct x509_as *as)
 
 	pp = reallocarray(res->as, 
 		res->asz + 1, sizeof(struct x509_as));
-	if (NULL == pp) {
+	if (pp == NULL) {
 		WARN("reallocarray");
 		return 0;
 	}
@@ -118,11 +118,11 @@ sbgp_ipaddr(struct parse *p, unsigned char mask,
 
 	/* Weird OpenSSL-ism to get unused bit count. */
 
-	if (ASN1_STRING_FLAG_BITS_LEFT & bs->flags)
+	if ((ASN1_STRING_FLAG_BITS_LEFT & bs->flags))
 		unused = ~ASN1_STRING_FLAG_BITS_LEFT & bs->flags;
 
-	if ((1 == ip->afi && dsz > 4) ||
-	    (2 == ip->afi && dsz > 16)) {
+	if ((ip->afi == 1 && dsz > 4) ||
+	    (ip->afi == 2 && dsz > 16)) {
 		X509_WARNX(p, "%s: IPv%s too large", 
 			p->fn, 1 == ip->afi ? "4" : "6");
 		return 0;
@@ -131,7 +131,7 @@ sbgp_ipaddr(struct parse *p, unsigned char mask,
 	/* FIXME: process unused bit. */
 
 	addr->unused = unused;
-	addr->sz = (1 == ip->afi) ? 4 : 16;
+	addr->sz = (ip->afi == 1) ? 4 : 16;
 	memset(addr->addr, mask, addr->sz);
 	memcpy(addr->addr, d, dsz);
 	return 1;
@@ -147,13 +147,13 @@ sbgp_addr(struct parse *p,
 {
 	struct x509_ip_rng *rng = &ip->range;
 
-	if ( ! sbgp_ipaddr(p, 0x00, ip, &rng->min, bs)) {
+	if (!sbgp_ipaddr(p, 0x00, ip, &rng->min, bs)) {
 		X509_WARNX1(p, "sbgp_ipaddr");
 		return 0;
-	} else if ( ! sbgp_ipaddr(p, 0xFF, ip, &rng->max, bs)) {
+	} else if (!sbgp_ipaddr(p, 0xFF, ip, &rng->max, bs)) {
 		X509_WARNX1(p, "sbgp_ipaddr");
 		return 0;
-	} else if ( ! append_ip(p, ip)) {
+	} else if (!append_ip(p, ip)) {
 		X509_WARNX1(p, "append_ip");
 		return 0;
 	}
@@ -187,11 +187,10 @@ sbgp_akey_ident(struct parse *p, X509_EXTENSION *ext)
 	/* Sequence consisting of OID and data. */
 
 	d = sv;
-	seq = d2i_ASN1_SEQUENCE_ANY(NULL, &d, dsz);
-	if (NULL == seq) {
+	if ((seq = d2i_ASN1_SEQUENCE_ANY(NULL, &d, dsz)) == NULL) {
 		X509_WARNX1(p, "d2i_ASN1_SEQUENCE_ANY");
 		goto out;
-	} else if (2 != sk_ASN1_TYPE_num(seq)) {
+	} else if (sk_ASN1_TYPE_num(seq) != 2) {
 		X509_WARNX(p, "%s: want 2 elements, have %d",
 			p->fn, sk_ASN1_TYPE_num(seq));
 		goto out;
@@ -200,12 +199,12 @@ sbgp_akey_ident(struct parse *p, X509_EXTENSION *ext)
 	type1 = sk_ASN1_TYPE_value(seq, 0);
 	type2 = sk_ASN1_TYPE_value(seq, 1);
 
-	if (V_ASN1_OBJECT != type1->type) {
+	if (type1->type != V_ASN1_OBJECT) {
 		X509_WARNX(p, "%s: want ASN.1 object, "
 			"have %s (NID %d)", p->fn, 
 			ASN1_tag2str(type1->type), type1->type);
 		goto out;
-	} else if (V_ASN1_OCTET_STRING != type2->type) {
+	} else if (type2->type != V_ASN1_OCTET_STRING) {
 		X509_WARNX(p, "%s: want ASN.1 octet "
 			"string, have %s (NID %d)", p->fn, 
 			ASN1_tag2str(type2->type), type2->type);
@@ -217,18 +216,17 @@ sbgp_akey_ident(struct parse *p, X509_EXTENSION *ext)
 	d = type2->value.octet_string->data;
 	dsz = type2->value.octet_string->length;
 
-	sseq = d2i_ASN1_SEQUENCE_ANY(NULL, &d, dsz);
-	if (NULL == sseq) {
+	if ((sseq = d2i_ASN1_SEQUENCE_ANY(NULL, &d, dsz)) == NULL) {
 		X509_WARNX1(p, "d2i_ASN1_SEQUENCE_ANY");
 		goto out;
-	} else if (1 != sk_ASN1_TYPE_num(sseq)) {
+	} else if (sk_ASN1_TYPE_num(sseq) != 1) {
 		X509_WARNX(p, "%s: want one element, have %d",
 			p->fn, sk_ASN1_TYPE_num(sseq));
 		goto out;
 	} 
 
 	type1 = sk_ASN1_TYPE_value(sseq, 0);
-	if (V_ASN1_OTHER != type1->type) {
+	if (type1->type != V_ASN1_OTHER) {
 		X509_WARNX(p, "%s: want ASN.1 other, "
 			"have %s (NID %d)", p->fn, 
 			ASN1_tag2str(type1->type), type1->type);
@@ -238,17 +236,17 @@ sbgp_akey_ident(struct parse *p, X509_EXTENSION *ext)
 	d = type1->value.asn1_string->data;
 	dsz = type1->value.asn1_string->length;
 
-	if (0 == ASN1_frame(p, dsz, &d, &plen, &ptag)) {
+	if (!ASN1_frame(p, dsz, &d, &plen, &ptag)) {
 		X509_WARNX1(p, "ASN1_frame");
 		goto out;
-	} else if (NULL != p->res->aki)
+	} else if (p->res->aki != NULL)
 		X509_LOG(p, "%s: reallocating", p->fn);
 
 	free(p->res->aki);
 
 	/* Make room for [hex1, hex2, ":"]*, NUL. */
 
-	if (NULL == (p->res->aki = calloc(plen * 3 + 1, 1))) {
+	if ((p->res->aki = calloc(plen * 3 + 1, 1)) == NULL) {
 		WARN("calloc");
 		goto out;
 	}
@@ -290,11 +288,10 @@ sbgp_skey_ident(struct parse *p, X509_EXTENSION *ext)
 	} 
 
 	d = sv;
-	seq = d2i_ASN1_SEQUENCE_ANY(NULL, &d, dsz);
-	if (NULL == seq) {
+	if ((seq = d2i_ASN1_SEQUENCE_ANY(NULL, &d, dsz)) == NULL) {
 		X509_WARNX1(p, "d2i_ASN1_SEQUENCE_ANY");
 		goto out;
-	} else if (2 != sk_ASN1_TYPE_num(seq)) {
+	} else if (sk_ASN1_TYPE_num(seq) != 2) {
 		X509_WARNX(p, "%s: want 2 elements, have %d",
 			p->fn, sk_ASN1_TYPE_num(seq));
 		goto out;
@@ -305,12 +302,12 @@ sbgp_skey_ident(struct parse *p, X509_EXTENSION *ext)
 	type1 = sk_ASN1_TYPE_value(seq, 0);
 	type2 = sk_ASN1_TYPE_value(seq, 1);
 
-	if (V_ASN1_OBJECT != type1->type) {
+	if (type1->type != V_ASN1_OBJECT) {
 		X509_WARNX(p, "%s: want ASN.1 object, "
 			"have %s (NID %d)", p->fn, 
 			ASN1_tag2str(type1->type), type1->type);
 		goto out;
-	} else if (V_ASN1_OCTET_STRING != type2->type) {
+	} else if (type2->type != V_ASN1_OCTET_STRING) {
 		X509_WARNX(p, "%s: want ASN.1 octet "
 			"string, have %s (NID %d)", p->fn, 
 			ASN1_tag2str(type2->type), type2->type);
@@ -325,14 +322,14 @@ sbgp_skey_ident(struct parse *p, X509_EXTENSION *ext)
 	d = type2->value.octet_string->data;
 	dsz = type2->value.octet_string->length;
 
-	if (0 == ASN1_frame(p, dsz, &d, &plen, &ptag)) {
+	if (!ASN1_frame(p, dsz, &d, &plen, &ptag)) {
 		X509_WARNX1(p, "ASN1_frame");
 		goto out;
-	} else if (20 != plen) {
+	} else if (plen != 20) {
 		X509_WARNX(p, "%s: expected 20 B "
 			"hash, have %ld B", p->fn, plen);
 		goto out;
-	} else if (NULL != p->res->ski) 
+	} else if (p->res->ski != NULL) 
 		X509_LOG(p, "%s: reallocating key ident", p->fn);
 
 	assert(V_ASN1_OCTET_STRING == ptag);
@@ -340,10 +337,11 @@ sbgp_skey_ident(struct parse *p, X509_EXTENSION *ext)
 
 	/* Make room for [hex1, hex2, ":"]*, NUL. */
 
-	if (NULL == (p->res->ski = calloc(plen * 3 + 1, 1))) {
+	if ((p->res->ski = calloc(plen * 3 + 1, 1)) == NULL) {
 		WARN("calloc");
 		return 0;
 	}
+
 	for (j = 0; j < plen; j++) {
 		snprintf(buf, sizeof(buf), "%0.2X:", d[j]);
 		strlcat(p->res->ski, buf, dsz * 3 + 1);
@@ -374,11 +372,10 @@ sbgp_sia_bits_repo(struct parse *p, const unsigned char *d, size_t dsz)
 	const char		*cp;
 	long			 plen;
 
-	seq = d2i_ASN1_SEQUENCE_ANY(NULL, &d, dsz);
-	if (NULL == seq) {
+	if ((seq = d2i_ASN1_SEQUENCE_ANY(NULL, &d, dsz)) == NULL) {
 		X509_WARNX1(p, "d2i_ASN1_SEQUENCE_ANY");
 		goto out;
-	} else if (2 != sk_ASN1_TYPE_num(seq)) {
+	} else if (sk_ASN1_TYPE_num(seq) != 2) {
 		X509_WARNX(p, "%s: want 2 elements, have %d",
 			p->fn, sk_ASN1_TYPE_num(seq));
 		goto out;
@@ -389,20 +386,20 @@ sbgp_sia_bits_repo(struct parse *p, const unsigned char *d, size_t dsz)
 
 	/* Composed of an OID and its continuation. */
 
-	if (V_ASN1_OBJECT != type1->type) {
+	if (type1->type != V_ASN1_OBJECT) {
 		X509_WARNX(p, "%s: want ASN.1 object, "
 			"have %s (NID %d)", p->fn, 
 			ASN1_tag2str(type1->type), type1->type);
 		goto out;
-	} else if (V_ASN1_OTHER != type2->type) {
+	} else if (type2->type != V_ASN1_OTHER) {
 		X509_WARNX(p, "%s: want ASN.1 other, "
 			"have %s (NID %d)", p->fn, 
 			ASN1_tag2str(type2->type), type2->type);
 		goto out;
 	}
 
-	OBJ_obj2txt(buf, sizeof(buf), 
-		type1->value.object, 1);
+	OBJ_obj2txt(buf, sizeof(buf), type1->value.object, 1);
+
 	if (strcmp(buf, "1.3.6.1.5.5.7.48.10") &&
 	    strcmp(buf, "1.3.6.1.5.5.7.48.5")) {
 		X509_LOG(p, "%s: ignoring OID %s", p->fn, buf);
@@ -414,11 +411,11 @@ sbgp_sia_bits_repo(struct parse *p, const unsigned char *d, size_t dsz)
 
 	d = type2->value.asn1_string->data;
 	dsz = type2->value.asn1_string->length;
-	if (0 == ASN1_frame(p, dsz, &d, &plen, &ptag)) {
+	if (!ASN1_frame(p, dsz, &d, &plen, &ptag)) {
 		X509_WARNX1(p, "ASN1_frame");
 		goto out;
 	}
-	if (0 == strcmp(buf, "1.3.6.1.5.5.7.48.10")) {
+	if (strcmp(buf, "1.3.6.1.5.5.7.48.10") == 0) {
 		free(p->res->mft);
 		cp = p->res->mft = strndup(d, plen);
 	} else {
@@ -426,7 +423,7 @@ sbgp_sia_bits_repo(struct parse *p, const unsigned char *d, size_t dsz)
 		cp = p->res->rep = strndup(d, plen);
 	}
 
-	if (NULL == cp) {
+	if (cp == NULL) {
 		WARN("strndup");
 		goto out;
 	} 
@@ -452,15 +449,14 @@ sbgp_sia_bits(struct parse *p, const unsigned char *d, size_t dsz)
 	const ASN1_TYPE		*type;
 	int			 rc = 0, i;
 
-	seq = d2i_ASN1_SEQUENCE_ANY(NULL, &d, dsz);
-	if (NULL == seq) {
+	if ((seq = d2i_ASN1_SEQUENCE_ANY(NULL, &d, dsz)) == NULL) {
 		X509_WARNX1(p, "d2i_ASN1_SEQUENCE_ANY");
 		goto out;
 	} 
 
 	for (i = 0; i < sk_ASN1_TYPE_num(seq); i++) {
 		type = sk_ASN1_TYPE_value(seq, i);
-		if (V_ASN1_SEQUENCE != type->type) {
+		if (type->type != V_ASN1_SEQUENCE) {
 			X509_WARNX(p, "%s: want ASN.1 sequence, "
 				"have %s (NID %d)", p->fn,
 				ASN1_tag2str(type->type), type->type);
@@ -469,7 +465,7 @@ sbgp_sia_bits(struct parse *p, const unsigned char *d, size_t dsz)
 
 		d = type->value.asn1_string->data;
 		dsz = type->value.asn1_string->length;
-		if ( ! sbgp_sia_bits_repo(p, d, dsz)) {
+		if (!sbgp_sia_bits_repo(p, d, dsz)) {
 			X509_WARNX1(p, "sbgp_sia_bits_repo");
 			goto out;
 		}
@@ -503,11 +499,10 @@ sbgp_sia(struct parse *p, X509_EXTENSION *ext)
 	/* Parse through and ignore our OID/octet string pair. */
 
 	d = sv;
-	seq = d2i_ASN1_SEQUENCE_ANY(NULL, &d, dsz);
-	if (NULL == seq) {
+	if ((seq = d2i_ASN1_SEQUENCE_ANY(NULL, &d, dsz)) == NULL) {
 		X509_WARNX1(p, "d2i_ASN1_SEQUENCE_ANY");
 		goto out;
-	} else if (2 != sk_ASN1_TYPE_num(seq)) {
+	} else if (sk_ASN1_TYPE_num(seq) != 2) {
 		X509_WARNX(p, "%s: want 2 elements, have %d",
 			p->fn, sk_ASN1_TYPE_num(seq));
 		goto out;
@@ -516,12 +511,12 @@ sbgp_sia(struct parse *p, X509_EXTENSION *ext)
 	type1 = sk_ASN1_TYPE_value(seq, 0);
 	type2 = sk_ASN1_TYPE_value(seq, 1);
 
-	if (V_ASN1_OBJECT != type1->type) {
+	if (type1->type != V_ASN1_OBJECT) {
 		X509_WARNX(p, "%s: want ASN.1 object, "
 			"have %s (NID %d)", p->fn, 
 			ASN1_tag2str(type1->type), type1->type);
 		goto out;
-	} else if (V_ASN1_OCTET_STRING != type2->type) {
+	} else if (type2->type != V_ASN1_OCTET_STRING) {
 		X509_WARNX(p, "%s: want ASN.1 octet "
 			"string, have %s (NID %d)", p->fn, 
 			ASN1_tag2str(type2->type), type2->type);
@@ -532,7 +527,7 @@ sbgp_sia(struct parse *p, X509_EXTENSION *ext)
 
 	d = type2->value.octet_string->data;
 	dsz = type2->value.octet_string->length;
-	if ( ! sbgp_sia_bits(p, d, dsz)) {
+	if (!sbgp_sia_bits(p, d, dsz)) {
 		X509_WARNX1(p, "sbgp_sia_obj");
 		goto out;
 	}
@@ -557,11 +552,10 @@ sbgp_asrange(struct parse *p, int rdi,
 	const ASN1_TYPE		*type1, *type2;
 	int			 rc = 0;
 
-	seq = d2i_ASN1_SEQUENCE_ANY(NULL, &d, dsz);
-	if (NULL == seq) {
+	if ((seq = d2i_ASN1_SEQUENCE_ANY(NULL, &d, dsz)) == NULL) {
 		X509_WARNX1(p, "d2i_ASN1_SEQUENCE_ANY");
 		goto out;
-	} else if (2 != sk_ASN1_TYPE_num(seq)) {
+	} else if (sk_ASN1_TYPE_num(seq) != 2) {
 		X509_WARNX(p, "%s: want two elements, have %d",
 			p->fn, sk_ASN1_TYPE_num(seq));
 		goto out;
@@ -572,12 +566,12 @@ sbgp_asrange(struct parse *p, int rdi,
 	type1 = sk_ASN1_TYPE_value(seq, 0);
 	type2 = sk_ASN1_TYPE_value(seq, 1);
 
-	if (V_ASN1_INTEGER != type1->type) {
+	if (type1->type != V_ASN1_INTEGER) {
 		X509_WARNX(p, "%s: want ASN.1 integer, "
 			"have %s (NID %d)", p->fn, 
 			ASN1_tag2str(type1->type), type1->type);
 		goto out;
-	} else if (V_ASN1_INTEGER != type2->type) {
+	} else if (type2->type != V_ASN1_INTEGER) {
 		X509_WARNX(p, "%s: want ASN.1 integer, "
 			"have %s (NID %d)", p->fn, 
 			ASN1_tag2str(type2->type), type2->type);
@@ -600,7 +594,7 @@ sbgp_asrange(struct parse *p, int rdi,
 	X509_LOG(p, "%s: parsed AS range max: "
 		"%" PRIu32, p->fn, as.range.max);
 
-	if ( ! append_as(p, &as)) {
+	if (!append_as(p, &as)) {
 		X509_WARNX1(p, "append_as");
 		goto out;
 	}
@@ -646,7 +640,7 @@ sbgp_asnum(struct parse *p, int rdi,
 
 	/* We can either be a null (inherit) or sequence. */
 
-	if (NULL == (type = d2i_ASN1_TYPE(NULL, &d, dsz))) {
+	if ((type = d2i_ASN1_TYPE(NULL, &d, dsz)) == NULL) {
 		X509_WARNX1(p, "d2i_ASN1_TYPE");
 		return 0;
 	}
@@ -656,18 +650,18 @@ sbgp_asnum(struct parse *p, int rdi,
 	 * which is the easy case.
 	 */
 
-	if (V_ASN1_NULL == type->type) {
+	if (type->type == V_ASN1_NULL) {
 		memset(&as, 0, sizeof(struct x509_as));
 		as.rdi = rdi;
 		as.type = ASN1_AS_NULL;
 		X509_LOG(p, "%s: parsed inherited AS", p->fn);
-		if ( ! append_as(p, &as)) {
+		if (!append_as(p, &as)) {
 			X509_WARNX1(p, "append_as");
 			goto out;
 		}
 		rc = 1;
 		goto out;
-	} else if (V_ASN1_SEQUENCE != type->type) {
+	} else if (type->type != V_ASN1_SEQUENCE) {
 		X509_WARNX(p, "%s: want ASN.1 null or sequence, "
 			"have %s (NID %d)", p->fn, 
 			ASN1_tag2str(type->type), type->type);
@@ -676,8 +670,7 @@ sbgp_asnum(struct parse *p, int rdi,
 
 	/* This is RFC 3779 3.2.3.4. */
 
-	seq = d2i_ASN1_SEQUENCE_ANY(NULL, &sv, dsz);
-	if (NULL == seq) {
+	if ((seq = d2i_ASN1_SEQUENCE_ANY(NULL, &sv, dsz)) == NULL) {
 		X509_WARNX1(p, "d2i_ASN1_SEQUENCE_ANY");
 		goto out;
 	}
@@ -686,15 +679,15 @@ sbgp_asnum(struct parse *p, int rdi,
 
 	for (i = 0; i < sk_ASN1_TYPE_num(seq); i++) {
 		type = sk_ASN1_TYPE_value(seq, i);
-		if (V_ASN1_INTEGER == type->type) {
-			if ( ! sbgp_asid(p, rdi, type->value.integer)) {
+		if (type->type == V_ASN1_INTEGER) {
+			if (!sbgp_asid(p, rdi, type->value.integer)) {
 				X509_WARNX1(p, "sbgp_asid");
 				goto out;
 			}
-		} else if (V_ASN1_SEQUENCE == type->type) {
+		} else if (type->type == V_ASN1_SEQUENCE) {
 			d = type->value.asn1_string->data;
 			dsz = type->value.asn1_string->length;
-			if ( ! sbgp_asrange(p, rdi, d, dsz)) {
+			if (!sbgp_asrange(p, rdi, d, dsz)) {
 				X509_WARNX1(p, "sbgp_asrange");
 				goto out;
 			}
@@ -737,8 +730,7 @@ sbgp_assysnum(struct parse *p, X509_EXTENSION *ext)
 	/* Start with RFC 3770, section 3.2 top-level. */
 
 	d = sv;
-	seq = d2i_ASN1_SEQUENCE_ANY(NULL, &d, dsz);
-	if (NULL == seq) {
+	if ((seq = d2i_ASN1_SEQUENCE_ANY(NULL, &d, dsz)) == NULL) {
 		X509_WARNX1(p, "d2i_ASN1_SEQUENCE_ANY");
 		goto out;
 	}
@@ -747,7 +739,7 @@ sbgp_assysnum(struct parse *p, X509_EXTENSION *ext)
 
 	for (i = 0; i < sk_ASN1_TYPE_num(seq); i++) {
 		type = sk_ASN1_TYPE_value(seq, i);
-		if (V_ASN1_OCTET_STRING == type->type)
+		if (type->type == V_ASN1_OCTET_STRING)
 			break;
 		X509_LOG(p, "%s: ignoring %s (NID %d)", 
 			p->fn, ASN1_tag2str(type->type), 
@@ -758,15 +750,14 @@ sbgp_assysnum(struct parse *p, X509_EXTENSION *ext)
 		X509_WARNX(p, "%s: missing ASN.1 octet string", p->fn);
 		goto out;
 	}
-	assert(NULL != type);
+	assert(type != NULL);
 
 	/* Within RFC 3779 3.2.3, check 3.2.3.1. */
 
 	d = type->value.octet_string->data;
 	dsz = type->value.octet_string->length;
 
-	sseq = d2i_ASN1_SEQUENCE_ANY(NULL, &d, dsz);
-	if (NULL == seq) {
+	if ((sseq = d2i_ASN1_SEQUENCE_ANY(NULL, &d, dsz)) == NULL) {
 		X509_WARNX1(p, "d2i_ASN1_SEQUENCE_ANY");
 		goto out;
 	}
@@ -775,7 +766,7 @@ sbgp_assysnum(struct parse *p, X509_EXTENSION *ext)
 
 	for (i = 0; i < sk_ASN1_TYPE_num(sseq); i++) {
 		type = sk_ASN1_TYPE_value(sseq, i);
-		if (V_ASN1_OTHER != type->type) 
+		if (type->type != V_ASN1_OTHER)
 			continue;
 
 		/* Use the low-level ASN1_frame. */
@@ -783,14 +774,14 @@ sbgp_assysnum(struct parse *p, X509_EXTENSION *ext)
 		d = type->value.asn1_string->data;
 		dsz = type->value.asn1_string->length;
 
-		if (0 == ASN1_frame(p, dsz, &d, &plen, &ptag)) {
+		if (!ASN1_frame(p, dsz, &d, &plen, &ptag)) {
 			X509_WARNX1(p, "ASN1_frame");
 			goto out;
 		} else if (ptag > 0x01) {
 			X509_WARNX(p, "%s: unknown ASnum tag "
 				"0x%0.2X", p->fn, ptag);
 			goto out;
-		} else if ( ! sbgp_asnum(p, ptag, d, plen)) {
+		} else if (!sbgp_asnum(p, ptag, d, plen)) {
 			X509_WARNX1(p, "sbgp_asnum");
 			goto out;
 		}
@@ -819,11 +810,10 @@ sbgp_range(struct parse *p, struct x509_ip *ip,
 
 	/* Sequence of two elements. */
 
-	seq = d2i_ASN1_SEQUENCE_ANY(NULL, &d, dsz);
-	if (NULL == seq) {
+	if ((seq = d2i_ASN1_SEQUENCE_ANY(NULL, &d, dsz)) == NULL) {
 		X509_WARNX1(p, "d2i_ASN1_SEQUENCE_ANY");
 		goto out;
-	} else if (2 != sk_ASN1_TYPE_num(seq)) {
+	} else if (sk_ASN1_TYPE_num(seq) != 2) {
 		X509_WARNX(p, "%s: want two elements, have %d", 
 			p->fn, sk_ASN1_TYPE_num(seq));
 		goto out;
@@ -835,40 +825,38 @@ sbgp_range(struct parse *p, struct x509_ip *ip,
 	 */
 
 	type = sk_ASN1_TYPE_value(seq, 0);
-	if (V_ASN1_BIT_STRING != type->type) {
+	if (type->type != V_ASN1_BIT_STRING) {
 		X509_WARNX(p, "%s: want ASN.1 bit string, "
 			"have %s (NID %d)", p->fn,
 			ASN1_tag2str(type->type), type->type);
 		goto out;
 	} 
-	if ( ! sbgp_ipaddr(p, 0x00, ip, 
-	    &rng->min, type->value.bit_string)) {
+	if (!sbgp_ipaddr(p, 0x00, ip, &rng->min, type->value.bit_string)) {
 		X509_WARNX1(p, "sbgp_ipaddr");
 		return 0;
 	}
 
-	type = sk_ASN1_TYPE_value(seq, 0);
-	if (V_ASN1_BIT_STRING != type->type) {
+	type = sk_ASN1_TYPE_value(seq, 1);
+	if (type->type != V_ASN1_BIT_STRING) {
 		X509_WARNX(p, "%s: want ASN.1 bit string, "
 			"have %s (NID %d)", p->fn,
 			ASN1_tag2str(type->type), type->type);
 		goto out;
 	} 
-	if ( ! sbgp_ipaddr(p, 0xFF, ip, 
-	    &rng->max, type->value.bit_string)) {
+	if (!sbgp_ipaddr(p, 0xFF, ip, &rng->max, type->value.bit_string)) {
 		X509_WARNX1(p, "sbgp_ipaddr");
 		return 0;
 	} 
 
 	/* Minimum and maximum parsed properly: append. */
 	
-	if ( ! append_ip(p, ip)) {
+	if (!append_ip(p, ip)) {
 		X509_WARNX1(p, "append_ip");
 		return 0;
 	}
 
 	X509_LOG(p, "%s: parsed IPv%s address (range)", 
-		p->fn, 1 == ip->afi ? "4" : "6");
+		p->fn, (ip->afi == 1) ? "4" : "6");
 	rc = 1;
 out:
 	sk_ASN1_TYPE_free(seq);
@@ -889,8 +877,7 @@ sbgp_addr_or_range(struct parse *p, struct x509_ip *ip,
 	const ASN1_TYPE		*type;
 	int			 i, rc;
 
-	seq = d2i_ASN1_SEQUENCE_ANY(NULL, &d, dsz);
-	if (NULL == seq) {
+	if ((seq = d2i_ASN1_SEQUENCE_ANY(NULL, &d, dsz)) == NULL) {
 		X509_WARNX1(p, "d2i_ASN1_SEQUENCE_ANY");
 		return 0;
 	}
@@ -901,18 +888,17 @@ sbgp_addr_or_range(struct parse *p, struct x509_ip *ip,
 
 		/* Either RFC 3779 2.2.3.8 or 2.2.3.9. */
 
-		if (V_ASN1_BIT_STRING == type->type) {
+		if (type->type == V_ASN1_BIT_STRING) {
 			nip.type = ASN1_IP_ADDR;
-			if ( ! sbgp_addr(p, &nip, 
-			    type->value.bit_string)) {
+			if (!sbgp_addr(p, &nip, type->value.bit_string)) {
 				X509_WARNX1(p, "sbgp_addr");
 				break;
 			}
-		} else if (V_ASN1_SEQUENCE == type->type) {
+		} else if (type->type == V_ASN1_SEQUENCE) {
 			nip.type = ASN1_IP_RANGE;
 			d = type->value.asn1_string->data;
 			dsz = type->value.asn1_string->length;
-			if ( ! sbgp_range(p, &nip, d, dsz)) {
+			if (!sbgp_range(p, &nip, d, dsz)) {
 				X509_WARNX1(p, "sbgp_range");
 				break;
 			}
@@ -925,7 +911,7 @@ sbgp_addr_or_range(struct parse *p, struct x509_ip *ip,
 		}
 	}
 
-	rc = i == sk_ASN1_TYPE_num(seq);
+	rc = (i == sk_ASN1_TYPE_num(seq));
 	sk_ASN1_TYPE_free(seq);
 	return rc;
 }
@@ -945,11 +931,10 @@ sbgp_ipaddrfam(struct parse *p, const unsigned char *d, size_t dsz)
 
 	memset(&ip, 0, sizeof(struct x509_ip));
 
-	seq = d2i_ASN1_SEQUENCE_ANY(NULL, &d, dsz);
-	if (NULL == seq) {
+	if ((seq = d2i_ASN1_SEQUENCE_ANY(NULL, &d, dsz)) == NULL) {
 		X509_WARNX1(p, "d2i_ASN1_SEQUENCE_ANY");
 		goto out;
-	} else if (2 != sk_ASN1_TYPE_num(seq)) {
+	} else if (sk_ASN1_TYPE_num(seq) != 2) {
 		X509_WARNX(p, "%s: want two sequence "
 			"elements, have %d", 
 			p->fn, sk_ASN1_TYPE_num(seq));
@@ -959,7 +944,7 @@ sbgp_ipaddrfam(struct parse *p, const unsigned char *d, size_t dsz)
 	/* Get address family, RFC 3779, 2.2.3.3. */
 
 	type = sk_ASN1_TYPE_value(seq, 0);
-	if (V_ASN1_OCTET_STRING != type->type) {
+	if (type->type != V_ASN1_OCTET_STRING) {
 		X509_WARNX(p, "%s: want ASN.1 octet "
 			"string, have %s (NID %d)", p->fn, 
 			ASN1_tag2str(type->type), type->type);
@@ -969,7 +954,7 @@ sbgp_ipaddrfam(struct parse *p, const unsigned char *d, size_t dsz)
 	d = type->value.octet_string->data;
 	dsz = type->value.octet_string->length;
 
-	if (0 == dsz || dsz > 3) {
+	if (dsz == 0 || dsz > 3) {
 		X509_WARNX(p, "%s: invalid IP address "
 			"length, have %zu", p->fn, dsz);
 		goto out;
@@ -980,11 +965,11 @@ sbgp_ipaddrfam(struct parse *p, const unsigned char *d, size_t dsz)
 	memcpy(buf, d, sizeof(uint16_t));
 	ip.afi = ntohs(*(uint16_t *)buf);
 
-	if (1 != ip.afi && 2 != ip.afi) {
+	if (ip.afi != 1 && ip.afi != 2) {
 		X509_WARNX(p, "%s: invalid AFI, "
 			"have %u", p->fn, ip.afi);
 		goto out;
-	} else if (3 == dsz) {
+	} else if (dsz == 3) {
 		ip.safi = d[2];
 		ip.has_safi = 1;
 		X509_LOG(p, "%s: parsed IPv%s address family: "
@@ -997,7 +982,7 @@ sbgp_ipaddrfam(struct parse *p, const unsigned char *d, size_t dsz)
 	/* Next, either sequence or null, RFC 3770 sec. 2.2.3.4. */
 
 	type = sk_ASN1_TYPE_value(seq, 1);
-	if (V_ASN1_SEQUENCE == type->type) {
+	if (type->type == V_ASN1_SEQUENCE) {
 		d = type->value.asn1_string->data;
 		dsz = type->value.asn1_string->length;
 
@@ -1005,7 +990,7 @@ sbgp_ipaddrfam(struct parse *p, const unsigned char *d, size_t dsz)
 			X509_WARNX1(p, "sbgp_addr_or_range");
 			goto out;
 		}
-	} else if (V_ASN1_NULL == type->type) {
+	} else if (type->type == V_ASN1_NULL) {
 		ip.type = ASN1_IP_INHERIT;
 		if ( ! append_ip(p, &ip)) {
 			X509_WARNX1(p, "append_ip");
@@ -1049,7 +1034,7 @@ sbgp_ipaddrblk(struct parse *p, X509_EXTENSION *ext)
 
 	/* Top-level sequence. */
 
-	if (NULL == (seq = d2i_ASN1_SEQUENCE_ANY(NULL, &d, dsz))) {
+	if ((seq = d2i_ASN1_SEQUENCE_ANY(NULL, &d, dsz)) == NULL) {
 		X509_WARNX1(p, "d2i_ASN1_SEQUENCE_ANY");
 		goto out;
 	} 
@@ -1058,7 +1043,7 @@ sbgp_ipaddrblk(struct parse *p, X509_EXTENSION *ext)
 
 	for (i = 0; i < sk_ASN1_TYPE_num(seq); i++) {
 		type = sk_ASN1_TYPE_value(seq, i);
-		if (V_ASN1_OCTET_STRING == type->type)
+		if (type->type == V_ASN1_OCTET_STRING)
 			break;
 		X509_LOG(p, "%s: ignoring %s (NID %d)", p->fn, 
 			ASN1_tag2str(type->type), type->type);
@@ -1068,15 +1053,14 @@ sbgp_ipaddrblk(struct parse *p, X509_EXTENSION *ext)
 		X509_WARNX(p, "%s: missing ASN.1 octet string", p->fn);
 		goto out;
 	}
-	assert(NULL != type);
+	assert(type != NULL);
 
 	/* The blocks sequence, RFC 3779 2.2.3.1. */
 
 	d = type->value.octet_string->data;
 	dsz = type->value.octet_string->length;
 
-	sseq = d2i_ASN1_SEQUENCE_ANY(NULL, &d, dsz);
-	if (NULL == sseq) {
+	if ((sseq = d2i_ASN1_SEQUENCE_ANY(NULL, &d, dsz)) == NULL) {
 		X509_WARNX1(p, "d2i_ASN1_SEQUENCE_ANY");
 		goto out;
 	} 
@@ -1135,12 +1119,12 @@ cert_parse(int verbose, X509 *cacert,
 	p.fn = fn;
 	p.verbose = verbose;
 	p.res = calloc(1, sizeof(struct cert));
-	if (NULL == p.res) {
+	if (p.res == NULL) {
 		WARN("calloc");
 		goto out;
 	}
 
-	if (NULL == (bio = BIO_new_file(fn, "rb"))) {
+	if ((bio = BIO_new_file(fn, "rb")) == NULL) {
 		X509_CRYPTOX(&p, "%s: BIO_new_file", p.fn);
 		goto out;
 	}
@@ -1161,7 +1145,7 @@ cert_parse(int verbose, X509 *cacert,
 		bio = BIO_push(shamd, bio);
 	}
 
-	if (NULL == (x = d2i_X509_bio(bio, NULL))) {
+	if ((x = d2i_X509_bio(bio, NULL)) == NULL) {
 		X509_CRYPTOX(&p, "%s: d2i_X509_bio", p.fn);
 		goto out;
 	}
@@ -1197,7 +1181,7 @@ cert_parse(int verbose, X509 *cacert,
 	 */
 
 	if (NULL != cacert) {
-		if ( ! X509_verify(x, X509_get_pubkey(cacert))) {
+		if (!X509_verify(x, X509_get_pubkey(cacert))) {
 			X509_CRYPTOX(&p, "%s: X509_verify", p.fn);
 			goto out;
 		}
@@ -1214,29 +1198,29 @@ cert_parse(int verbose, X509 *cacert,
 
 	for (i = 0; i < (size_t)extsz; i++) {
 		ext = X509_get_ext(x, i);
-		assert(NULL != ext);
+		assert(ext != NULL);
 		obj = X509_EXTENSION_get_object(ext);
-		assert(NULL != obj);
+		assert(obj != NULL);
 
 		switch (OBJ_obj2nid(obj)) {
 		case NID_sbgp_ipAddrBlock:
-			if (0 == (c = sbgp_ipaddrblk(&p, ext)))
+			if ((c = sbgp_ipaddrblk(&p, ext)) == 0)
 				X509_WARNX1(&p, "sbgp_ipaddrblk");
 			break;
 		case NID_sbgp_autonomousSysNum:
-			if (0 == (c = sbgp_assysnum(&p, ext)))
+			if ((c = sbgp_assysnum(&p, ext)) == 0)
 				X509_WARNX1(&p, "sbgp_assysnum");
 			break;
 		case NID_sinfo_access:
-			if (0 == (c = sbgp_sia(&p, ext)))
+			if ((c = sbgp_sia(&p, ext)) == 0)
 				X509_WARNX1(&p, "sbgp_sia");
 			break;
 		case NID_subject_key_identifier:
-			if (0 == (c = sbgp_skey_ident(&p, ext)))
+			if ((c = sbgp_skey_ident(&p, ext)) == 0)
 				X509_WARNX1(&p, "sbgp_skey_ident");
 			break;
 		case NID_authority_key_identifier:
-			if (0 == (c = sbgp_akey_ident(&p, ext)))
+			if ((c = sbgp_akey_ident(&p, ext)) == 0)
 				X509_WARNX1(&p, "sbgp_akey_ident");
 			break;
 		default:
@@ -1246,7 +1230,7 @@ cert_parse(int verbose, X509 *cacert,
 				p.fn, objn, OBJ_obj2nid(obj));
 			break;
 		}
-		if (0 == c)
+		if (c == 0)
 			goto out;
 	}
 
@@ -1254,9 +1238,9 @@ cert_parse(int verbose, X509 *cacert,
 out:
 	BIO_free_all(bio);
 	X509_free(x);
-	if (0 == rc)
+	if (rc == 0)
 		cert_free(p.res);
-	return 0 == rc ? NULL : p.res;
+	return (rc == 0) ? NULL : p.res;
 }
 
 void
