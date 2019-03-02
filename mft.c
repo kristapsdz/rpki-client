@@ -12,9 +12,9 @@
  * Parse results and data of the manifest file.
  */
 struct	parse {
-	const char	 *fn; /* manifest file name */
-	int		  verbose; /* parse verbosity */
-	struct mft	 *res; /* result object */
+	const char	*fn; /* manifest file name */
+	int		 verbose; /* parse verbosity */
+	struct mft	*res; /* result object */
 };
 
 /* 
@@ -30,6 +30,54 @@ struct	parse {
 	LOG((_p)->verbose, (_fmt), ##__VA_ARGS__)
 #define MFT_CRYPTOX(_p, _fmt, ...) \
 	CRYPTOX((_p)->verbose, (_fmt), ##__VA_ARGS__)
+
+/*
+ * Convert from the ASN.1 generalised time to a time_t.
+ * Return the time_t or -1 on failure.
+ */
+static time_t
+gentime2time(struct parse *p, const ASN1_GENERALIZEDTIME *t)
+{
+	BIO		*mem;
+	char		*pp;
+	char		 buf[64];
+	long		 len;
+	struct tm	 tm;
+
+	if ((mem = BIO_new(BIO_s_mem())) == NULL) {
+		MFT_WARNX(p, "BIO_new");
+		return -1;
+	} else if (!ASN1_GENERALIZEDTIME_print(mem, t)) {
+		MFT_WARNX(p, "ASN1_GENERALIZEDTIME_print");
+		BIO_free(mem);
+		return -1;
+	}
+
+	/* 
+	 * The manpage says nothing about being NUL terminated and
+	 * strptime(3) needs a string.
+	 * So convert into a static buffer of decent size and NUL
+	 * terminate in that way.
+	 */
+
+	len = BIO_get_mem_data(mem, &pp);
+	if (len < 0 || (size_t)len > sizeof(buf) - 1) {
+		MFT_WARNX(p, "ASN1_GENERALIZEDTIME_print: too long");
+		BIO_free(mem);
+		return -1;
+	}
+
+	memcpy(buf, pp, len);
+	buf[len] = '\0';
+	BIO_free(mem);
+
+	if (strptime(buf, "%b %d %T %Y %Z", &tm) == NULL) {
+		MFT_WARNX(p, "%s: strptime", buf);
+		return -1;
+	}
+
+	return mktime(&tm);
+}
 
 /*
  * Parse the "FileAndHash" sequence, RFC 6486, sec. 4.2.
@@ -157,6 +205,7 @@ mft_parse_econtent(const ASN1_OCTET_STRING *os, struct parse *p)
 	const ASN1_TYPE	        *ver, *mftnum, *thisup, *nextup,
 			        *falg, *fl;
 	int		         i, rc = 0;
+	time_t			 this, next, now = time(NULL);
 
 	d = os->data;
 	dsz = os->length;
@@ -197,7 +246,11 @@ mft_parse_econtent(const ASN1_OCTET_STRING *os, struct parse *p)
 		goto out;
 	}
 
-	/* Timestamps: this and next update time. */
+	/* 
+	 * Timestamps: this and next update time.
+	 * Validate that the current date falls into this interval.
+	 * This is required by section 4.4, (3).
+	 */
 
 	thisup = sk_ASN1_TYPE_value(seq, i++);
 	nextup = sk_ASN1_TYPE_value(seq, i++);
@@ -207,12 +260,22 @@ mft_parse_econtent(const ASN1_OCTET_STRING *os, struct parse *p)
 		goto out;
 	}
 
-	/* 
-	 * FIXME: make sure that we fall within this.
-	 * I can't yet figure out how to convert into and out of the
-	 * generalizedtime tructure.
-	 * This is necessary as per RFC 6486, 6.1, part (3).
-	 */
+	this = gentime2time(p, thisup->value.generalizedtime);
+	next = gentime2time(p, nextup->value.generalizedtime);
+
+	if (this < 0 || next < 0) {
+		MFT_WARNX(p, "%s: bad date", p->fn);
+		goto out;
+	} else if (this >= next) {
+		MFT_WARNX(p, "%s: bad update interval", p->fn);
+		goto out;
+	} else if (now < this) {
+		MFT_WARNX(p, "%s: before date interval", p->fn);
+		goto out;
+	} else if (now >= next) {
+		MFT_WARNX(p, "%s: after date interval", p->fn);
+		goto out;
+	}
 
 	/* File list algorithm. */
 
@@ -382,4 +445,3 @@ out:
 	mft_free(p);
 	return NULL;
 }
-
