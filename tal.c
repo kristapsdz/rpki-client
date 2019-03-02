@@ -1,6 +1,7 @@
 #include <netinet/in.h>
 
 #include <assert.h>
+#include <err.h>
 #include <resolv.h>
 #include <stdio.h>
 #include <stdlib.h>
@@ -18,7 +19,6 @@
 static struct tal *
 tal_parse_stream(int verb, const char *fn, FILE *f)
 {
-	void		*pp;
 	char		*line = NULL, *b64 = NULL;
 	size_t		 sz, b64sz = 0, linesize = 0, lineno = 0;
 	ssize_t		 linelen, ssz;
@@ -26,10 +26,8 @@ tal_parse_stream(int verb, const char *fn, FILE *f)
 	struct tal	*tal = NULL;
 	enum rtype	 rp;
 
-	if ((tal = calloc(1, sizeof(struct tal))) == NULL) {
-		WARN("calloc");
-		return NULL;
-	}
+	if ((tal = calloc(1, sizeof(struct tal))) == NULL)
+		err(EXIT_FAILURE, NULL);
 
 	/* Begin with the URI section. */
 
@@ -48,18 +46,15 @@ tal_parse_stream(int verb, const char *fn, FILE *f)
 
 		/* Append to list of URIs. */
 
-		pp = reallocarray(tal->uri, 
+		tal->uri = reallocarray(tal->uri,
 			tal->urisz + 1, sizeof(char *));
-		if (pp == NULL) {
-			WARN("reallocarray");
-			goto out;
-		}
-		tal->uri = pp;
+		if (tal->uri == NULL)
+			err(EXIT_FAILURE, NULL);
+
 		tal->uri[tal->urisz] = strdup(line);
-		if (tal->uri[tal->urisz] == NULL) {
-			WARN("strdup");
-			goto out;
-		}
+		if (tal->uri[tal->urisz] == NULL)
+			err(EXIT_FAILURE, NULL);
+
 		tal->urisz++;
 
 		/* Make sure we're a proper rsync URI. */
@@ -102,11 +97,8 @@ tal_parse_stream(int verb, const char *fn, FILE *f)
 		/* Do our base64 decoding in-band. */
 
 		sz = ((linelen + 2) / 3) * 4 + 1;
-		if ((pp = realloc(b64, b64sz + sz)) == NULL) {
-			WARN("realloc");
-			goto out;
-		}
-		b64 = pp;
+		if ((b64 = realloc(b64, b64sz + sz)) == NULL)
+			err(EXIT_FAILURE, NULL);
 		ssz = b64_pton(line, b64 + b64sz, sz);
 		if (ssz < 0) {
 			WARN("b64_pton");
@@ -235,10 +227,9 @@ tal_read(int fd, int verb)
 	size_t		 i;
 	struct tal	*p;
 
-	if ((p = calloc(1, sizeof(struct tal))) == NULL) {
-		WARN("calloc");
-		goto out;
-	}
+	if ((p = calloc(1, sizeof(struct tal))) == NULL)
+		err(EXIT_FAILURE, NULL);
+
 	if (!buf_read_alloc(fd, verb, (void **)&p->pkey, &p->pkeysz)) {
 		WARNX1(verb, "buf_read_alloc");
 		goto out;
@@ -251,10 +242,9 @@ tal_read(int fd, int verb)
 	}
 	assert(p->urisz > 0);
 
-	if ((p->uri = calloc(p->urisz, sizeof(char *))) == NULL) {
-		WARN("calloc");
-		goto out;
-	}
+	if ((p->uri = calloc(p->urisz, sizeof(char *))) == NULL)
+		err(EXIT_FAILURE, NULL);
+
 	for (i = 0; i < p->urisz; i++)
 		if (!str_read(fd, verb, &p->uri[i])) {
 			WARNX1(verb, "str_read");
