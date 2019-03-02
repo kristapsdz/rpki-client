@@ -1,4 +1,5 @@
 #include <assert.h>
+#include <err.h>
 #include <stdarg.h>
 #include <stdlib.h>
 #include <string.h>
@@ -46,9 +47,9 @@ roa_parse_ipblock(const ASN1_OCTET_STRING *os, struct parse *p)
 	d = os->data;
 	dsz = os->length;
 	seq = d2i_ASN1_SEQUENCE_ANY(NULL, &d, dsz);
-	assert(NULL != seq);
+	assert(seq != NULL);
 
-	if (0 == sk_ASN1_TYPE_num(seq)) {
+	if (sk_ASN1_TYPE_num(seq) == 0) {
 		ROA_WARNX(p, "%s: no IP blocks assigned", p->fn);
 		return 0;
 	}
@@ -75,23 +76,22 @@ roa_parse_econtent(const ASN1_OCTET_STRING *os, struct parse *p)
 	d = os->data;
 	dsz = os->length;
 
-	seq = d2i_ASN1_SEQUENCE_ANY(NULL, &d, dsz);
-	if (NULL == seq) {
+	if ((seq = d2i_ASN1_SEQUENCE_ANY(NULL, &d, dsz)) == NULL) {
 		ROA_CRYPTOX(p, "%s: want ASN.1 sequence", p->fn);
 		goto out;
 	} 
 
-	if (2 != sk_ASN1_TYPE_num(seq) &&
-	    3 != sk_ASN1_TYPE_num(seq)) {
+	if (sk_ASN1_TYPE_num(seq) != 2 &&
+	    sk_ASN1_TYPE_num(seq) != 3) {
 		ROA_WARNX(p, "%s: want 2 or 3 elements", p->fn);
 		goto out;
 	}
 
 	/* The version number (section 3.1) is optional. */
 
-	if (3 == sk_ASN1_TYPE_num(seq)) {
+	if (sk_ASN1_TYPE_num(seq) == 3) {
 		ver = sk_ASN1_TYPE_value(seq, i++);
-		if (V_ASN1_INTEGER != ver->type) {
+		if (ver->type != V_ASN1_INTEGER) {
 			ROA_WARNX(p, "%s: want ASN.1 integer", p->fn);
 			goto out;
 		} 
@@ -100,26 +100,24 @@ roa_parse_econtent(const ASN1_OCTET_STRING *os, struct parse *p)
 	/* AS identifier (section 3.2). */
 
 	asid = sk_ASN1_TYPE_value(seq, i++);
-	if (V_ASN1_INTEGER != asid->type) {
+	if (asid->type != V_ASN1_INTEGER) {
 		ROA_WARNX(p, "%s: want ASN.1 integer", p->fn);
 		goto out;
-	} 
-	id = ASN1_INTEGER_get(asid->value.integer);
-	if (id < 0) {
+	} else if ((id = ASN1_INTEGER_get(asid->value.integer)) < 0) {
 		ROA_WARNX(p, "%s: negative AS identifier", p->fn);
 		goto out;
 	}
+
 	ROA_LOG(p, "%s: parsed AS identifier: %ld", p->fn, id);
 	p->res->asid = id;
 
 	/* IP block sequence (section 3.3). */
 
 	ipblks = sk_ASN1_TYPE_value(seq, i++);
-	if (V_ASN1_SEQUENCE != ipblks->type) {
+	if (ipblks->type != V_ASN1_SEQUENCE) {
 		ROA_WARNX(p, "%s: want ASN.1 sequence", p->fn);
 		goto out;
-	} 
-	if ( ! roa_parse_ipblock(ipblks->value.octet_string, p)) {
+	} else if (!roa_parse_ipblock(ipblks->value.octet_string, p)) {
 		ROA_WARNX1(p, "roa_parse_ipblock");
 		goto out;
 	}
@@ -146,13 +144,14 @@ roa_parse(int verb, X509 *cacert,
 	os = cms_parse_validate(verb, cacert, 
 		fn, "1.2.840.113549.1.9.16.1.24", dgst);
 
-	if (NULL == os) {
+	if (os == NULL) {
 		ROA_WARNX1(&p, "cms_parse_validate");
 		return NULL;
-	} else if (NULL == (p.res = calloc(1, sizeof(struct roa)))) {
-		WARN("calloc");
-		return NULL;
-	} else if (roa_parse_econtent(os, &p))
+	}
+
+	if ((p.res = calloc(1, sizeof(struct roa))) == NULL)
+		err(EXIT_FAILURE, NULL);
+	if (roa_parse_econtent(os, &p))
 		return p.res;
 
 	ROA_WARNX1(&p, "roa_parse_econtent");
@@ -186,7 +185,7 @@ roa_read(int fd, int verb)
 	struct roa 	*p;
 
 	if ((p = calloc(1, sizeof(struct roa))) == NULL)
-		WARN("calloc");
+		err(EXIT_FAILURE, NULL);
 
 	return p;
 }
