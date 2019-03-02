@@ -1,4 +1,5 @@
 #include <assert.h>
+#include <err.h>
 #include <stdarg.h>
 #include <stdlib.h>
 #include <string.h>
@@ -90,7 +91,6 @@ mft_parse_flist(struct parse *p, const ASN1_OCTET_STRING *os)
 	const unsigned char     *d;
 	size_t		         dsz, sz;
 	int		 	 i, rc = 0;
-	void			*pp;
 	struct mftfile		*fent;
 
 	d = os->data;
@@ -141,23 +141,21 @@ mft_parse_flist(struct parse *p, const ASN1_OCTET_STRING *os)
 
 		/* Insert the filename and hash value. */
 
-		pp = reallocarray(p->res->files, 
-			p->res->filesz + 1, sizeof(struct mftfile));
-		if (pp == NULL) {
-			WARN("reallocarray");
-			goto out;
-		}
-		p->res->files = pp;
+		p->res->files = reallocarray
+			(p->res->files, 
+			 p->res->filesz + 1,
+			 sizeof(struct mftfile));
+		if (p->res->files == NULL)
+			err(EXIT_FAILURE, NULL);
+
 		fent = &p->res->files[p->res->filesz++];
 		memset(fent, 0, sizeof(struct mftfile));
 
 		fent->file = strndup
 			(file->value.ia5string->data, 
 			 file->value.ia5string->length);
-		if (fent->file == NULL) {
-			WARN("strdup");
-			goto out;
-		}
+		if (fent->file == NULL)
+			err(EXIT_FAILURE, NULL);
 		memcpy(fent->hash, hash->value.bit_string->data,
 			SHA256_DIGEST_LENGTH);
 
@@ -335,14 +333,12 @@ mft_parse(int verb, X509 *cacert, const char *fn)
 	if (os == NULL) {
 		MFT_WARNX1(&p, "cms_parse_validate");
 		return NULL;
-	} else if ((p.res = calloc(1, sizeof(struct mft))) == NULL) {
-		WARN("calloc");
-		return NULL;
-	} else if ((p.res->file = strdup(fn)) == NULL) {
-		WARN("strdup");
-		free(p.res);
-		return NULL;
 	}
+
+	if ((p.res = calloc(1, sizeof(struct mft))) == NULL)
+		err(EXIT_FAILURE, NULL);
+	if ((p.res->file = strdup(fn)) == NULL)
+		err(EXIT_FAILURE, NULL);
 	
 	/* 
 	 * If we're stale, then simply remove all of the files that the
@@ -435,10 +431,10 @@ mft_read(int fd, int verb)
 	struct mft 	*p = NULL;
 	size_t		 i;
 
-	if ((p = calloc(1, sizeof(struct mft))) == NULL) {
-		WARN("calloc");
-		goto out;
-	} else if (!str_read(fd, verb, &p->file)) {
+	if ((p = calloc(1, sizeof(struct mft))) == NULL)
+		err(EXIT_FAILURE, NULL);
+
+	if (!str_read(fd, verb, &p->file)) {
 		WARNX1(verb, "str_read");
 		goto out;
 	} else if (!simple_read(fd, verb, &p->filesz, sizeof(size_t))) {
@@ -446,11 +442,8 @@ mft_read(int fd, int verb)
 		goto out;
 	}
 	
-	p->files = calloc(p->filesz, sizeof(struct mftfile));
-	if (p->files == NULL)  {
-		WARN("calloc");
-		goto out;
-	}
+	if ((p->files = calloc(p->filesz, sizeof(struct mftfile))) == NULL)
+		err(EXIT_FAILURE, NULL);
 
 	for (i = 0; i < p->filesz; i++) {
 		if (!str_read(fd, verb, &p->files[i].file)) {
