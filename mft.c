@@ -194,7 +194,7 @@ out:
 
 /*
  * Handle the eContent of the manifest object, RFC 6486 sec. 4.2.
- * Returns zero on failure, non-zero on success.
+ * Returns <0 on failure, 0 on stale, >0 on success.
  */
 static int
 mft_parse_econtent(const ASN1_OCTET_STRING *os, struct parse *p)
@@ -204,7 +204,7 @@ mft_parse_econtent(const ASN1_OCTET_STRING *os, struct parse *p)
 	size_t		         dsz;
 	const ASN1_TYPE	        *ver, *mftnum, *thisup, *nextup,
 			        *falg, *fl;
-	int		         i, rc = 0;
+	int		         i, rc = -1;
 	time_t			 this, next, now = time(NULL);
 
 	d = os->data;
@@ -250,6 +250,7 @@ mft_parse_econtent(const ASN1_OCTET_STRING *os, struct parse *p)
 	 * Timestamps: this and next update time.
 	 * Validate that the current date falls into this interval.
 	 * This is required by section 4.4, (3).
+	 * If we're after the given date, then the MFT is stale.
 	 */
 
 	thisup = sk_ASN1_TYPE_value(seq, i++);
@@ -270,10 +271,12 @@ mft_parse_econtent(const ASN1_OCTET_STRING *os, struct parse *p)
 		MFT_WARNX(p, "%s: bad update interval", p->fn);
 		goto out;
 	} else if (now < this) {
-		MFT_WARNX(p, "%s: before date interval", p->fn);
+		MFT_WARNX(p, "%s: before date "
+			"interval (clock drift?)", p->fn);
 		goto out;
 	} else if (now >= next) {
-		MFT_WARNX(p, "%s: after date interval", p->fn);
+		MFT_WARNX(p, "%s: after date interval (stale)", p->fn);
+		rc = 0;
 		goto out;
 	}
 
@@ -310,12 +313,17 @@ out:
  * public key is optionally in "pkey".
  * This conforms to RFC 6486.
  * Returns zero on failure, non-zero on success.
+ * Note that if the MFT is stale, all referenced objects are stripped
+ * from the parsed content.
+ * The MFT content is otherwise returned.
  */
 struct mft *
 mft_parse(int verb, X509 *cacert, const char *fn)
 {
 	struct parse		 p;
 	const ASN1_OCTET_STRING *os;
+	int			 rc;
+	size_t			 i;
 
 	memset(&p, 0, sizeof(struct parse));
 	p.fn = fn;
@@ -334,7 +342,23 @@ mft_parse(int verb, X509 *cacert, const char *fn)
 		WARN("strdup");
 		free(p.res);
 		return NULL;
-	} else if (mft_parse_econtent(os, &p))
+	}
+	
+	/* 
+	 * If we're stale, then simply remove all of the files that the
+	 * MFT references and otherwise accept it.
+	 */
+
+	if ((rc = mft_parse_econtent(os, &p)) == 0) {
+		if (p.res->files != NULL)
+			for (i = 0; i < p.res->filesz; i++)
+				free(p.res->files[i].file);
+		free(p.res->files);
+		p.res->filesz = 0;
+		p.res->files = NULL;
+	}
+
+	if (rc >= 0)
 		return p.res;
 
 	MFT_WARNX1(&p, "mft_parse_econtent");
