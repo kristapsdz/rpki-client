@@ -75,7 +75,6 @@ struct	cert {
 	char		*mft; /* manifest (rsync:// uri) */
 	char		*ski; /* subject key identifier */
 	char		*aki; /* authority key identifier */
-	EVP_PKEY	*pubkey; /* the X509 public key */
 };
 
 /*

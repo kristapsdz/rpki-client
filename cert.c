@@ -1205,11 +1205,6 @@ cert_parse(int verbose, X509 *cacert,
 	} else
 		X509_LOG(&p, "%s: unverified signature", p.fn);
 
-	if (NULL == (p.res->pubkey = X509_get_pubkey(x))) {
-		X509_WARNX(&p, "%s: no public key", p.fn);
-		goto out;
-	}
-	
 	/* Look for X509v3 extensions. */
 
 	if ((extsz = X509_get_ext_count(x)) < 0) {
@@ -1271,7 +1266,6 @@ cert_free(struct cert *p)
 	if (NULL == p)
 		return;
 
-	EVP_PKEY_free(p->pubkey);
 	free(p->rep);
 	free(p->mft);
 	free(p->ski);
