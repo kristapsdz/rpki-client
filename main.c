@@ -202,23 +202,15 @@ entryq_next(int fd, int verb, struct entryq *q)
 /*
  * Like entry_write() but into a buffer.
  */
-static int
+static void
 entry_buffer(char **b, size_t *bsz, size_t *bmax,
 	int verb, const struct entry *ent)
 {
 
-	if (!simple_buffer(b, bsz, bmax, &ent->type, sizeof(enum rtype)))
-		WARNX1(verb, "simple_buffer");
-	else if (!str_buffer(b, bsz, bmax, verb, ent->uri))
-		WARNX1(verb, "str_buffer");
-	else if (!simple_buffer(b, bsz, bmax, &ent->has_dgst, sizeof(int)))
-		WARNX1(verb, "simple_buffer");
-	else if (!simple_buffer(b, bsz, bmax, ent->dgst, sizeof(ent->dgst)))
-		WARNX1(verb, "simple_buffer");
-	else
-		return 1;
-
-	return 0;
+	simple_buffer(b, bsz, bmax, &ent->type, sizeof(enum rtype));
+	str_buffer(b, bsz, bmax, verb, ent->uri);
+	simple_buffer(b, bsz, bmax, &ent->has_dgst, sizeof(int));
+	simple_buffer(b, bsz, bmax, ent->dgst, sizeof(ent->dgst));
 }
 
 /*
@@ -580,7 +572,6 @@ proc_rsync(int fd, int verb)
 			args[i++] = "-r";
 			args[i++] = "-l";
 			args[i++] = "-t";
-			args[i++] = "-v";
 			args[i++] = "--delete";
 			args[i++] = uri;
 			args[i++] = dst;
@@ -741,10 +732,7 @@ proc_parser(int fd, int verb)
 		entp = TAILQ_FIRST(&q);
 		assert(entp != NULL);
 
-		if (!entry_buffer(&b, &bsz, &bmax, verb, entp)) {
-			WARNX1(verb, "entry_buffer");
-			goto out;
-		}
+		entry_buffer(&b, &bsz, &bmax, verb, entp);
 
 		switch (entp->type) {
 		case RTYPE_TAL:
@@ -754,10 +742,7 @@ proc_parser(int fd, int verb)
 				WARNX1(verb, "tal_parse");
 				goto out;
 			}
-			if (!tal_buffer(&b, &bsz, &bmax, verb, tal)) {
-				WARNX1(verb, "tal_buffer");
-				goto out;
-			}
+			tal_buffer(&b, &bsz, &bmax, verb, tal);
 			tal_free(tal);
 			break;
 		case RTYPE_CER:
@@ -767,10 +752,7 @@ proc_parser(int fd, int verb)
 				WARNX1(verb, "cert_parse");
 				goto out;
 			}
-			if (!cert_buffer(&b, &bsz, &bmax, verb, x)) {
-				WARNX1(verb, "cert_buffer");
-				goto out;
-			}
+			cert_buffer(&b, &bsz, &bmax, verb, x);
 			cert_free(x);
 			break;
 		case RTYPE_MFT:
@@ -780,10 +762,7 @@ proc_parser(int fd, int verb)
 				WARNX1(verb, "mft_parse");
 				goto out;
 			}
-			if (!mft_buffer(&b, &bsz, &bmax, verb, mft)) {
-				WARNX1(verb, "mft_buffer");
-				goto out;
-			}
+			mft_buffer(&b, &bsz, &bmax, verb, mft);
 			mft_free(mft);
 			break;
 		case RTYPE_ROA:
@@ -793,10 +772,7 @@ proc_parser(int fd, int verb)
 				WARNX1(verb, "roa_parse");
 				goto out;
 			}
-			if (!roa_buffer(&b, &bsz, &bmax, verb, roa)) {
-				WARNX1(verb, "roa_buffer");
-				goto out;
-			}
+			roa_buffer(&b, &bsz, &bmax, verb, roa);
 			roa_free(roa);
 			break;
 		default:
@@ -1085,7 +1061,8 @@ main(int argc, char *argv[])
 				WARNX1(verb, "entry_process");
 				goto out;
 			}
-			fprintf(stderr, "%s\n", ent->uri);
+			if (verb)
+				fprintf(stderr, "%s\n", ent->uri);
 			free(ent->uri);
 			free(ent);
 		}

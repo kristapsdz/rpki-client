@@ -147,22 +147,22 @@ __BEGIN_DECLS
  * Routines for RPKI data files.
  */
 
-int		 tal_buffer(char **, size_t *, size_t *, int, const struct tal *);
+void		 tal_buffer(char **, size_t *, size_t *, int, const struct tal *);
 void		 tal_free(struct tal *);
 struct tal	*tal_parse(int, const char *);
 struct tal	*tal_read(int, int);
 
-int		 cert_buffer(char **, size_t *, size_t *, int, const struct cert *);
+void		 cert_buffer(char **, size_t *, size_t *, int, const struct cert *);
 void		 cert_free(struct cert *);
 struct cert	*cert_parse(int, X509 *, const char *, const unsigned char *);
 struct cert	*cert_read(int, int);
 
-int		 mft_buffer(char **, size_t *, size_t *, int, const struct mft *);
+void		 mft_buffer(char **, size_t *, size_t *, int, const struct mft *);
 void		 mft_free(struct mft *);
 struct mft 	*mft_parse(int, X509 *, const char *);
 struct mft 	*mft_read(int, int);
 
-int		 roa_buffer(char **, size_t *, size_t *, int, const struct roa *);
+void		 roa_buffer(char **, size_t *, size_t *, int, const struct roa *);
 void		 roa_free(struct roa *);
 struct roa 	*roa_parse(int, X509 *, const char *, const unsigned char *);
 struct roa	*roa_read(int, int);
@@ -192,13 +192,13 @@ void		 rpki_cryptox(int, const char *, size_t, const char *, ...)
 			__attribute__((format(printf, 4, 5)));
 int		 socket_blocking(int, int);
 int		 socket_nonblocking(int, int);
-int		 simple_buffer(char **, size_t *, size_t *, const void *, size_t);
+void		 simple_buffer(char **, size_t *, size_t *, const void *, size_t);
 int		 simple_read(int, int, void *, size_t);
 int		 simple_write(int, const void *, size_t);
-int		 buf_buffer(char **, size_t *, size_t *, int, const void *, size_t);
+void		 buf_buffer(char **, size_t *, size_t *, int, const void *, size_t);
 int		 buf_read_alloc(int, int, void **, size_t *);
 int		 buf_write(int, int, const void *, size_t);
-int		 str_buffer(char **, size_t *, size_t *, int, const char *);
+void		 str_buffer(char **, size_t *, size_t *, int, const char *);
 int		 str_read(int, int, char **);
 int		 str_write(int, int, const char *);
 

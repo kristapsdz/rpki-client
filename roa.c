@@ -166,12 +166,10 @@ roa_free(struct roa *p)
 	free(p);
 }
 
-int
+void
 roa_buffer(char **b, size_t *bsz, size_t *bmax,
 	int verb, const struct roa *p)
 {
-
-	return 1;
 }
 
 /*
