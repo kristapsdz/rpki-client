@@ -162,7 +162,7 @@ buf_read_alloc(int fd, int verb, void **res, size_t *sz)
 	if (!simple_read(fd, verb, sz, sizeof(size_t)))
 		WARNX1(verb, "simple_read");
 	else if (*sz > 0 && (*res = malloc(*sz)) == NULL)
-		WARN("calloc");
+		err(EXIT_FAILURE, NULL);
 	else if (*sz > 0 && !simple_read(fd, verb, *res, *sz))
 		WARNX1(verb, "simple_read");
 	else
@@ -187,7 +187,7 @@ str_read(int fd, int verb, char **res)
 	if (!simple_read(fd, verb, &sz, sizeof(size_t)))
 		WARNX1(verb, "simple_read");
 	else if ((*res = calloc(sz + 1, 1)) == NULL)
-		WARN("malloc");
+		err(EXIT_FAILURE, NULL);
 	else if (!simple_read(fd, verb, *res, sz))
 		WARNX1(verb, "simple_read");
 	else
