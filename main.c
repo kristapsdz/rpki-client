@@ -114,7 +114,6 @@ repo_lookup(int fd, int verb, struct repotab *rt,
 	const char	*host, *mod;
 	size_t		 hostsz, modsz, i;
 	struct repo	*rp;
-	void		*pp;
 
 	if (!rsync_uri_parse(verb, &host, &hostsz,
 	    &mod, &modsz, NULL, NULL, NULL, uri)) {
@@ -137,23 +136,18 @@ repo_lookup(int fd, int verb, struct repotab *rt,
 		return 1;
 	}
 	
-	pp = reallocarray(rt->repos, rt->reposz + 1, sizeof(struct repo));
-	if (pp == NULL) {
-		WARN("reallocarray");
-		return 0;
-	}
-	rt->repos = pp;
+	rt->repos = reallocarray(rt->repos,
+		rt->reposz + 1, sizeof(struct repo));
+	if (rt->repos == NULL)
+		err(EXIT_FAILURE, NULL);
+
 	rp = &rt->repos[rt->reposz++];
 	memset(rp, 0, sizeof(struct repo));
 	rp->id = rt->reposz - 1;
 
-	if ((rp->host = strndup(host, hostsz)) == NULL) {
-		WARN("strndup");
-		return 0;
-	} else if ((rp->module = strndup(mod, modsz)) == NULL) {
-		WARN("strndup");
-		return 0;
-	}
+	if ((rp->host = strndup(host, hostsz)) == NULL ||
+	    (rp->module = strndup(mod, modsz)) == NULL)
+		err(EXIT_FAILURE, NULL);
 
 	i = rt->reposz - 1;
 
@@ -269,10 +263,9 @@ entryq_add(int fd, int verb, struct entryq *q,
 {
 	struct entry	*p;
 
-	if ((p = calloc(1, sizeof(struct entry))) == NULL) {
-		ERR("calloc");
-		return 0;
-	}
+	if ((p = calloc(1, sizeof(struct entry))) == NULL)
+		err(EXIT_FAILURE, NULL);
+
 	p->type = type;
 	p->uri = file;
 	p->repo = NULL != rp ? rp->id : -1;
@@ -328,10 +321,8 @@ queue_add_from_mft(int fd, int verb, struct entryq *q,
 	/* Construct local path from filename. */
 
 	sz = strlen(file->file) + strlen(mft);
-	if ((nfile = calloc(sz + 1, 1)) == NULL) {
-		WARN("calloc");
-		return 0;
-	}
+	if ((nfile = calloc(sz + 1, 1)) == NULL)
+		err(EXIT_FAILURE, NULL);
 
 	/* We know this is BASE_DIR/host/module/... */
 
@@ -377,22 +368,15 @@ queue_add_from_mft_set(int fd, int verb,
 
 /*
  * Add a local TAL file (RFC 7730) to the queue of files to fetch.
- * The "file" path has not been sanitised at all.
  * Returns zero on failure, non-zero on success.
  */
 static int
 queue_add_tal(int fd, int verb, struct entryq *q, const char *file)
 {
 	char		*nfile;
-	size_t		 sz = strlen(file);
 
-	if (sz <= 4 || strcasecmp(file + sz - 4, ".tal")) {
-		WARNX(verb, "%s: invalid file type", file);
-		return 0;
-	} else if ((nfile = strdup(file)) == NULL) {
-		ERR("strdup");
-		return 0;
-	}
+	if ((nfile = strdup(file)) == NULL)
+		err(EXIT_FAILURE, NULL);
 
 	/* Not in a repository, so directly add to queue. */
 
@@ -683,10 +667,8 @@ proc_parser(int fd, int verb)
 			}
 
 			entp = calloc(1, sizeof(struct entry));
-			if (entp == NULL) {
-				WARN("calloc");
-				goto out;
-			}
+			if (entp == NULL)
+				err(EXIT_FAILURE, NULL);
 			*entp = ent;
 			TAILQ_INSERT_TAIL(&q, entp, entries);
 			pfd.events |= POLLOUT;
