@@ -2,6 +2,7 @@
 
 #include <arpa/inet.h>
 #include <assert.h>
+#include <err.h>
 #include <inttypes.h>
 #include <stdarg.h>
 #include <stdlib.h>
@@ -58,44 +59,32 @@ ASN1_frame(struct parse *p, size_t sz,
 
 /*
  * Append an IP address structure to our list of results.
- * Returns zero on failure (memory allocation), non-zero on success.
  */
-static int
+static void
 append_ip(struct parse *p, const struct x509_ip *ip)
 {
-	void		*pp;
 	struct cert	*res = p->res;
 
-	pp = reallocarray(res->ips, 
+	res->ips = reallocarray(res->ips, 
 		res->ipsz + 1, sizeof(struct x509_ip));
-	if (pp == NULL) {
-		WARN("reallocarray");
-		return 0;
-	}
-	res->ips = pp;
+	if (res->ips == NULL)
+		err(EXIT_FAILURE, NULL);
 	res->ips[res->ipsz++] = *ip;
-	return 1;
 }
 
 /*
  * Append an AS identifier structure to our list of results.
- * Returns zero on failure (memory allocation), non-zero on success.
  */
-static int
+static void
 append_as(struct parse *p, const struct x509_as *as)
 {
-	void		*pp;
 	struct cert	*res = p->res;
 
-	pp = reallocarray(res->as, 
+	res->as = reallocarray(res->as, 
 		res->asz + 1, sizeof(struct x509_as));
-	if (pp == NULL) {
-		WARN("reallocarray");
-		return 0;
-	}
-	res->as = pp;
+	if (res->as == NULL)
+		err(EXIT_FAILURE, NULL);
 	res->as[res->asz++] = *as;
-	return 1;
 }
 
 /*
@@ -153,11 +142,9 @@ sbgp_addr(struct parse *p,
 	} else if (!sbgp_ipaddr(p, 0xFF, ip, &rng->max, bs)) {
 		X509_WARNX1(p, "sbgp_ipaddr");
 		return 0;
-	} else if (!append_ip(p, ip)) {
-		X509_WARNX1(p, "append_ip");
-		return 0;
-	}
+	} 
 
+	append_ip(p, ip);
 	X509_LOG(p, "%s: parsed IPv%s address (singleton)", 
 		p->fn, 1 == ip->afi ? "4" : "6");
 	return 1;
@@ -242,14 +229,13 @@ sbgp_akey_ident(struct parse *p, X509_EXTENSION *ext)
 	} else if (p->res->aki != NULL)
 		X509_LOG(p, "%s: reallocating", p->fn);
 
-	free(p->res->aki);
 
 	/* Make room for [hex1, hex2, ":"]*, NUL. */
 
-	if ((p->res->aki = calloc(plen * 3 + 1, 1)) == NULL) {
-		WARN("calloc");
-		goto out;
-	}
+	free(p->res->aki);
+	if ((p->res->aki = calloc(plen * 3 + 1, 1)) == NULL)
+		err(EXIT_FAILURE, NULL);
+
 	for (i = 0; i < plen; i++) {
 		snprintf(buf, sizeof(buf), "%0.2X:", d[i]);
 		strlcat(p->res->aki, buf, plen * 3 + 1);
@@ -333,14 +319,12 @@ sbgp_skey_ident(struct parse *p, X509_EXTENSION *ext)
 		X509_LOG(p, "%s: reallocating key ident", p->fn);
 
 	assert(V_ASN1_OCTET_STRING == ptag);
-	free(p->res->ski);
 
 	/* Make room for [hex1, hex2, ":"]*, NUL. */
 
-	if ((p->res->ski = calloc(plen * 3 + 1, 1)) == NULL) {
-		WARN("calloc");
-		return 0;
-	}
+	free(p->res->ski);
+	if ((p->res->ski = calloc(plen * 3 + 1, 1)) == NULL)
+		err(EXIT_FAILURE, NULL);
 
 	for (j = 0; j < plen; j++) {
 		snprintf(buf, sizeof(buf), "%0.2X:", d[j]);
@@ -415,18 +399,16 @@ sbgp_sia_bits_repo(struct parse *p, const unsigned char *d, size_t dsz)
 		X509_WARNX1(p, "ASN1_frame");
 		goto out;
 	}
+
 	if (strcmp(buf, "1.3.6.1.5.5.7.48.10") == 0) {
 		free(p->res->mft);
-		cp = p->res->mft = strndup(d, plen);
+		if ((cp = p->res->mft = strndup(d, plen)) == NULL)
+			err(EXIT_FAILURE, NULL);
 	} else {
 		free(p->res->rep);
-		cp = p->res->rep = strndup(d, plen);
+		if ((cp = p->res->rep = strndup(d, plen)) == NULL)
+			err(EXIT_FAILURE, NULL);
 	}
-
-	if (cp == NULL) {
-		WARN("strndup");
-		goto out;
-	} 
 
 	X509_LOG(p, "%s: parsed %s: %s", p->fn, 
 		strcmp(buf, "1.3.6.1.5.5.7.48.10") ? 
@@ -594,11 +576,7 @@ sbgp_asrange(struct parse *p, int rdi,
 	X509_LOG(p, "%s: parsed AS range max: "
 		"%" PRIu32, p->fn, as.range.max);
 
-	if (!append_as(p, &as)) {
-		X509_WARNX1(p, "append_as");
-		goto out;
-	}
-
+	append_as(p, &as);
 	rc = 1;
 out:
 	sk_ASN1_TYPE_free(seq);
@@ -607,9 +585,8 @@ out:
 
 /*
  * Parse an entire 3.2.3.10 integer type.
- * Return zero on failure, non-zero on success.
  */
-static int
+static void
 sbgp_asid(struct parse *p, int rdi, const ASN1_INTEGER *i)
 {
 	struct x509_as	 as;
@@ -621,7 +598,7 @@ sbgp_asid(struct parse *p, int rdi, const ASN1_INTEGER *i)
 	as.id = ASN1_INTEGER_get(i);
 	X509_LOG(p, "%s: parsed AS "
 		"identifier: %" PRIu32, p->fn, as.id);
-	return append_as(p, &as);
+	append_as(p, &as);
 }
 
 /*
@@ -655,10 +632,7 @@ sbgp_asnum(struct parse *p, int rdi,
 		as.rdi = rdi;
 		as.type = ASN1_AS_NULL;
 		X509_LOG(p, "%s: parsed inherited AS", p->fn);
-		if (!append_as(p, &as)) {
-			X509_WARNX1(p, "append_as");
-			goto out;
-		}
+		append_as(p, &as);
 		rc = 1;
 		goto out;
 	} else if (type->type != V_ASN1_SEQUENCE) {
@@ -680,10 +654,7 @@ sbgp_asnum(struct parse *p, int rdi,
 	for (i = 0; i < sk_ASN1_TYPE_num(seq); i++) {
 		type = sk_ASN1_TYPE_value(seq, i);
 		if (type->type == V_ASN1_INTEGER) {
-			if (!sbgp_asid(p, rdi, type->value.integer)) {
-				X509_WARNX1(p, "sbgp_asid");
-				goto out;
-			}
+			sbgp_asid(p, rdi, type->value.integer);
 		} else if (type->type == V_ASN1_SEQUENCE) {
 			d = type->value.asn1_string->data;
 			dsz = type->value.asn1_string->length;
@@ -848,13 +819,7 @@ sbgp_range(struct parse *p, struct x509_ip *ip,
 		return 0;
 	} 
 
-	/* Minimum and maximum parsed properly: append. */
-	
-	if (!append_ip(p, ip)) {
-		X509_WARNX1(p, "append_ip");
-		return 0;
-	}
-
+	append_ip(p, ip);
 	X509_LOG(p, "%s: parsed IPv%s address (range)", 
 		p->fn, (ip->afi == 1) ? "4" : "6");
 	rc = 1;
@@ -992,10 +957,7 @@ sbgp_ipaddrfam(struct parse *p, const unsigned char *d, size_t dsz)
 		}
 	} else if (type->type == V_ASN1_NULL) {
 		ip.type = ASN1_IP_INHERIT;
-		if ( ! append_ip(p, &ip)) {
-			X509_WARNX1(p, "append_ip");
-			goto out;
-		}
+		append_ip(p, &ip);
 		X509_LOG(p, "%s: parsed IPv%s address (inherit)", 
 			p->fn, 1 == ip.afi ? "4" : "6");
 	} else {
@@ -1117,11 +1079,8 @@ cert_parse(int verbose, X509 *cacert,
 	memset(&p, 0, sizeof(struct parse));
 	p.fn = fn;
 	p.verbose = verbose;
-	p.res = calloc(1, sizeof(struct cert));
-	if (p.res == NULL) {
-		WARN("calloc");
-		goto out;
-	}
+	if ((p.res = calloc(1, sizeof(struct cert))) == NULL)
+		err(EXIT_FAILURE, NULL);
 
 	if ((bio = BIO_new_file(fn, "rb")) == NULL) {
 		X509_CRYPTOX(&p, "%s: BIO_new_file", p.fn);
@@ -1282,8 +1241,9 @@ cert_read(int fd, int verb)
 	struct cert	*p;
 
 	if ((p = calloc(1, sizeof(struct cert))) == NULL)
-		WARN("calloc");
-	else if (!str_read(fd, verb, &p->rep))
+		err(EXIT_FAILURE, NULL);
+
+	if (!str_read(fd, verb, &p->rep))
 		WARNX1(verb, "str_read");
 	else if (!str_read(fd, verb, &p->mft))
 		WARNX1(verb, "str_read");
