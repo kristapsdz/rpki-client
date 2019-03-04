@@ -233,10 +233,7 @@ tal_read(int fd, int verb)
 		err(EXIT_FAILURE, NULL);
 
 	for (i = 0; i < p->urisz; i++)
-		if (!str_read(fd, verb, &p->uri[i])) {
-			WARNX1(verb, "str_read");
-			goto out;
-		}
+		str_read(fd, verb, &p->uri[i]);
 
 	return p;
 out:

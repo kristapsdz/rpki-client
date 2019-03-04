@@ -89,10 +89,8 @@ entry_read(int fd, int verb, struct entry *ent)
 	} else if (ssz == 0)
 		return 0;
 
-	if (!str_read(fd, verb, &ent->uri)) {
-		WARNX1(verb, "str_read");
-		return 0;
-	} else if (!simple_read(fd, verb, &ent->has_dgst, sizeof(int))) {
+	str_read(fd, verb, &ent->uri);
+	if (!simple_read(fd, verb, &ent->has_dgst, sizeof(int))) {
 		WARNX1(verb, "simple_read");
 		return 0;
 	} else if (!simple_read(fd, verb, ent->dgst, sizeof(ent->dgst))) {
@@ -525,13 +523,8 @@ proc_rsync(int fd, int verb)
 
 		/* Read host and module. */
 
-		if (!str_read(fd, verb, &host)) {
-			WARNX1(verb, "str_read");
-			goto out;
-		} else if (!str_read(fd, verb, &mod)) {
-			WARNX1(verb, "str_read");
-			goto out;
-		}
+		str_read(fd, verb, &host);
+		str_read(fd, verb, &mod);
 
 		/* Create source and destination locations. */
 
@@ -806,10 +799,7 @@ entry_process(int proc, int rsync, int verb,
 		break;
 	case RTYPE_CER:
 		LOG(verb, "%s: handling certificate file", ent->uri);
-		if ((cert = cert_read(proc, verb)) == NULL) {
-			WARNX1(verb, "cert_read");
-			break;
-		}
+		cert_read(proc, verb);
 		if (cert->mft != NULL &&
 		    !queue_add_from_cert(proc, rsync, verb, q, cert->mft, rt)) {
 			WARNX1(verb, "queue_add_from_cert");

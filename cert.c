@@ -1228,7 +1228,6 @@ cert_buffer(char **b, size_t *bsz, size_t *bmax,
 
 /*
  * Read parsed certificate content.
- * Returns a valid pointer or NULL on failure.
  * The pointer must be freed with cert_free().
  */
 struct cert *
@@ -1239,14 +1238,8 @@ cert_read(int fd, int verb)
 	if ((p = calloc(1, sizeof(struct cert))) == NULL)
 		err(EXIT_FAILURE, NULL);
 
-	if (!str_read(fd, verb, &p->rep))
-		WARNX1(verb, "str_read");
-	else if (!str_read(fd, verb, &p->mft))
-		WARNX1(verb, "str_read");
-	else
-		return p;
-
-	cert_free(p);
-	return NULL;
+	str_read(fd, verb, &p->rep);
+	str_read(fd, verb, &p->mft);
+	return p;
 }
 

@@ -419,10 +419,8 @@ mft_read(int fd, int verb)
 	if ((p = calloc(1, sizeof(struct mft))) == NULL)
 		err(EXIT_FAILURE, NULL);
 
-	if (!str_read(fd, verb, &p->file)) {
-		WARNX1(verb, "str_read");
-		goto out;
-	} else if (!simple_read(fd, verb, &p->filesz, sizeof(size_t))) {
+	str_read(fd, verb, &p->file);
+	if (!simple_read(fd, verb, &p->filesz, sizeof(size_t))) {
 		WARNX1(verb, "simple_read");
 		goto out;
 	}
@@ -431,13 +429,10 @@ mft_read(int fd, int verb)
 		err(EXIT_FAILURE, NULL);
 
 	for (i = 0; i < p->filesz; i++) {
-		if (!str_read(fd, verb, &p->files[i].file)) {
-			WARNX1(verb, "str_read");
-			goto out;
-		}
+		str_read(fd, verb, &p->files[i].file);
 		if (!simple_read(fd, verb,
 		    p->files[i].hash, SHA256_DIGEST_LENGTH)) {
-			WARNX1(verb, "str_read");
+			WARNX1(verb, "simple_read");
 			goto out;
 		}
 	}

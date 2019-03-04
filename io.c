@@ -175,25 +175,18 @@ buf_read_alloc(int fd, int verb, void **res, size_t *sz)
 }
 
 /*
- * Read a string (which may just be \0), allocating space for it.
- * Return zero on failure, non-zero otherwise.
- * On failure, result is always NULL.
+ * Read a string (which may just be \0 and zero-length), allocating
+ * space for it.
  */
-int
+void
 str_read(int fd, int verb, char **res)
 {
 	size_t	 sz;
 
 	if (!simple_read(fd, verb, &sz, sizeof(size_t)))
-		WARNX1(verb, "simple_read");
+		errx(EXIT_FAILURE, "simple_read");
 	else if ((*res = calloc(sz + 1, 1)) == NULL)
 		err(EXIT_FAILURE, NULL);
 	else if (!simple_read(fd, verb, *res, sz))
-		WARNX1(verb, "simple_read");
-	else
-		return 1;
-
-	free(*res);
-	*res = NULL;
-	return 0;
+		errx(EXIT_FAILURE, "simple_read");
 }
