@@ -56,14 +56,14 @@ cert_print(const struct cert *p)
 
 	for (i = 0; i < p->ipsz; i++)
 		switch (p->ips[i].type) {
-		case ASN1_IP_INHERIT:
+		case CERT_IP_INHERIT:
 			fprintf(stderr, 
 				"%5zu: IPv%s: inherit\n", i + 1, 
 				1 == p->ips[i].afi ? "4" : "6");
 			break;
-		case ASN1_IP_ADDR:
+		case CERT_IP_ADDR:
 			/* FALLTHROUGH */
-		case ASN1_IP_RANGE:
+		case CERT_IP_RANGE:
 			cp1 = inet_ntop(1 == p->ips[i].afi ? 
 				AF_INET : AF_INET6,
 				p->ips[i].range.min.addr, 
