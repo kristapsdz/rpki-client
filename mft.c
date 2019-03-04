@@ -346,6 +346,7 @@ mft_parse(int verb, X509 *cacert, const char *fn)
 	 */
 
 	if ((rc = mft_parse_econtent(os, &p)) == 0) {
+		p.res->stale = 1;
 		if (p.res->files != NULL)
 			for (i = 0; i < p.res->filesz; i++)
 				free(p.res->files[i].file);
@@ -395,6 +396,7 @@ mft_buffer(char **b, size_t *bsz, size_t *bmax,
 {
 	size_t		 i;
 
+	simple_buffer(b, bsz, bmax, &p->stale, sizeof(int));
 	str_buffer(b, bsz, bmax, verb, p->file);
 	simple_buffer(b, bsz, bmax, &p->filesz, sizeof(size_t));
 
@@ -418,6 +420,7 @@ mft_read(int fd, int verb)
 	if ((p = calloc(1, sizeof(struct mft))) == NULL)
 		err(EXIT_FAILURE, NULL);
 
+	simple_read(fd, verb, &p->stale, sizeof(int));
 	str_read(fd, verb, &p->file);
 	simple_read(fd, verb, &p->filesz, sizeof(size_t));
 	

@@ -11,48 +11,43 @@
 
 #include "extern.h"
 
-int
+void
 socket_blocking(int fd, int verb)
 {
 	int	 fl;
 
 	if ((fl = fcntl(fd, F_GETFL, 0)) == -1)
-		WARN("fcntl");
-	else if (fcntl(fd, F_SETFL, fl & ~O_NONBLOCK) == -1)
-		WARN("fcntl");
-	else
-		return 1;
-	return 0;
+		err(EXIT_FAILURE, "fcntl");
+	if (fcntl(fd, F_SETFL, fl & ~O_NONBLOCK) == -1)
+		err(EXIT_FAILURE, "fcntl");
 }
 
-int
+void
 socket_nonblocking(int fd, int verb)
 {
 	int	 fl;
 
 	if ((fl = fcntl(fd, F_GETFL, 0)) == -1)
-		WARN("fcntl");
-	else if (fcntl(fd, F_SETFL, fl | O_NONBLOCK) == -1)
-		WARN("fcntl");
-	else
-		return 1;
-	return 0;
+		err(EXIT_FAILURE, "fcntl");
+	if (fcntl(fd, F_SETFL, fl | O_NONBLOCK) == -1)
+		err(EXIT_FAILURE, "fcntl");
 }
 
 /*
  * Blocking write of a binary buffer.
- * Return zero on failure, non-zero otherwise.
+ * Buffers of length zero are simply ignored.
  */
-int
+void
 simple_write(int fd, const void *res, size_t sz)
 {
 	ssize_t	 ssz;
 
 	if (sz == 0)
-		return 1;
+		return;
 	if ((ssz = write(fd, res, sz)) < 0)
-		WARN("write");
-	return ssz >= 0;
+		err(EXIT_FAILURE, "write");
+	else if ((size_t)ssz != sz)
+		errx(EXIT_FAILURE, "write: short write");
 }
 
 /*
@@ -87,20 +82,14 @@ buf_buffer(char **b, size_t *bsz, size_t *bmax,
 }
 
 /*
- * Write a binary buffer of the given size.
- * Return zero on failure, non-zero on success.
+ * Write a binary buffer of the given size, which may be zero.
  */
-int
+void
 buf_write(int fd, int verb, const void *p, size_t sz)
 {
 
-	if (!simple_write(fd, &sz, sizeof(size_t)))
-		WARNX1(verb, "simple_write");
-	else if (sz > 0 && !simple_write(fd, p, sz))
-		WARNX1(verb, "simple_write");
-	else
-		return 1;
-	return 0;
+	simple_write(fd, &sz, sizeof(size_t));
+	simple_write(fd, p, sz);
 }
 
 /*
@@ -116,18 +105,13 @@ str_buffer(char **b, size_t *bsz, size_t *bmax, int verb, const char *p)
 
 /*
  * Write a NUL-terminated string, which may be zero-length.
- * Return zero on failure, non-zero on success.
  */
-int
+void
 str_write(int fd, int verb, const char *p)
 {
 	size_t	 sz = (p == NULL) ? 0 : strlen(p);
 
-	if (!buf_write(fd, verb, p, sz))
-		WARNX1(verb, "buf_write");
-	else
-		return 1;
-	return 0;
+	buf_write(fd, verb, p, sz);
 }
 
 /*

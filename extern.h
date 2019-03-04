@@ -108,6 +108,7 @@ struct	mft {
 	char		*file; /* full path of MFT file */
 	struct mftfile	*files; /* file and hash */
 	size_t		 filesz; /* number of filenames */
+	int		 stale; /* if a stale manifest */
 };
 
 struct	roa {
@@ -190,17 +191,17 @@ void		 rpki_log(int, const char *, size_t, const char *, ...)
 			__attribute__((format(printf, 4, 5)));
 void		 rpki_cryptox(int, const char *, size_t, const char *, ...)
 			__attribute__((format(printf, 4, 5)));
-int		 socket_blocking(int, int);
-int		 socket_nonblocking(int, int);
+void		 socket_blocking(int, int);
+void		 socket_nonblocking(int, int);
 void		 simple_buffer(char **, size_t *, size_t *, const void *, size_t);
 void		 simple_read(int, int, void *, size_t);
-int		 simple_write(int, const void *, size_t);
+void		 simple_write(int, const void *, size_t);
 void		 buf_buffer(char **, size_t *, size_t *, int, const void *, size_t);
 void		 buf_read_alloc(int, int, void **, size_t *);
-int		 buf_write(int, int, const void *, size_t);
+void		 buf_write(int, int, const void *, size_t);
 void		 str_buffer(char **, size_t *, size_t *, int, const char *);
 void		 str_read(int, int, char **);
-int		 str_write(int, int, const char *);
+void		 str_write(int, int, const char *);
 
 __END_DECLS
 
