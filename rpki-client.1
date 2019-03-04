@@ -23,7 +23,7 @@
 .Sh SYNOPSIS
 .Nm
 .Op Fl v
-.Ar tal
+.Ar tal ...
 .Sh DESCRIPTION
 The
 .Nm
@@ -49,10 +49,14 @@ utility processes files ...
 The following standards are used or referenced in
 .Nm :
 .Bl -tag -width -Ds -compact
+.It RFC 3370
+Cryptographic Message Syntax (CMS) Algorithms.
 .It RFC 3770
 Resource Public Key Infrastructure (RPKI) Trust Anchor Locator.
 .Nm
 relaxes this standard by accepting both UNIX and CRLF line formats.
+.It RFC 3779
+X.509 Extensions for IP Addresses and AS Identifiers.
 .It RFC 5781
 The rsync URI Scheme.
 .It RFC 6485
