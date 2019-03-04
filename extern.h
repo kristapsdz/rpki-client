@@ -31,7 +31,7 @@ struct	x509_as {
  * An IP address as parsed from a RFC 3779 document.
  * This may either be IPv4 or IPv6.
  */
-struct	x509_ip_addr {
+struct	cert_ip_addr {
 	size_t		 sz; /* length of valid bytes */
 	char		 addr[16]; /* binary address prefix */
 	long		 unused; /* unused bits in last byte */
@@ -41,25 +41,25 @@ struct	x509_ip_addr {
  * An IP address (IPv4 or IPv6) range starting at the minimum and making
  * its way to the maximum.
  */
-struct	x509_ip_rng {
-	struct x509_ip_addr min; /* minimum ip */
-	struct x509_ip_addr max; /* maximum ip */
+struct	cert_ip_rng {
+	struct cert_ip_addr min; /* minimum ip */
+	struct cert_ip_addr max; /* maximum ip */
 };
 
-enum	x509_ip_type {
-	ASN1_IP_ADDR, /* IP address range w/shared prefix */
-	ASN1_IP_INHERIT, /* inherited IP address */
-	ASN1_IP_RANGE /* range of IP addresses */
+enum	cert_ip_type {
+	CERT_IP_ADDR, /* IP address range w/shared prefix */
+	CERT_IP_INHERIT, /* inherited IP address */
+	CERT_IP_RANGE /* range of IP addresses */
 };
 /*
  * An IP address range defined by RFC 3779.
  */
-struct	x509_ip {
+struct	cert_ip {
 	uint16_t	   afi; /* AFI value */
 	uint8_t		   safi; /* SAFI value (if has_safi) */
 	int		   has_safi; /* whether safi is set */
-	enum x509_ip_type  type; /* type of IP entry */
-	struct x509_ip_rng range; /* range */
+	enum cert_ip_type  type; /* type of IP entry */
+	struct cert_ip_rng range; /* range */
 };
 
 /*
@@ -67,7 +67,7 @@ struct	x509_ip {
  * 6847 and further (within) by RFC 3779.
  */
 struct	cert {
-	struct x509_ip	*ips; /* list of IP address ranges */
+	struct cert_ip	*ips; /* list of IP address ranges */
 	size_t		 ipsz; /* length of "ips" */
 	struct x509_as	*as; /* list of AS numbers and ranges */
 	size_t		 asz; /* length of "asz" */

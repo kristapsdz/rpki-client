@@ -61,12 +61,12 @@ ASN1_frame(struct parse *p, size_t sz,
  * Append an IP address structure to our list of results.
  */
 static void
-append_ip(struct parse *p, const struct x509_ip *ip)
+append_ip(struct parse *p, const struct cert_ip *ip)
 {
 	struct cert	*res = p->res;
 
 	res->ips = reallocarray(res->ips, 
-		res->ipsz + 1, sizeof(struct x509_ip));
+		res->ipsz + 1, sizeof(struct cert_ip));
 	if (res->ips == NULL)
 		err(EXIT_FAILURE, NULL);
 	res->ips[res->ipsz++] = *ip;
@@ -94,8 +94,8 @@ append_as(struct parse *p, const struct x509_as *as)
  * Return zero on failure, non-zero on success.
  */
 static int
-sbgp_ipaddr(struct parse *p, const struct x509_ip *ip,
-	struct x509_ip_addr *addr, const ASN1_BIT_STRING *bs)
+sbgp_ipaddr(struct parse *p, const struct cert_ip *ip,
+	struct cert_ip_addr *addr, const ASN1_BIT_STRING *bs)
 {
 	long			 unused = 0;
 	const unsigned char	*d;
@@ -128,9 +128,9 @@ sbgp_ipaddr(struct parse *p, const struct x509_ip *ip,
  */
 static int
 sbgp_addr(struct parse *p, 
-	struct x509_ip *ip, const ASN1_BIT_STRING *bs)
+	struct cert_ip *ip, const ASN1_BIT_STRING *bs)
 {
-	struct x509_ip_rng *rng = &ip->range;
+	struct cert_ip_rng *rng = &ip->range;
 
 	if (!sbgp_ipaddr(p, ip, &rng->min, bs)) {
 		X509_WARNX1(p, "sbgp_ipaddr");
@@ -767,10 +767,10 @@ out:
  * Return zero on failure, non-zero on success.
  */
 static int
-sbgp_range(struct parse *p, struct x509_ip *ip, 
+sbgp_range(struct parse *p, struct cert_ip *ip, 
 	const unsigned char *d, size_t dsz)
 {
-	struct x509_ip_rng  	*rng = &ip->range;
+	struct cert_ip_rng  	*rng = &ip->range;
 	ASN1_SEQUENCE_ANY	*seq;
 	const ASN1_TYPE		*type;
 	int			 rc = 0;
@@ -830,10 +830,10 @@ out:
  * Returns zero on failure, non-zero on success.
  */
 static int
-sbgp_addr_or_range(struct parse *p, struct x509_ip *ip, 
+sbgp_addr_or_range(struct parse *p, struct cert_ip *ip, 
 	const unsigned char *d, size_t dsz)
 {
-	struct x509_ip	 	 nip;
+	struct cert_ip	 	 nip;
 	ASN1_SEQUENCE_ANY	*seq;
 	const ASN1_TYPE		*type;
 	int			 i, rc;
@@ -850,13 +850,13 @@ sbgp_addr_or_range(struct parse *p, struct x509_ip *ip,
 		/* Either RFC 3779 2.2.3.8 or 2.2.3.9. */
 
 		if (type->type == V_ASN1_BIT_STRING) {
-			nip.type = ASN1_IP_ADDR;
+			nip.type = CERT_IP_ADDR;
 			if (!sbgp_addr(p, &nip, type->value.bit_string)) {
 				X509_WARNX1(p, "sbgp_addr");
 				break;
 			}
 		} else if (type->type == V_ASN1_SEQUENCE) {
-			nip.type = ASN1_IP_RANGE;
+			nip.type = CERT_IP_RANGE;
 			d = type->value.asn1_string->data;
 			dsz = type->value.asn1_string->length;
 			if (!sbgp_range(p, &nip, d, dsz)) {
@@ -884,13 +884,13 @@ sbgp_addr_or_range(struct parse *p, struct x509_ip *ip,
 static int
 sbgp_ipaddrfam(struct parse *p, const unsigned char *d, size_t dsz)
 {
-	struct x509_ip	 	 ip;
+	struct cert_ip	 	 ip;
 	char		 	 buf[2];
 	ASN1_SEQUENCE_ANY	*seq;
 	const ASN1_TYPE		*type;
 	int			 rc = 0;
 
-	memset(&ip, 0, sizeof(struct x509_ip));
+	memset(&ip, 0, sizeof(struct cert_ip));
 
 	if ((seq = d2i_ASN1_SEQUENCE_ANY(NULL, &d, dsz)) == NULL) {
 		X509_WARNX1(p, "d2i_ASN1_SEQUENCE_ANY");
@@ -952,7 +952,7 @@ sbgp_ipaddrfam(struct parse *p, const unsigned char *d, size_t dsz)
 			goto out;
 		}
 	} else if (type->type == V_ASN1_NULL) {
-		ip.type = ASN1_IP_INHERIT;
+		ip.type = CERT_IP_INHERIT;
 		append_ip(p, &ip);
 		X509_LOG(p, "%s: parsed IPv%s address (inherit)", 
 			p->fn, 1 == ip.afi ? "4" : "6");
