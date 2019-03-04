@@ -70,34 +70,18 @@ rtype_resolve(int verb, const char *uri)
 }
 
 /*
- * Read into a queue entry.
- * Returns >0 on success, <0 on failure, 0 on eof.
- * On success, the entry's memory must be freed.
+ * Read a queue entry from the descriptor.
+ * The entry's contents must be freed.
  */
-static int
+static void
 entry_read(int fd, int verb, struct entry *ent)
 {
-	ssize_t	 ssz;
 
 	memset(ent, 0, sizeof(struct entry));
-
-	/* Use read() to catch if we're EOF. */
-
-	if ((ssz = read(fd, &ent->type, sizeof(enum rtype))) < 0) {
-		WARN("read");
-		return -1;
-	} else if (ssz == 0)
-		return 0;
-
+	simple_read(fd, verb, &ent->type, sizeof(enum rtype));
 	str_read(fd, verb, &ent->uri);
-	if (!simple_read(fd, verb, &ent->has_dgst, sizeof(int))) {
-		WARNX1(verb, "simple_read");
-		return 0;
-	} else if (!simple_read(fd, verb, ent->dgst, sizeof(ent->dgst))) {
-		WARNX1(verb, "simple_read");
-		return 0;
-	}
-	return 1;
+	simple_read(fd, verb, &ent->has_dgst, sizeof(int));
+	simple_read(fd, verb, ent->dgst, sizeof(ent->dgst));
 }
 
 /*
@@ -164,20 +148,18 @@ repo_lookup(int fd, int verb, struct repotab *rt,
 	return 1;
 }
 
+/*
+ * Read the next entry from the parser process, removing it from the
+ * queue of pending requests in the process.
+ * This always returns a valid entry.
+ */
 static struct entry *
 entryq_next(int fd, int verb, struct entryq *q)
 {
 	struct entry	 ent;
 	struct entry	*entp;
-	int		 c;
 
-	if ((c = entry_read(fd, verb, &ent)) < 0) {
-		WARNX1(verb, "entry_read");
-		return NULL;
-	} else if (c == 0) {
-		WARNX1(verb, "entry_read: unexpected end of file");
-		return NULL;
-	}
+	entry_read(fd, verb, &ent);
 
 	TAILQ_FOREACH(entp, q, entries)
 		if (entp->type == ent.type &&
@@ -604,7 +586,7 @@ proc_parser(int fd, int verb)
 	struct entry	 ent;
 	struct entry	*entp;
 	struct entryq	 q;
-	int		 c, rc = 0, vverb = 0;
+	int		 rc = 0, vverb = 0;
 	struct pollfd	 pfd;
 	char		*b = NULL;
 	size_t		 bsz = 0, bmax = 0, bpos = 0;
@@ -650,15 +632,7 @@ proc_parser(int fd, int verb)
 				WARNX1(verb, "socket_blocking");
 				goto out;
 			}
-			if ((c = entry_read(fd, verb, &ent)) < 0) {
-				WARNX1(verb, "entry_read");
-				goto out;
-			} else if (c == 0) {
-				WARNX(verb, "entry_read: "
-					"unexpected end of file");
-				goto out;
-			}
-
+			entry_read(fd, verb, &ent);
 			entp = calloc(1, sizeof(struct entry));
 			if (entp == NULL)
 				err(EXIT_FAILURE, NULL);
@@ -787,10 +761,7 @@ entry_process(int proc, int rsync, int verb,
 	switch (ent->type) {
 	case RTYPE_TAL:
 		LOG(verb, "%s: handling tal file", ent->uri);
-		if ((tal = tal_read(proc, verb)) == NULL) {
-			WARNX1(verb, "tal_read");
-			break;
-		}
+		tal = tal_read(proc, verb);
 		if (!queue_add_from_tal_set(proc, rsync, verb, q, tal, rt)) {
 			WARNX1(verb, "queue_add_from_tal_set");
 			break;
@@ -799,7 +770,7 @@ entry_process(int proc, int rsync, int verb,
 		break;
 	case RTYPE_CER:
 		LOG(verb, "%s: handling certificate file", ent->uri);
-		cert_read(proc, verb);
+		cert = cert_read(proc, verb);
 		if (cert->mft != NULL &&
 		    !queue_add_from_cert(proc, rsync, verb, q, cert->mft, rt)) {
 			WARNX1(verb, "queue_add_from_cert");
@@ -809,10 +780,7 @@ entry_process(int proc, int rsync, int verb,
 		break;
 	case RTYPE_MFT:
 		LOG(verb, "%s: handling mft file", ent->uri);
-		if ((mft = mft_read(proc, verb)) == NULL) {
-			WARNX1(verb, "mft_read");
-			break;
-		}
+		mft = mft_read(proc, verb);
 		if (!queue_add_from_mft_set(proc, verb, q, mft)) {
 			WARNX1(verb, "queue_add_from_mft_set");
 			break;
@@ -821,10 +789,7 @@ entry_process(int proc, int rsync, int verb,
 		break;
 	case RTYPE_ROA:
 		LOG(verb, "%s: handling roa file", ent->uri);
-		if ((roa = roa_read(proc, verb)) == NULL) {
-			WARNX1(verb, "roa_read");
-			break;
-		}
+		roa = roa_read(proc, verb);
 		rc = 1;
 		break;
 	default:
@@ -1003,10 +968,8 @@ main(int argc, char *argv[])
 		 */
 
 		if ((pfd[0].revents & POLLIN)) {
-			if (!simple_read(rsync, verb, &i, sizeof(size_t))) {
-				WARNX1(verb, "simple_read");
-				goto out;
-			} else if (i >= rt.reposz) {
+			simple_read(rsync, verb, &i, sizeof(size_t));
+			if (i >= rt.reposz) {
 				WARNX(verb, "repo identifier out of range");
 				goto out;
 			} 
@@ -1026,10 +989,7 @@ main(int argc, char *argv[])
 		 */
 
 		if ((pfd[1].revents & POLLIN)) {
-			if ((ent = entryq_next(proc, verb, &q)) == NULL) {
-				WARNX1(verb, "entryq_next");
-				goto out;
-			}
+			ent = entryq_next(proc, verb, &q);
 			if (!entry_process(proc, rsync, verb, &q, ent, &rt)) {
 				WARNX1(verb, "entry_process");
 				goto out;

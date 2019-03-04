@@ -193,7 +193,7 @@ void		 rpki_cryptox(int, const char *, size_t, const char *, ...)
 int		 socket_blocking(int, int);
 int		 socket_nonblocking(int, int);
 void		 simple_buffer(char **, size_t *, size_t *, const void *, size_t);
-int		 simple_read(int, int, void *, size_t);
+void		 simple_read(int, int, void *, size_t);
 int		 simple_write(int, const void *, size_t);
 void		 buf_buffer(char **, size_t *, size_t *, int, const void *, size_t);
 void		 buf_read_alloc(int, int, void **, size_t *);
