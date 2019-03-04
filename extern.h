@@ -199,7 +199,7 @@ void		 buf_buffer(char **, size_t *, size_t *, int, const void *, size_t);
 int		 buf_read_alloc(int, int, void **, size_t *);
 int		 buf_write(int, int, const void *, size_t);
 void		 str_buffer(char **, size_t *, size_t *, int, const char *);
-int		 str_read(int, int, char **);
+void		 str_read(int, int, char **);
 int		 str_write(int, int, const char *);
 
 __END_DECLS
