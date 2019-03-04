@@ -21,6 +21,14 @@
  */
 #define	BASE_DIR "/tmp/rpki-client"
 
+struct	stats {
+	size_t	 tals;
+	size_t	 mfts;
+	size_t	 mfts_stale;
+	size_t	 certs;
+	size_t	 roas;
+};
+
 struct	repo {
 	char	*host;
 	char	*module;
@@ -86,22 +94,17 @@ entry_read(int fd, int verb, struct entry *ent)
 
 /*
  * Look up a repository, queueing it for discovery if not found.
- * Returns zero on failure, non-zero otherwise.
- * On success, "repo" is filled in.
  */
-static int
-repo_lookup(int fd, int verb, struct repotab *rt,
-	const char *uri, const struct repo **repo)
+static const struct repo *
+repo_lookup(int fd, int verb, struct repotab *rt, const char *uri)
 {
 	const char	*host, *mod;
 	size_t		 hostsz, modsz, i;
 	struct repo	*rp;
 
 	if (!rsync_uri_parse(verb, &host, &hostsz,
-	    &mod, &modsz, NULL, NULL, NULL, uri)) {
-		WARNX1(verb, "rsync_uri_parse");
-		return 0;
-	}
+	    &mod, &modsz, NULL, NULL, NULL, uri))
+		errx(EXIT_FAILURE, "%s: malformed", uri);
 
 	/* Look up in repository table. */
 
@@ -114,8 +117,7 @@ repo_lookup(int fd, int verb, struct repotab *rt,
 			continue;
 		if (strncasecmp(rt->repos[i].module, mod, modsz))
 			continue;
-		*repo = &rt->repos[i];
-		return 1;
+		return &rt->repos[i];
 	}
 	
 	rt->repos = reallocarray(rt->repos,
@@ -133,19 +135,10 @@ repo_lookup(int fd, int verb, struct repotab *rt,
 
 	i = rt->reposz - 1;
 
-	if (!simple_write(fd, &i, sizeof(size_t))) {
-		WARNX1(verb, "simple_write");
-		return 0;
-	} else if (!str_write(fd, verb, rp->host)) {
-		WARNX1(verb, "buf_write");
-		return 0;
-	} else if (!str_write(fd, verb, rp->module)) {
-		WARNX1(verb, "buf_write");
-		return 0;
-	}
-
-	*repo = rp;
-	return 1;
+	simple_write(fd, &i, sizeof(size_t));
+	str_write(fd, verb, rp->host);
+	str_write(fd, verb, rp->module);
+	return rp;
 }
 
 /*
@@ -189,32 +182,22 @@ entry_buffer(char **b, size_t *bsz, size_t *bmax,
 
 /*
  * Write the queue entry.
- * Returns zero on failure, non-zero on success.
  */
-static int
+static void
 entry_write(int fd, int verb, const struct entry *ent)
 {
 
-	if (!simple_write(fd, &ent->type, sizeof(enum rtype)))
-		WARNX1(verb, "simple_write");
-	else if (!str_write(fd, verb, ent->uri))
-		WARNX1(verb, "str_write");
-	else if (!simple_write(fd, &ent->has_dgst, sizeof(int)))
-		WARNX1(verb, "str_write");
-	else if (!simple_write(fd, ent->dgst, sizeof(ent->dgst)))
-		WARNX1(verb, "str_write");
-	else
-		return 1;
-
-	return 0;
+	simple_write(fd, &ent->type, sizeof(enum rtype));
+	str_write(fd, verb, ent->uri);
+	simple_write(fd, &ent->has_dgst, sizeof(int));
+	simple_write(fd, ent->dgst, sizeof(ent->dgst));
 }
 
 /*
  * Scan through all queued requests and see which ones are in the given
  * repo, then flush those into the parser process.
- * Returns zero on failure, non-zero on success.
  */
-static int
+static void
 entryq_flush(int fd, int verb,
 	struct entryq *q, const struct repo *repo)
 {
@@ -224,19 +207,14 @@ entryq_flush(int fd, int verb,
 		if (p->repo < 0 || repo->id != (size_t)p->repo)
 			continue;
 		LOG(verb, "%s: flushing after repository load", p->uri);
-		if (!entry_write(fd, verb, p)) {
-			WARNX1(verb, "entry_write");
-			return 0;
-		}
+		entry_write(fd, verb, p);
 	}
-	return 1;
 }
 
 /*
  * Add the heap-allocated file to the queue for processing.
- * Returns zero on failure, non-zero on success.
  */
-static int
+static void
 entryq_add(int fd, int verb, struct entryq *q,
 	char *file, enum rtype type, const struct repo *rp,
 	const unsigned char *dgst)
@@ -262,19 +240,15 @@ entryq_add(int fd, int verb, struct entryq *q,
 	 * been loaded.
 	 */
 
-	if ((NULL == rp || rp->loaded) && !entry_write(fd, verb, p)) {
-		WARNX1(verb, "entry_write");
-		return 0;
-	}
-	return 1;
+	if (NULL == rp || rp->loaded)
+		entry_write(fd, verb, p);
 }
 
 /*
  * Add a file (CER, ROA, or CRL) from an MFT file, RFC 6486.
  * These are always relative to the directory in which "mft" sits.
- * Return zero on failure, non-zero on success.
  */
-static int
+static void
 queue_add_from_mft(int fd, int verb, struct entryq *q,
 	const char *mft, const struct mftfile *file)
 {
@@ -296,7 +270,7 @@ queue_add_from_mft(int fd, int verb, struct entryq *q,
 
 	assert(type != RTYPE_EOF);
 	if (type == RTYPE_CRL)
-		return 1;
+		return;
 
 	/* Construct local path from filename. */
 
@@ -318,39 +292,27 @@ queue_add_from_mft(int fd, int verb, struct entryq *q,
 	 * that the repository has already been loaded.
 	 */
 
-	if (!entryq_add(fd, verb, q, nfile, type, NULL, file->hash)) {
-		WARNX1(verb, "entryq_add");
-		free(nfile);
-		return 0;
-	}
+	entryq_add(fd, verb, q, nfile, type, NULL, file->hash);
 	LOG(verb, "%s: added: %s", file->file, nfile);
-	return 1;
 }
 
 /*
  * Loops over queue_add_from_mft() for all files.
  */
-static int
+static void
 queue_add_from_mft_set(int fd, int verb,
 	struct entryq *q, const struct mft *mft)
 {
 	size_t	 i;
 
 	for (i = 0; i < mft->filesz; i++)
-		if (!queue_add_from_mft(fd, verb,
-		    q, mft->file, &mft->files[i])) {
-			WARNX1(verb, "queue_add_from_mft");
-			return 0;
-		}
-
-	return 1;
+		queue_add_from_mft(fd, verb, q, mft->file, &mft->files[i]);
 }
 
 /*
  * Add a local TAL file (RFC 7730) to the queue of files to fetch.
- * Returns zero on failure, non-zero on success.
  */
-static int
+static void
 queue_add_tal(int fd, int verb, struct entryq *q, const char *file)
 {
 	char		*nfile;
@@ -360,20 +322,14 @@ queue_add_tal(int fd, int verb, struct entryq *q, const char *file)
 
 	/* Not in a repository, so directly add to queue. */
 
-	if (!entryq_add(fd, verb, q, nfile, RTYPE_TAL, NULL, NULL)) {
-		WARNX1(verb, "entryq_add");
-		free(nfile);
-		return 0;
-	}
+	entryq_add(fd, verb, q, nfile, RTYPE_TAL, NULL, NULL);
 	LOG(verb, "%s: added", file);
-	return 1;
 }
 
 /*
  * Add rsync URIs (CER) from a TAL file, RFC 7730.
- * Returns zero on failure, non-zero on success.
  */
-static int
+static void
 queue_add_from_tal(int proc, int rsync, int verb,
 	struct entryq *q, const char *uri, struct repotab *rt)
 {
@@ -384,51 +340,34 @@ queue_add_from_tal(int proc, int rsync, int verb,
 
 	assert(rtype_resolve(verb, uri) == RTYPE_CER);
 
-	if (!repo_lookup(rsync, verb, rt, uri, &repo)) {
-		WARNX1(verb, "repo_lookup");
-		return 0;
-	} 
-
+	repo = repo_lookup(rsync, verb, rt, uri);
 	uri += 8 + strlen(repo->host) + 1 + strlen(repo->module) + 1;
 
 	if (asprintf(&nfile, "%s/%s/%s/%s",
-	    BASE_DIR, repo->host, repo->module, uri) < 0) {
-		WARN("asprintf");
-		return 0;
-	}
-	if (!entryq_add(proc, verb, q, nfile, RTYPE_CER, repo, NULL)) {
-		WARNX1(verb, "entryq_add");
-		free(nfile);
-		return 0;
-	}
+	    BASE_DIR, repo->host, repo->module, uri) < 0)
+		err(EXIT_FAILURE, NULL);
+
+	entryq_add(proc, verb, q, nfile, RTYPE_CER, repo, NULL);
 	LOG(verb, "%s: added: %s", uri, nfile);
-	return 1;
 }
 
 /*
  * Loops over queue_add_from_tal() for all files.
  */
-static int
+static void
 queue_add_from_tal_set(int proc, int rsync, int verb,
 	struct entryq *q, const struct tal *tal, struct repotab *rt)
 {
 	size_t	 i;
 
 	for (i = 0; i < tal->urisz; i++)
-		if (!queue_add_from_tal(proc, rsync,
-		    verb, q, tal->uri[i], rt)) {
-			WARNX1(verb, "queue_add_from_tal");
-			return 0;
-		}
-
-	return 1;
+		queue_add_from_tal(proc, rsync, verb, q, tal->uri[i], rt);
 }
 
 /*
  * Add a manifest (MFT) found in an X509 certificate, RFC 6487.
- * Returns zero on failure, non-zero on success.
  */
-static int
+static void
 queue_add_from_cert(int proc, int rsync, int verb,
 	struct entryq *q, const char *uri, struct repotab *rt)
 {
@@ -436,37 +375,22 @@ queue_add_from_cert(int proc, int rsync, int verb,
 	enum rtype	   type;
 	const struct repo *repo;
 
-	/* FIXME: assert as cert_parse() should guarantee. */
-
-	if ((type = rtype_resolve(verb, uri)) == RTYPE_EOF) {
-		WARNX(verb, "%s: unknown file type", uri);
-		return 0;
-	} else if (type != RTYPE_MFT) {
-		WARNX(verb, "%s: invalid file type", uri);
-		return 0;
-	}
+	if ((type = rtype_resolve(verb, uri)) == RTYPE_EOF)
+		errx(EXIT_FAILURE, "%s: unknown file type", uri);
+	if (type != RTYPE_MFT)
+		errx(EXIT_FAILURE, "%s: invalid file type", uri);
 
 	/* Look up the repository. */
 
-	if (!repo_lookup(rsync, verb, rt, uri, &repo)) {
-		WARNX1(verb, "repo_lookup");
-		return 0;
-	} 
-	
+	repo = repo_lookup(rsync, verb, rt, uri);
 	uri += 8 + strlen(repo->host) + 1 + strlen(repo->module) + 1;
 
 	if (asprintf(&nfile, "%s/%s/%s/%s",
-	    BASE_DIR, repo->host, repo->module, uri) < 0) {
-		WARN("asprintf");
-		return 0;
-	}
-	if (!entryq_add(proc, verb, q, nfile, type, repo, NULL)) {
-		WARNX1(verb, "entryq_add");
-		free(nfile);
-		return 0;
-	}
+	    BASE_DIR, repo->host, repo->module, uri) < 0)
+		err(EXIT_FAILURE, NULL);
+
+	entryq_add(proc, verb, q, nfile, type, repo, NULL);
 	LOG(verb, "%s: added: %s", uri, nfile);
-	return 1;
 }
 
 /*
@@ -510,15 +434,10 @@ proc_rsync(int fd, int verb)
 
 		/* Create source and destination locations. */
 
-		if (asprintf(&dst, "%s/%s/%s", BASE_DIR, host, mod) < 0) {
-			WARN("asprintf");
-			dst = NULL;
-			goto out;
-		} else if (asprintf(&uri, "rsync://%s/%s", host, mod) < 0) {
-			WARN("asprintf");
-			uri = NULL;
-			goto out;
-		}
+		if (asprintf(&dst, "%s/%s/%s", BASE_DIR, host, mod) < 0)
+			err(EXIT_FAILURE, NULL);
+		if (asprintf(&uri, "rsync://%s/%s", host, mod) < 0)
+			err(EXIT_FAILURE, NULL);
 
 		/* Run process itself, wait for exit, check error. */
 
@@ -555,10 +474,7 @@ proc_rsync(int fd, int verb)
 		free(host);
 		free(uri);
 		mod = dst = host = uri = NULL;
-		if (!simple_write(fd, &id, sizeof(size_t))) {
-			WARNX1(verb, "simple_write");
-			goto out;
-		}
+		simple_write(fd, &id, sizeof(size_t));
 	}
 
 	rc = 1;
@@ -598,19 +514,13 @@ proc_parser(int fd, int verb)
 	pfd.events = POLLIN;
 	LOG(verb, "parser process starting");
 
-	if (!socket_nonblocking(pfd.fd, verb)) {
-		WARNX1(verb, "socket_nonblocking");
-		goto out;
-	}
+	socket_nonblocking(pfd.fd, verb);
 
 	for (;;) {
-		if (poll(&pfd, 1, INFTIM) < 0) {
-			WARN("poll");
-			goto out;
-		} else if ((pfd.revents & (POLLERR|POLLNVAL))) {
-			WARNX(verb, "poll: bad fd");
-			goto out;
-		} 
+		if (poll(&pfd, 1, INFTIM) < 0)
+			err(EXIT_FAILURE, "poll");
+		if ((pfd.revents & (POLLERR|POLLNVAL)))
+			errx(EXIT_FAILURE, "poll: bad descriptor");
 		
 		/* If the parent closes, return immediately. */
 
@@ -628,10 +538,7 @@ proc_parser(int fd, int verb)
 		 */
 
 		if ((pfd.revents & POLLIN)) {
-			if (!socket_blocking(fd, verb)) {
-				WARNX1(verb, "socket_blocking");
-				goto out;
-			}
+			socket_blocking(fd, verb);
 			entry_read(fd, verb, &ent);
 			entp = calloc(1, sizeof(struct entry));
 			if (entp == NULL)
@@ -639,10 +546,7 @@ proc_parser(int fd, int verb)
 			*entp = ent;
 			TAILQ_INSERT_TAIL(&q, entp, entries);
 			pfd.events |= POLLOUT;
-			if (!socket_nonblocking(fd, verb)) {
-				WARNX1(verb, "socket_nonblocking");
-				goto out;
-			}
+			socket_nonblocking(fd, verb);
 		}
 
 		if (!(pfd.revents & POLLOUT))
@@ -749,7 +653,7 @@ out:
  * For ROAs, we want to extract the valid/invalid info.
  */
 static int
-entry_process(int proc, int rsync, int verb,
+entry_process(int proc, int rsync, int verb, struct stats *st,
 	struct entryq *q, const struct entry *ent, struct repotab *rt)
 {
 	struct tal	*tal = NULL;
@@ -760,34 +664,31 @@ entry_process(int proc, int rsync, int verb,
 
 	switch (ent->type) {
 	case RTYPE_TAL:
+		st->tals++;
 		LOG(verb, "%s: handling tal file", ent->uri);
 		tal = tal_read(proc, verb);
-		if (!queue_add_from_tal_set(proc, rsync, verb, q, tal, rt)) {
-			WARNX1(verb, "queue_add_from_tal_set");
-			break;
-		}
+		queue_add_from_tal_set(proc, rsync, verb, q, tal, rt);
 		rc = 1;
 		break;
 	case RTYPE_CER:
+		st->certs++;
 		LOG(verb, "%s: handling certificate file", ent->uri);
 		cert = cert_read(proc, verb);
-		if (cert->mft != NULL &&
-		    !queue_add_from_cert(proc, rsync, verb, q, cert->mft, rt)) {
-			WARNX1(verb, "queue_add_from_cert");
-			break;
-		}
+		if (cert->mft != NULL)
+			queue_add_from_cert(proc, rsync, verb, q, cert->mft, rt);
 		rc = 1;
 		break;
 	case RTYPE_MFT:
+		st->mfts++;
 		LOG(verb, "%s: handling mft file", ent->uri);
 		mft = mft_read(proc, verb);
-		if (!queue_add_from_mft_set(proc, verb, q, mft)) {
-			WARNX1(verb, "queue_add_from_mft_set");
-			break;
-		}
+		if (mft->stale)
+			st->mfts_stale++;
+		queue_add_from_mft_set(proc, verb, q, mft);
 		rc = 1;
 		break;
 	case RTYPE_ROA:
+		st->roas++;
 		LOG(verb, "%s: handling roa file", ent->uri);
 		roa = roa_read(proc, verb);
 		rc = 1;
@@ -815,6 +716,7 @@ main(int argc, char *argv[])
 	struct entry	 *ent;
 	struct pollfd	  pfd[2];
 	struct repotab	  rt;
+	struct stats	  stats;
 
 	while ((c = getopt(argc, argv, "v")) != -1) 
 		switch (c) {
@@ -835,6 +737,7 @@ main(int argc, char *argv[])
 	rpki_log_open();
 
 	memset(&rt, 0, sizeof(struct repotab));
+	memset(&stats, 0, sizeof(struct stats));
 	TAILQ_INIT(&q);
 
 	/* 
@@ -898,10 +801,7 @@ main(int argc, char *argv[])
 	 */
 
 	for (i = 0; i < (size_t)argc; i++)
-		if (!queue_add_tal(proc, verb, &q, argv[i])) {
-			WARNX1(verb, "queue_add_tal");
-			goto out;
-		}
+		queue_add_tal(proc, verb, &q, argv[i]);
 
 	pfd[0].fd = rsync;
 	pfd[1].fd = proc;
@@ -914,13 +814,8 @@ main(int argc, char *argv[])
 		 * actually talk to the subprocesses.
 		 */
 
-		if (!socket_nonblocking(pfd[0].fd, verb)) {
-			WARNX1(verb, "socket_nonblocking");
-			goto out;
-		} else if (!socket_nonblocking(pfd[1].fd, verb)) {
-			WARNX1(verb, "socket_nonblocking");
-			goto out;
-		}
+		socket_nonblocking(pfd[0].fd, verb);
+		socket_nonblocking(pfd[1].fd, verb);
 
 		if ((c = poll(pfd, 2, 10000)) < 0) {
 			WARN("poll");
@@ -952,13 +847,8 @@ main(int argc, char *argv[])
 
 		/* Reenable blocking. */
 
-		if (!socket_blocking(pfd[0].fd, verb)) {
-			WARNX1(verb, "socket_blocking");
-			goto out;
-		} else if (!socket_blocking(pfd[1].fd, verb)) {
-			WARNX1(verb, "socket_blocking");
-			goto out;
-		}
+		socket_blocking(pfd[0].fd, verb);
+		socket_blocking(pfd[1].fd, verb);
 
 		/* 
 		 * Check the rsync process.
@@ -977,10 +867,7 @@ main(int argc, char *argv[])
 			rt.repos[i].loaded = 1;
 			LOG(verb, "%s/%s/%s: loaded", BASE_DIR,
 				rt.repos[i].host, rt.repos[i].module);
-			if (!entryq_flush(proc, verb, &q, &rt.repos[i])) {
-				WARNX1(verb, "entryq_flush");
-				goto out;
-			}
+			entryq_flush(proc, verb, &q, &rt.repos[i]);
 		}
 
 		/* 
@@ -990,7 +877,8 @@ main(int argc, char *argv[])
 
 		if ((pfd[1].revents & POLLIN)) {
 			ent = entryq_next(proc, verb, &q);
-			if (!entry_process(proc, rsync, verb, &q, ent, &rt)) {
+			if (!entry_process(proc, rsync, 
+			    verb, &stats, &q, ent, &rt)) {
 				WARNX1(verb, "entry_process");
 				goto out;
 			}
@@ -1036,6 +924,14 @@ out:
 	free(rt.repos);
 
 	rpki_log_close();
+	
+	fprintf(stderr, 
+		"Route announcements: %zu\n"
+		"Certificates: %zu\n"
+		"Trust anchor locators: %zu\n"
+		"Manifests: %zu (%zu stale)\n",
+		stats.roas, stats.certs, stats.tals, stats.mfts,
+		stats.mfts_stale);
 	return rc ? EXIT_SUCCESS : EXIT_FAILURE;
 
 usage:
