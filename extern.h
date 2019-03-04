@@ -29,12 +29,12 @@ struct	x509_as {
 
 /*
  * An IP address as parsed from a RFC 3779 document.
- * This may either be IPv4 (4-byte size) or IPv6 (16).
+ * This may either be IPv4 or IPv6.
  */
 struct	x509_ip_addr {
-	size_t		 sz; /* 4 (ipv4) or 16 (ipv6) */
+	size_t		 sz; /* length of valid bytes */
 	char		 addr[16]; /* binary address prefix */
-	long		 unused; /* unused bits */
+	long		 unused; /* unused bits in last byte */
 };
 
 /*
