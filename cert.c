@@ -89,14 +89,13 @@ append_as(struct parse *p, const struct x509_as *as)
 
 /*
  * Parse an IP address, IPv4 or IPv6, as either a minimum or maximum
- * quantity depending upon whether "mask" is 0x00 or 0xFF.
+ * quantity (0x0 or 0xf filled).
  * Confirms to RFC 3779 2.2.3.8.
  * Return zero on failure, non-zero on success.
  */
 static int
-sbgp_ipaddr(struct parse *p, unsigned char mask, 
-	const struct x509_ip *ip, struct x509_ip_addr *addr, 
-	const ASN1_BIT_STRING *bs)
+sbgp_ipaddr(struct parse *p, const struct x509_ip *ip,
+	struct x509_ip_addr *addr, const ASN1_BIT_STRING *bs)
 {
 	long			 unused = 0;
 	const unsigned char	*d;
@@ -117,11 +116,8 @@ sbgp_ipaddr(struct parse *p, unsigned char mask,
 		return 0;
 	} 
 
-	/* FIXME: process unused bit. */
-
 	addr->unused = unused;
-	addr->sz = (ip->afi == 1) ? 4 : 16;
-	memset(addr->addr, mask, addr->sz);
+	addr->sz = dsz;
 	memcpy(addr->addr, d, dsz);
 	return 1;
 }
@@ -136,10 +132,10 @@ sbgp_addr(struct parse *p,
 {
 	struct x509_ip_rng *rng = &ip->range;
 
-	if (!sbgp_ipaddr(p, 0x00, ip, &rng->min, bs)) {
+	if (!sbgp_ipaddr(p, ip, &rng->min, bs)) {
 		X509_WARNX1(p, "sbgp_ipaddr");
 		return 0;
-	} else if (!sbgp_ipaddr(p, 0xFF, ip, &rng->max, bs)) {
+	} else if (!sbgp_ipaddr(p, ip, &rng->max, bs)) {
 		X509_WARNX1(p, "sbgp_ipaddr");
 		return 0;
 	} 
@@ -802,7 +798,7 @@ sbgp_range(struct parse *p, struct x509_ip *ip,
 			ASN1_tag2str(type->type), type->type);
 		goto out;
 	} 
-	if (!sbgp_ipaddr(p, 0x00, ip, &rng->min, type->value.bit_string)) {
+	if (!sbgp_ipaddr(p, ip, &rng->min, type->value.bit_string)) {
 		X509_WARNX1(p, "sbgp_ipaddr");
 		return 0;
 	}
@@ -814,7 +810,7 @@ sbgp_range(struct parse *p, struct x509_ip *ip,
 			ASN1_tag2str(type->type), type->type);
 		goto out;
 	} 
-	if (!sbgp_ipaddr(p, 0xFF, ip, &rng->max, type->value.bit_string)) {
+	if (!sbgp_ipaddr(p, ip, &rng->max, type->value.bit_string)) {
 		X509_WARNX1(p, "sbgp_ipaddr");
 		return 0;
 	} 
