@@ -91,24 +91,27 @@ cms_parse_validate(int verb, X509 *cacert,
 	}
 
 	/*
-	 * The CMS is self-signed with a signing certifiate which must
-	 * be signed by the public key.
+	 * The CMS is self-signed with a signing certifiate.
+	 * Verify that the self-signage is correct.
+	 */
+
+	if (!CMS_verify(cms, NULL, NULL, 
+	    NULL, NULL, CMS_NO_SIGNER_CERT_VERIFY)) {
+		CRYPTOX(verb, "%s: CMS_verify", fn);
+		goto out;
+	}
+
+	/*
+	 * The self-signing certificate is further signed by the input
+	 * signing authority, which we conditionally check now.
 	 */
 
 	if (cacert != NULL) {
-		if (!CMS_verify(cms, NULL, NULL, 
-		    NULL, NULL, CMS_NO_SIGNER_CERT_VERIFY)) {
-			CRYPTOX(verb, "%s: CMS_verify", fn);
-			goto out;
-		}
-		LOG(verb, "%s: verified CMS", fn);
-
 		certs = CMS_get0_signers(cms);
 		if (certs == NULL || sk_X509_num(certs) != 1) {
 			WARNX(verb, "%s: need single signer", fn);
 			goto out;
 		}
-
 		cert = sk_X509_value(certs, 0);
 		if (X509_verify(cert, X509_get_pubkey(cacert)) <= 0) {
 			CRYPTOX(verb, "%s: X509_verify", fn);
