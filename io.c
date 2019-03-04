@@ -131,21 +131,24 @@ str_write(int fd, int verb, const char *p)
 }
 
 /*
- * Blocking read of a binary buffer w/o end of file.
- * Return zero on failure, non-zero otherwise.
+ * Read of a binary buffer that must be on a blocking descriptor.
+ * Does nothing if "sz" is zero.
+ * This will fail and exit on EOF or short reads.
  */
-int
+void
 simple_read(int fd, int verb, void *res, size_t sz)
 {
 	ssize_t	 ssz;
 
+	if (sz == 0)
+		return;
+
 	if ((ssz = read(fd, res, sz)) < 0)
-		WARN("read");
+		err(EXIT_FAILURE, "read");
 	else if (ssz == 0)
-		WARNX(verb, "unexpected end of file");
-	else
-		return 1;
-	return 0;
+		errx(EXIT_FAILURE, "read: unexpected end of file");
+	else if ((size_t)ssz < sz)
+		errx(EXIT_FAILURE, "read: short read");
 }
 
 /*
@@ -158,12 +161,12 @@ buf_read_alloc(int fd, int verb, void **res, size_t *sz)
 {
 
 	*res = NULL;
-	if (!simple_read(fd, verb, sz, sizeof(size_t)))
-		errx(EXIT_FAILURE, "simple_read");
-	else if (*sz > 0 && (*res = malloc(*sz)) == NULL)
+	simple_read(fd, verb, sz, sizeof(size_t));
+	if (*sz == 0)
+		return;
+	if ((*res = malloc(*sz)) == NULL)
 		err(EXIT_FAILURE, NULL);
-	else if (*sz > 0 && !simple_read(fd, verb, *res, *sz))
-		err(EXIT_FAILURE, "simple_read");
+	simple_read(fd, verb, *res, *sz);
 }
 
 /*
@@ -175,10 +178,8 @@ str_read(int fd, int verb, char **res)
 {
 	size_t	 sz;
 
-	if (!simple_read(fd, verb, &sz, sizeof(size_t)))
-		errx(EXIT_FAILURE, "simple_read");
-	else if ((*res = calloc(sz + 1, 1)) == NULL)
+	simple_read(fd, verb, &sz, sizeof(size_t));
+	if ((*res = calloc(sz + 1, 1)) == NULL)
 		err(EXIT_FAILURE, NULL);
-	else if (!simple_read(fd, verb, *res, sz))
-		errx(EXIT_FAILURE, "simple_read");
+	simple_read(fd, verb, *res, sz);
 }

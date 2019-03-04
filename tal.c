@@ -205,7 +205,6 @@ tal_buffer(char **b, size_t *bsz, size_t *bmax,
 /*
  * Read parsed TAL contents from descriptor.
  * See tal_buffer() for the other side of the pipe.
- * Returns the TAL pointer on success, NULL on failure.
  * A returned pointer must be freed with tal_free().
  */
 struct tal *
@@ -219,11 +218,7 @@ tal_read(int fd, int verb)
 
 	buf_read_alloc(fd, verb, (void **)&p->pkey, &p->pkeysz);
 	assert(p->pkeysz > 0);
-
-	if (!simple_read(fd, verb, &p->urisz, sizeof(size_t))) {
-		WARNX1(verb, "simple_read");
-		goto out;
-	}
+	simple_read(fd, verb, &p->urisz, sizeof(size_t));
 	assert(p->urisz > 0);
 
 	if ((p->uri = calloc(p->urisz, sizeof(char *))) == NULL)
@@ -233,8 +228,5 @@ tal_read(int fd, int verb)
 		str_read(fd, verb, &p->uri[i]);
 
 	return p;
-out:
-	tal_free(p);
-	return NULL;
 }
 

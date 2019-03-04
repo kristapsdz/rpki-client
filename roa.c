@@ -174,7 +174,6 @@ roa_buffer(char **b, size_t *bsz, size_t *bmax,
 
 /*
  * Read parsed ROA content.
- * Returns NULL on failure or the valid pointer otherwise.
  * Result must be passed to roa_free().
  */
 struct roa *

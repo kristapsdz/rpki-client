@@ -407,7 +407,6 @@ mft_buffer(char **b, size_t *bsz, size_t *bmax,
 
 /*
  * Read an MFT structure from the file descriptor.
- * Returns NULL on failure or the valid pointer otherwise.
  * Result must be passed to mft_free().
  */
 struct mft *
@@ -420,25 +419,15 @@ mft_read(int fd, int verb)
 		err(EXIT_FAILURE, NULL);
 
 	str_read(fd, verb, &p->file);
-	if (!simple_read(fd, verb, &p->filesz, sizeof(size_t))) {
-		WARNX1(verb, "simple_read");
-		goto out;
-	}
+	simple_read(fd, verb, &p->filesz, sizeof(size_t));
 	
 	if ((p->files = calloc(p->filesz, sizeof(struct mftfile))) == NULL)
 		err(EXIT_FAILURE, NULL);
 
 	for (i = 0; i < p->filesz; i++) {
 		str_read(fd, verb, &p->files[i].file);
-		if (!simple_read(fd, verb,
-		    p->files[i].hash, SHA256_DIGEST_LENGTH)) {
-			WARNX1(verb, "simple_read");
-			goto out;
-		}
+		simple_read(fd, verb, p->files[i].hash, SHA256_DIGEST_LENGTH);
 	}
 
 	return p;
-out:
-	mft_free(p);
-	return NULL;
 }
