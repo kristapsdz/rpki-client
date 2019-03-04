@@ -217,10 +217,7 @@ tal_read(int fd, int verb)
 	if ((p = calloc(1, sizeof(struct tal))) == NULL)
 		err(EXIT_FAILURE, NULL);
 
-	if (!buf_read_alloc(fd, verb, (void **)&p->pkey, &p->pkeysz)) {
-		WARNX1(verb, "buf_read_alloc");
-		goto out;
-	}
+	buf_read_alloc(fd, verb, (void **)&p->pkey, &p->pkeysz);
 	assert(p->pkeysz > 0);
 
 	if (!simple_read(fd, verb, &p->urisz, sizeof(size_t))) {
