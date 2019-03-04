@@ -871,7 +871,7 @@ main(int argc, char *argv[])
 		}
 
 	argv += optind;
-	if ((argc -= optind) != 1)
+	if ((argc -= optind) == 0)
 		goto usage;
 
 	/* Initialise SSL, errors, and our structures. */
@@ -942,10 +942,11 @@ main(int argc, char *argv[])
 	 * can get the ball rolling.
 	 */
 
-	if (!queue_add_tal(proc, verb, &q, argv[0])) {
-		WARNX1(verb, "queue_add_tal");
-		goto out;
-	}
+	for (i = 0; i < (size_t)argc; i++)
+		if (!queue_add_tal(proc, verb, &q, argv[i])) {
+			WARNX1(verb, "queue_add_tal");
+			goto out;
+		}
 
 	pfd[0].fd = rsync;
 	pfd[1].fd = proc;
@@ -1088,6 +1089,6 @@ out:
 	return rc ? EXIT_SUCCESS : EXIT_FAILURE;
 
 usage:
-	fprintf(stderr, "usage: %s [-v] tal\n", getprogname());
+	fprintf(stderr, "usage: %s [-v] tal ...\n", getprogname());
 	return EXIT_FAILURE;
 }
