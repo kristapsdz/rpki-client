@@ -196,7 +196,7 @@ void		 simple_buffer(char **, size_t *, size_t *, const void *, size_t);
 int		 simple_read(int, int, void *, size_t);
 int		 simple_write(int, const void *, size_t);
 void		 buf_buffer(char **, size_t *, size_t *, int, const void *, size_t);
-int		 buf_read_alloc(int, int, void **, size_t *);
+void		 buf_read_alloc(int, int, void **, size_t *);
 int		 buf_write(int, int, const void *, size_t);
 void		 str_buffer(char **, size_t *, size_t *, int, const char *);
 void		 str_read(int, int, char **);

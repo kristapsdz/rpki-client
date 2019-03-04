@@ -150,28 +150,20 @@ simple_read(int fd, int verb, void *res, size_t sz)
 
 /*
  * Read a binary buffer, allocating space for it.
- * If the buffer is zero-sized, this won't allocate "res".
- * Return zero on failure, non-zero otherwise.
- * On failure, result pointers are set to NULL/0.
+ * If the buffer is zero-sized, this won't allocate "res", but
+ * will still initialise it to NULL.
  */
-int
+void
 buf_read_alloc(int fd, int verb, void **res, size_t *sz)
 {
 
 	*res = NULL;
 	if (!simple_read(fd, verb, sz, sizeof(size_t)))
-		WARNX1(verb, "simple_read");
+		errx(EXIT_FAILURE, "simple_read");
 	else if (*sz > 0 && (*res = malloc(*sz)) == NULL)
 		err(EXIT_FAILURE, NULL);
 	else if (*sz > 0 && !simple_read(fd, verb, *res, *sz))
-		WARNX1(verb, "simple_read");
-	else
-		return 1;
-
-	free(*res);
-	*res = NULL;
-	*sz = 0;
-	return 0;
+		err(EXIT_FAILURE, "simple_read");
 }
 
 /*
