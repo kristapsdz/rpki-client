@@ -76,12 +76,12 @@ append_ip(struct parse *p, const struct cert_ip *ip)
  * Append an AS identifier structure to our list of results.
  */
 static void
-append_as(struct parse *p, const struct x509_as *as)
+append_as(struct parse *p, const struct cert_as *as)
 {
 	struct cert	*res = p->res;
 
 	res->as = reallocarray(res->as, 
-		res->asz + 1, sizeof(struct x509_as));
+		res->asz + 1, sizeof(struct cert_as));
 	if (res->as == NULL)
 		err(EXIT_FAILURE, NULL);
 	res->as[res->asz++] = *as;
@@ -525,7 +525,7 @@ static int
 sbgp_asrange(struct parse *p, int rdi,
 	const unsigned char *d, size_t dsz)
 {
-	struct x509_as	 	 as;
+	struct cert_as	 	 as;
 	ASN1_SEQUENCE_ANY	*seq;
 	const ASN1_TYPE		*type1, *type2;
 	int			 rc = 0;
@@ -556,8 +556,8 @@ sbgp_asrange(struct parse *p, int rdi,
 		goto out;
 	}
 
-	memset(&as, 0, sizeof(struct x509_as));
-	as.type = ASN1_AS_RANGE;
+	memset(&as, 0, sizeof(struct cert_as));
+	as.type = CERT_AS_RANGE;
 	as.rdi = rdi;
 
 	/* The minimum component. */
@@ -585,12 +585,12 @@ out:
 static void
 sbgp_asid(struct parse *p, int rdi, const ASN1_INTEGER *i)
 {
-	struct x509_as	 as;
+	struct cert_as	 as;
 
-	memset(&as, 0, sizeof(struct x509_as));
+	memset(&as, 0, sizeof(struct cert_as));
 
 	as.rdi = rdi;
-	as.type = ASN1_AS_ID;
+	as.type = CERT_AS_ID;
 	as.id = ASN1_INTEGER_get(i);
 	X509_LOG(p, "%s: parsed AS "
 		"identifier: %" PRIu32, p->fn, as.id);
@@ -605,7 +605,7 @@ static int
 sbgp_asnum(struct parse *p, int rdi, 
 	const unsigned char *d, size_t dsz)
 {
-	struct x509_as	 	 as;
+	struct cert_as	 	 as;
 	ASN1_TYPE		*type = NULL;
 	ASN1_SEQUENCE_ANY	*seq = NULL;
 	int			 i, rc = 0;
@@ -624,9 +624,9 @@ sbgp_asnum(struct parse *p, int rdi,
 	 */
 
 	if (type->type == V_ASN1_NULL) {
-		memset(&as, 0, sizeof(struct x509_as));
+		memset(&as, 0, sizeof(struct cert_as));
 		as.rdi = rdi;
-		as.type = ASN1_AS_NULL;
+		as.type = CERT_AS_NULL;
 		X509_LOG(p, "%s: parsed inherited AS", p->fn);
 		append_as(p, &as);
 		rc = 1;
@@ -885,7 +885,6 @@ static int
 sbgp_ipaddrfam(struct parse *p, const unsigned char *d, size_t dsz)
 {
 	struct cert_ip	 	 ip;
-	char		 	 buf[2];
 	ASN1_SEQUENCE_ANY	*seq;
 	const ASN1_TYPE		*type;
 	int			 rc = 0;
@@ -912,33 +911,11 @@ sbgp_ipaddrfam(struct parse *p, const unsigned char *d, size_t dsz)
 		goto out;
 	} 
 
-	d = type->value.octet_string->data;
-	dsz = type->value.octet_string->length;
-
-	if (dsz == 0 || dsz > 3) {
-		X509_WARNX(p, "%s: invalid IP address "
-			"length, have %zu", p->fn, dsz);
+	ip.has_safi = 0;
+	if (!ip_addrfamily(type->value.octet_string, &ip.afi)) {
+		X509_WARNX(p, "%s: bad address family", p->fn);
 		goto out;
-	} 
-
-	/* Parse AFI and (optionally) SAFI. */
-
-	memcpy(buf, d, sizeof(uint16_t));
-	ip.afi = ntohs(*(uint16_t *)buf);
-
-	if (ip.afi != 1 && ip.afi != 2) {
-		X509_WARNX(p, "%s: invalid AFI, "
-			"have %u", p->fn, ip.afi);
-		goto out;
-	} else if (dsz == 3) {
-		ip.safi = d[2];
-		ip.has_safi = 1;
-		X509_LOG(p, "%s: parsed IPv%s address family: "
-			"SAFI %u", p->fn, 1 == ip.afi ? "4" : "6",
-			ip.safi);
-	} else
-		X509_LOG(p, "%s: parsed IPv%s address family",
-			p->fn, 1 == ip.afi ? "4" : "6");
+	}
 
 	/* Next, either sequence or null, RFC 3770 sec. 2.2.3.4. */
 
@@ -1213,17 +1190,99 @@ cert_free(struct cert *p)
 	free(p);
 }
 
+static void
+cert_ip_addr_buffer(char **b, size_t *bsz,
+	size_t *bmax, const struct cert_ip_addr *p)
+{
+
+	simple_buffer(b, bsz, bmax, &p->sz, sizeof(size_t));
+	assert(p->sz <= 16);
+	simple_buffer(b, bsz, bmax, p->addr, p->sz);
+	simple_buffer(b, bsz, bmax, &p->unused, sizeof(long));
+}
+
+static void
+cert_ip_buffer(char **b, size_t *bsz,
+	size_t *bmax, const struct cert_ip *p)
+{
+
+	simple_buffer(b, bsz, bmax, &p->afi, sizeof(uint16_t));
+	simple_buffer(b, bsz, bmax, &p->safi, sizeof(uint8_t));
+	simple_buffer(b, bsz, bmax, &p->has_safi, sizeof(int));
+	cert_ip_addr_buffer(b, bsz, bmax, &p->range.min);
+	cert_ip_addr_buffer(b, bsz, bmax, &p->range.max);
+}
+
+static void
+cert_as_buffer(char **b, size_t *bsz,
+	size_t *bmax, const struct cert_as *p)
+{
+
+	simple_buffer(b, bsz, bmax, &p->rdi, sizeof(int));
+	simple_buffer(b, bsz, bmax, &p->type, sizeof(enum cert_as_type));
+	if (p->type == CERT_AS_RANGE) {
+		simple_buffer(b, bsz, bmax, &p->range.min, sizeof(uint32_t));
+		simple_buffer(b, bsz, bmax, &p->range.max, sizeof(uint32_t));
+	} else if (p->type == CERT_AS_ID)
+		simple_buffer(b, bsz, bmax, &p->id, sizeof(uint32_t));
+}
+
 /*
  * Write certificate parsed content.
  * See cert_read() for the other side of the pipe.
  */
 void
 cert_buffer(char **b, size_t *bsz, size_t *bmax,
-	int verb, const struct cert *x)
+	int verb, const struct cert *p)
+{
+	size_t	 i;
+
+	simple_buffer(b, bsz, bmax, &p->ipsz, sizeof(size_t));
+	for (i = 0; i < p->ipsz; i++)
+		cert_ip_buffer(b, bsz, bmax, &p->ips[i]);
+
+	simple_buffer(b, bsz, bmax, &p->asz, sizeof(size_t));
+	for (i = 0; i < p->asz; i++)
+		cert_as_buffer(b, bsz, bmax, &p->as[i]);
+
+	str_buffer(b, bsz, bmax, verb, p->rep);
+	str_buffer(b, bsz, bmax, verb, p->mft);
+	str_buffer(b, bsz, bmax, verb, p->ski);
+	str_buffer(b, bsz, bmax, verb, p->aki);
+}
+
+static void
+cert_ip_addr_read(int fd, int verb, struct cert_ip_addr *p)
 {
 
-	str_buffer(b, bsz, bmax, verb, x->rep);
-	str_buffer(b, bsz, bmax, verb, x->mft);
+	simple_read(fd, verb, &p->sz, sizeof(size_t));
+	assert(p->sz <= 16);
+	simple_read(fd, verb, p->addr, p->sz);
+	simple_read(fd, verb, &p->unused, sizeof(long));
+}
+
+static void
+cert_ip_read(int fd, int verb, struct cert_ip *p)
+{
+
+	simple_read(fd, verb, &p->afi, sizeof(uint16_t));
+	simple_read(fd, verb, &p->safi, sizeof(uint8_t));
+	simple_read(fd, verb, &p->has_safi, sizeof(int));
+	cert_ip_addr_read(fd, verb, &p->range.min);
+	cert_ip_addr_read(fd, verb, &p->range.max);
+}
+
+static void
+cert_as_read(int fd, int verb, struct cert_as *p)
+{
+
+	simple_read(fd, verb, &p->rdi, sizeof(int));
+	simple_read(fd, verb, &p->type, sizeof(enum cert_as_type));
+	if (p->type == CERT_AS_RANGE) {
+		simple_read(fd, verb, &p->range.min, sizeof(uint32_t));
+		simple_read(fd, verb, &p->range.max, sizeof(uint32_t));
+	} else if (p->type == CERT_AS_ID)
+		simple_read(fd, verb, &p->id, sizeof(uint32_t));
 }
 
 /*
@@ -1234,12 +1293,29 @@ struct cert *
 cert_read(int fd, int verb)
 {
 	struct cert	*p;
+	size_t		 i;
 
 	if ((p = calloc(1, sizeof(struct cert))) == NULL)
 		err(EXIT_FAILURE, NULL);
 
+	simple_read(fd, verb, &p->ipsz, sizeof(size_t));
+	p->ips = calloc(p->ipsz, sizeof(struct cert_ip));
+	if (p->ips == NULL)
+		err(EXIT_FAILURE, NULL);
+	for (i = 0; i < p->ipsz; i++)
+		cert_ip_read(fd, verb, &p->ips[i]);
+
+	simple_read(fd, verb, &p->asz, sizeof(size_t));
+	p->as = calloc(p->asz, sizeof(struct cert_as));
+	if (p->as == NULL)
+		err(EXIT_FAILURE, NULL);
+	for (i = 0; i < p->asz; i++)
+		cert_as_read(fd, verb, &p->as[i]);
+
 	str_read(fd, verb, &p->rep);
 	str_read(fd, verb, &p->mft);
+	str_read(fd, verb, &p->ski);
+	str_read(fd, verb, &p->aki);
 	return p;
 }
 

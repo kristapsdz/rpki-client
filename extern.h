@@ -1,16 +1,16 @@
 #ifndef EXTERN_H
 #define EXTERN_H
 
-enum	x509_as_type {
-	ASN1_AS_ID,
-	ASN1_AS_NULL,
-	ASN1_AS_RANGE,
+enum	cert_as_type {
+	CERT_AS_ID, /* single identifier */
+	CERT_AS_NULL, /* inherit from parent */
+	CERT_AS_RANGE, /* range of identifiers */
 };
 
 /*
  * An AS identifier range.
  */
-struct	x509_as_range {
+struct	cert_as_range {
 	uint32_t	 min; /* minimum non-zero */
 	uint32_t	 max; /* maximum */
 };
@@ -18,12 +18,12 @@ struct	x509_as_range {
 /*
  * An autonomous system (AS) object.
  */
-struct	x509_as {
+struct	cert_as {
 	int		  rdi; /* routing domain identifier? */
-	enum x509_as_type type; /* type of AS specification */
+	enum cert_as_type type; /* type of AS specification */
 	union {
 		uint32_t id; /* singleton */
-		struct x509_as_range range; /* range */
+		struct cert_as_range range; /* range */
 	};
 };
 
@@ -51,11 +51,12 @@ enum	cert_ip_type {
 	CERT_IP_INHERIT, /* inherited IP address */
 	CERT_IP_RANGE /* range of IP addresses */
 };
+
 /*
  * An IP address range defined by RFC 3779.
  */
 struct	cert_ip {
-	uint16_t	   afi; /* AFI value */
+	uint16_t	   afi; /* AFI value (1 or 2) */
 	uint8_t		   safi; /* SAFI value (if has_safi) */
 	int		   has_safi; /* whether safi is set */
 	enum cert_ip_type  type; /* type of IP entry */
@@ -69,7 +70,7 @@ struct	cert_ip {
 struct	cert {
 	struct cert_ip	*ips; /* list of IP address ranges */
 	size_t		 ipsz; /* length of "ips" */
-	struct x509_as	*as; /* list of AS numbers and ranges */
+	struct cert_as	*as; /* list of AS numbers and ranges */
 	size_t		 asz; /* length of "asz" */
 	char		*rep; /* CA repository */
 	char		*mft; /* manifest (rsync:// uri) */
@@ -111,8 +112,16 @@ struct	mft {
 	int		 stale; /* if a stale manifest */
 };
 
+struct	roa_ip {
+	uint16_t	    afi; /* AFI value (1 or 2) */
+	size_t		    maxlength; /* max length or zero */
+	struct cert_ip_addr addr;
+};
+
 struct	roa {
 	uint32_t	 asid; /* asID of ROA */
+	struct roa_ip	*ips;
+	size_t		 ipsz;
 };
 
 /*
@@ -163,14 +172,16 @@ void		 mft_free(struct mft *);
 struct mft 	*mft_parse(int, X509 *, const char *);
 struct mft 	*mft_read(int, int);
 
-void		 roa_buffer(char **, size_t *, size_t *, int, const struct roa *);
+void		 roa_buffer(char **, size_t *, size_t *, const struct roa *);
 void		 roa_free(struct roa *);
-struct roa 	*roa_parse(int, X509 *, const char *, const unsigned char *);
-struct roa	*roa_read(int, int);
+struct roa 	*roa_parse(X509 *, const char *, const unsigned char *);
+struct roa	*roa_read(int);
 
 const ASN1_OCTET_STRING
- 		*cms_parse_validate(int, X509 *, const char *,
+ 		*cms_parse_validate(X509 *, const char *,
 			const char *, const unsigned char *);
+int		 ip_addrfamily(const ASN1_OCTET_STRING *, uint16_t *);
+int		 ip_addr(const ASN1_BIT_STRING *, uint16_t, struct cert_ip_addr *);
 int	 	 rsync_uri_parse(int, const char **, size_t *,
 			const char **, size_t *, const char **, size_t *,
 			enum rtype *, const char *);
@@ -191,6 +202,11 @@ void		 rpki_log(int, const char *, size_t, const char *, ...)
 			__attribute__((format(printf, 4, 5)));
 void		 rpki_cryptox(int, const char *, size_t, const char *, ...)
 			__attribute__((format(printf, 4, 5)));
+void		 cryptowarnx(const char *, ...)
+			__attribute__((format(printf, 1, 2)));
+void		 cryptoerrx(const char *, ...)
+			__attribute__((format(printf, 1, 2)))
+			__attribute__((noreturn));
 void		 socket_blocking(int, int);
 void		 socket_nonblocking(int, int);
 void		 simple_buffer(char **, size_t *, size_t *, const void *, size_t);

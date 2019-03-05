@@ -1,3 +1,4 @@
+#include <err.h>
 #include <errno.h>
 #include <stdarg.h>
 #include <stdio.h>
@@ -89,6 +90,46 @@ rpki_log(int verbose, const char *fn,
 	vfprintf(stderr, fmt, ap);
 	va_end(ap);
 	fputc('\n', stderr);
+}
+
+void
+cryptoerrx(int code, const char *fmt, ...)
+{
+	unsigned long	 er;
+	char		 buf[BUFSIZ];
+	va_list	  	 ap;
+
+	while ((er = ERR_get_error()) > 0) {
+		ERR_error_string_n(er, buf, sizeof(buf));
+		warnx("%s", buf);
+	}
+
+	if (fmt != NULL) {
+		va_start(ap, fmt);
+		vwarnx(fmt, ap);
+		va_end(ap);
+	}
+
+	exit(code);
+}
+
+void
+cryptowarnx(const char *fmt, ...)
+{
+	unsigned long	 er;
+	char		 buf[BUFSIZ];
+	va_list	  	 ap;
+
+	while ((er = ERR_get_error()) > 0) {
+		ERR_error_string_n(er, buf, sizeof(buf));
+		warnx("%s", buf);
+	}
+
+	if (fmt != NULL) {
+		va_start(ap, fmt);
+		vwarnx(fmt, ap);
+		va_end(ap);
+	}
 }
 
 /*
