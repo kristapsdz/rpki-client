@@ -1252,37 +1252,37 @@ cert_buffer(char **b, size_t *bsz, size_t *bmax,
 }
 
 static void
-cert_ip_addr_read(int fd, int verb, struct cert_ip_addr *p)
+cert_ip_addr_read(int fd, struct cert_ip_addr *p)
 {
 
-	simple_read(fd, verb, &p->sz, sizeof(size_t));
+	simple_read(fd, &p->sz, sizeof(size_t));
 	assert(p->sz <= 16);
-	simple_read(fd, verb, p->addr, p->sz);
-	simple_read(fd, verb, &p->unused, sizeof(long));
+	simple_read(fd, p->addr, p->sz);
+	simple_read(fd, &p->unused, sizeof(long));
 }
 
 static void
-cert_ip_read(int fd, int verb, struct cert_ip *p)
+cert_ip_read(int fd, struct cert_ip *p)
 {
 
-	simple_read(fd, verb, &p->afi, sizeof(uint16_t));
-	simple_read(fd, verb, &p->safi, sizeof(uint8_t));
-	simple_read(fd, verb, &p->has_safi, sizeof(int));
-	cert_ip_addr_read(fd, verb, &p->range.min);
-	cert_ip_addr_read(fd, verb, &p->range.max);
+	simple_read(fd, &p->afi, sizeof(uint16_t));
+	simple_read(fd, &p->safi, sizeof(uint8_t));
+	simple_read(fd, &p->has_safi, sizeof(int));
+	cert_ip_addr_read(fd, &p->range.min);
+	cert_ip_addr_read(fd, &p->range.max);
 }
 
 static void
-cert_as_read(int fd, int verb, struct cert_as *p)
+cert_as_read(int fd, struct cert_as *p)
 {
 
-	simple_read(fd, verb, &p->rdi, sizeof(int));
-	simple_read(fd, verb, &p->type, sizeof(enum cert_as_type));
+	simple_read(fd, &p->rdi, sizeof(int));
+	simple_read(fd, &p->type, sizeof(enum cert_as_type));
 	if (p->type == CERT_AS_RANGE) {
-		simple_read(fd, verb, &p->range.min, sizeof(uint32_t));
-		simple_read(fd, verb, &p->range.max, sizeof(uint32_t));
+		simple_read(fd, &p->range.min, sizeof(uint32_t));
+		simple_read(fd, &p->range.max, sizeof(uint32_t));
 	} else if (p->type == CERT_AS_ID)
-		simple_read(fd, verb, &p->id, sizeof(uint32_t));
+		simple_read(fd, &p->id, sizeof(uint32_t));
 }
 
 /*
@@ -1290,7 +1290,7 @@ cert_as_read(int fd, int verb, struct cert_as *p)
  * The pointer must be freed with cert_free().
  */
 struct cert *
-cert_read(int fd, int verb)
+cert_read(int fd)
 {
 	struct cert	*p;
 	size_t		 i;
@@ -1298,24 +1298,24 @@ cert_read(int fd, int verb)
 	if ((p = calloc(1, sizeof(struct cert))) == NULL)
 		err(EXIT_FAILURE, NULL);
 
-	simple_read(fd, verb, &p->ipsz, sizeof(size_t));
+	simple_read(fd, &p->ipsz, sizeof(size_t));
 	p->ips = calloc(p->ipsz, sizeof(struct cert_ip));
 	if (p->ips == NULL)
 		err(EXIT_FAILURE, NULL);
 	for (i = 0; i < p->ipsz; i++)
-		cert_ip_read(fd, verb, &p->ips[i]);
+		cert_ip_read(fd, &p->ips[i]);
 
-	simple_read(fd, verb, &p->asz, sizeof(size_t));
+	simple_read(fd, &p->asz, sizeof(size_t));
 	p->as = calloc(p->asz, sizeof(struct cert_as));
 	if (p->as == NULL)
 		err(EXIT_FAILURE, NULL);
 	for (i = 0; i < p->asz; i++)
-		cert_as_read(fd, verb, &p->as[i]);
+		cert_as_read(fd, &p->as[i]);
 
-	str_read(fd, verb, &p->rep);
-	str_read(fd, verb, &p->mft);
-	str_read(fd, verb, &p->ski);
-	str_read(fd, verb, &p->aki);
+	str_read(fd, &p->rep);
+	str_read(fd, &p->mft);
+	str_read(fd, &p->ski);
+	str_read(fd, &p->aki);
 	return p;
 }
 
