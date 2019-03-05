@@ -190,16 +190,15 @@ tal_free(struct tal *p)
  * See tal_read() for the other side of the pipe.
  */
 void
-tal_buffer(char **b, size_t *bsz, size_t *bmax,
-	int verb, const struct tal *p)
+tal_buffer(char **b, size_t *bsz, size_t *bmax, const struct tal *p)
 {
 	size_t	 i;
 
-	buf_buffer(b, bsz, bmax, verb, p->pkey, p->pkeysz);
+	buf_buffer(b, bsz, bmax, p->pkey, p->pkeysz);
 	simple_buffer(b, bsz, bmax, &p->urisz, sizeof(size_t));
 
 	for (i = 0; i < p->urisz; i++)
-		str_buffer(b, bsz, bmax, verb, p->uri[i]);
+		str_buffer(b, bsz, bmax, p->uri[i]);
 }
 
 /*

@@ -157,17 +157,17 @@ __BEGIN_DECLS
  * Routines for RPKI data files.
  */
 
-void		 tal_buffer(char **, size_t *, size_t *, int, const struct tal *);
+void		 tal_buffer(char **, size_t *, size_t *, const struct tal *);
 void		 tal_free(struct tal *);
 struct tal	*tal_parse(int, const char *);
 struct tal	*tal_read(int);
 
-void		 cert_buffer(char **, size_t *, size_t *, int, const struct cert *);
+void		 cert_buffer(char **, size_t *, size_t *, const struct cert *);
 void		 cert_free(struct cert *);
 struct cert	*cert_parse(int, X509 *, const char *, const unsigned char *);
 struct cert	*cert_read(int);
 
-void		 mft_buffer(char **, size_t *, size_t *, int, const struct mft *);
+void		 mft_buffer(char **, size_t *, size_t *, const struct mft *);
 void		 mft_free(struct mft *);
 struct mft 	*mft_parse(int, X509 *, const char *);
 struct mft 	*mft_read(int);
@@ -212,10 +212,10 @@ void		 socket_nonblocking(int, int);
 void		 simple_buffer(char **, size_t *, size_t *, const void *, size_t);
 void		 simple_read(int, void *, size_t);
 void		 simple_write(int, const void *, size_t);
-void		 buf_buffer(char **, size_t *, size_t *, int, const void *, size_t);
+void		 buf_buffer(char **, size_t *, size_t *, const void *, size_t);
 void		 buf_read_alloc(int, void **, size_t *);
 void		 buf_write(int, int, const void *, size_t);
-void		 str_buffer(char **, size_t *, size_t *, int, const char *);
+void		 str_buffer(char **, size_t *, size_t *, const char *);
 void		 str_read(int, char **);
 void		 str_write(int, int, const char *);
 
