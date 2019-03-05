@@ -620,12 +620,12 @@ proc_parser(int fd, int verb)
 			break;
 		case RTYPE_ROA:
 			assert(entp->has_dgst);
-			roa = roa_parse(vverb, NULL, entp->uri, entp->dgst);
+			roa = roa_parse(NULL, entp->uri, entp->dgst);
 			if (roa == NULL) {
 				WARNX1(verb, "roa_parse");
 				goto out;
 			}
-			roa_buffer(&b, &bsz, &bmax, verb, roa);
+			roa_buffer(&b, &bsz, &bmax, roa);
 			roa_free(roa);
 			break;
 		default:
@@ -690,7 +690,7 @@ entry_process(int proc, int rsync, int verb, struct stats *st,
 	case RTYPE_ROA:
 		st->roas++;
 		LOG(verb, "%s: handling roa file", ent->uri);
-		roa = roa_read(proc, verb);
+		roa = roa_read(proc);
 		rc = 1;
 		break;
 	default:

@@ -1,4 +1,6 @@
+#include <assert.h>
 #include <err.h>
+#include <inttypes.h>
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
@@ -7,6 +9,14 @@
 #include <openssl/ssl.h>
 
 #include "extern.h"
+
+static void
+roa_print(const struct roa *p)
+{
+
+	assert(p != NULL);
+	fprintf(stderr, "asID: %" PRIu32 "\n", p->asid);
+}
 
 int
 main(int argc, char *argv[])
@@ -21,7 +31,7 @@ main(int argc, char *argv[])
 	SSL_library_init();
 	rpki_log_open();
 
-	while (-1 != (c = getopt(argc, argv, "c:v"))) 
+	while ((c = getopt(argc, argv, "c:v")) != -1) 
 		switch (c) {
 		case 'c':
 			cert = optarg;
@@ -36,23 +46,19 @@ main(int argc, char *argv[])
 	argv += optind;
 	argc -= optind;
 
-	if (NULL != cert) {
-		if (NULL == (bio = BIO_new_file(cert, "rb"))) {
-			CRYPTOX(verb, "%s: BIO_new_file", cert);
-			return EXIT_FAILURE;
-		} else if (NULL == (x = d2i_X509_bio(bio, NULL))) {
-			CRYPTOX(verb, "%s: d2i_X509_bio", cert);
-			BIO_free(bio);
-			return EXIT_FAILURE;
-		}
+	if (cert != NULL) {
+		if ((bio = BIO_new_file(cert, "rb")) == NULL)
+			cryptoerrx("%s: BIO_new_file", cert);
+		if ((x = d2i_X509_bio(bio, NULL)) == NULL)
+			cryptoerrx("%s: d2i_X509_bio", cert);
 		BIO_free(bio);
-		LOG(verb, "%s: attached certificate", cert);
 	}
 
 	for (i = 0; i < (size_t)argc; i++) {
-		p = roa_parse(verb, x, argv[i], NULL);
-		if (NULL == p)
+		if ((p = roa_parse(x, argv[i], NULL)) == NULL)
 			break;
+		if (verb)
+			roa_print(p);
 		roa_free(p);
 	}
 
