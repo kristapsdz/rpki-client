@@ -27,6 +27,7 @@ struct	stats {
 	size_t	 mfts_stale;
 	size_t	 certs;
 	size_t	 roas;
+	size_t	 repos;
 };
 
 struct	repo {
@@ -170,12 +171,12 @@ entryq_next(int fd, struct entryq *q)
  * Like entry_write() but into a buffer.
  */
 static void
-entry_buffer(char **b, size_t *bsz, size_t *bmax,
-	int verb, const struct entry *ent)
+entry_buffer(char **b, size_t *bsz,
+	size_t *bmax, const struct entry *ent)
 {
 
 	simple_buffer(b, bsz, bmax, &ent->type, sizeof(enum rtype));
-	str_buffer(b, bsz, bmax, verb, ent->uri);
+	str_buffer(b, bsz, bmax, ent->uri);
 	simple_buffer(b, bsz, bmax, &ent->has_dgst, sizeof(int));
 	simple_buffer(b, bsz, bmax, ent->dgst, sizeof(ent->dgst));
 }
@@ -585,7 +586,7 @@ proc_parser(int fd, int verb)
 		entp = TAILQ_FIRST(&q);
 		assert(entp != NULL);
 
-		entry_buffer(&b, &bsz, &bmax, verb, entp);
+		entry_buffer(&b, &bsz, &bmax, entp);
 
 		switch (entp->type) {
 		case RTYPE_TAL:
@@ -595,7 +596,7 @@ proc_parser(int fd, int verb)
 				WARNX1(verb, "tal_parse");
 				goto out;
 			}
-			tal_buffer(&b, &bsz, &bmax, verb, tal);
+			tal_buffer(&b, &bsz, &bmax, tal);
 			tal_free(tal);
 			break;
 		case RTYPE_CER:
@@ -605,7 +606,7 @@ proc_parser(int fd, int verb)
 				WARNX1(verb, "cert_parse");
 				goto out;
 			}
-			cert_buffer(&b, &bsz, &bmax, verb, x);
+			cert_buffer(&b, &bsz, &bmax, x);
 			cert_free(x);
 			break;
 		case RTYPE_MFT:
@@ -615,7 +616,7 @@ proc_parser(int fd, int verb)
 				WARNX1(verb, "mft_parse");
 				goto out;
 			}
-			mft_buffer(&b, &bsz, &bmax, verb, mft);
+			mft_buffer(&b, &bsz, &bmax, mft);
 			mft_free(mft);
 			break;
 		case RTYPE_ROA:
@@ -867,6 +868,7 @@ main(int argc, char *argv[])
 			rt.repos[i].loaded = 1;
 			LOG(verb, "%s/%s/%s: loaded", BASE_DIR,
 				rt.repos[i].host, rt.repos[i].module);
+			stats.repos++;
 			entryq_flush(proc, verb, &q, &rt.repos[i]);
 		}
 
@@ -929,9 +931,10 @@ out:
 		"Route announcements: %zu\n"
 		"Certificates: %zu\n"
 		"Trust anchor locators: %zu\n"
-		"Manifests: %zu (%zu stale)\n",
+		"Manifests: %zu (%zu stale)\n"
+		"Repositories: %zu\n",
 		stats.roas, stats.certs, stats.tals, stats.mfts,
-		stats.mfts_stale);
+		stats.mfts_stale, stats.repos);
 	return rc ? EXIT_SUCCESS : EXIT_FAILURE;
 
 usage:

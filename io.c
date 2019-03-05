@@ -72,8 +72,8 @@ simple_buffer(char **b, size_t *bsz,
  * Like buf_write() but into a buffer.
  */
 void
-buf_buffer(char **b, size_t *bsz, size_t *bmax,
-	int verb, const void *p, size_t sz)
+buf_buffer(char **b, size_t *bsz,
+	size_t *bmax, const void *p, size_t sz)
 {
 
 	simple_buffer(b, bsz, bmax, &sz, sizeof(size_t));
@@ -96,11 +96,11 @@ buf_write(int fd, int verb, const void *p, size_t sz)
  * Like str_write() but into a buffer.
  */
 void
-str_buffer(char **b, size_t *bsz, size_t *bmax, int verb, const char *p)
+str_buffer(char **b, size_t *bsz, size_t *bmax, const char *p)
 {
 	size_t	 sz = (p == NULL) ? 0 : strlen(p);
 
-	buf_buffer(b, bsz, bmax, verb, p, sz);
+	buf_buffer(b, bsz, bmax, p, sz);
 }
 
 /*

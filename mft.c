@@ -391,17 +391,16 @@ mft_free(struct mft *p)
  * See mft_read() for the other side of the pipe.
  */
 void
-mft_buffer(char **b, size_t *bsz, size_t *bmax,
-	int verb, const struct mft *p)
+mft_buffer(char **b, size_t *bsz, size_t *bmax, const struct mft *p)
 {
 	size_t		 i;
 
 	simple_buffer(b, bsz, bmax, &p->stale, sizeof(int));
-	str_buffer(b, bsz, bmax, verb, p->file);
+	str_buffer(b, bsz, bmax, p->file);
 	simple_buffer(b, bsz, bmax, &p->filesz, sizeof(size_t));
 
 	for (i = 0; i < p->filesz; i++) {
-		str_buffer(b, bsz, bmax, verb, p->files[i].file);
+		str_buffer(b, bsz, bmax, p->files[i].file);
 		simple_buffer(b, bsz, bmax,
 			p->files[i].hash, SHA256_DIGEST_LENGTH);
 	}

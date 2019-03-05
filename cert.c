@@ -1232,8 +1232,7 @@ cert_as_buffer(char **b, size_t *bsz,
  * See cert_read() for the other side of the pipe.
  */
 void
-cert_buffer(char **b, size_t *bsz, size_t *bmax,
-	int verb, const struct cert *p)
+cert_buffer(char **b, size_t *bsz, size_t *bmax, const struct cert *p)
 {
 	size_t	 i;
 
@@ -1245,10 +1244,10 @@ cert_buffer(char **b, size_t *bsz, size_t *bmax,
 	for (i = 0; i < p->asz; i++)
 		cert_as_buffer(b, bsz, bmax, &p->as[i]);
 
-	str_buffer(b, bsz, bmax, verb, p->rep);
-	str_buffer(b, bsz, bmax, verb, p->mft);
-	str_buffer(b, bsz, bmax, verb, p->ski);
-	str_buffer(b, bsz, bmax, verb, p->aki);
+	str_buffer(b, bsz, bmax, p->rep);
+	str_buffer(b, bsz, bmax, p->mft);
+	str_buffer(b, bsz, bmax, p->ski);
+	str_buffer(b, bsz, bmax, p->aki);
 }
 
 static void
