@@ -412,7 +412,7 @@ mft_buffer(char **b, size_t *bsz, size_t *bmax,
  * Result must be passed to mft_free().
  */
 struct mft *
-mft_read(int fd, int verb)
+mft_read(int fd)
 {
 	struct mft 	*p = NULL;
 	size_t		 i;
@@ -420,16 +420,16 @@ mft_read(int fd, int verb)
 	if ((p = calloc(1, sizeof(struct mft))) == NULL)
 		err(EXIT_FAILURE, NULL);
 
-	simple_read(fd, verb, &p->stale, sizeof(int));
-	str_read(fd, verb, &p->file);
-	simple_read(fd, verb, &p->filesz, sizeof(size_t));
+	simple_read(fd, &p->stale, sizeof(int));
+	str_read(fd, &p->file);
+	simple_read(fd, &p->filesz, sizeof(size_t));
 	
 	if ((p->files = calloc(p->filesz, sizeof(struct mftfile))) == NULL)
 		err(EXIT_FAILURE, NULL);
 
 	for (i = 0; i < p->filesz; i++) {
-		str_read(fd, verb, &p->files[i].file);
-		simple_read(fd, verb, p->files[i].hash, SHA256_DIGEST_LENGTH);
+		str_read(fd, &p->files[i].file);
+		simple_read(fd, p->files[i].hash, SHA256_DIGEST_LENGTH);
 	}
 
 	return p;

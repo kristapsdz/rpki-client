@@ -208,7 +208,7 @@ tal_buffer(char **b, size_t *bsz, size_t *bmax,
  * A returned pointer must be freed with tal_free().
  */
 struct tal *
-tal_read(int fd, int verb)
+tal_read(int fd)
 {
 	size_t		 i;
 	struct tal	*p;
@@ -216,16 +216,16 @@ tal_read(int fd, int verb)
 	if ((p = calloc(1, sizeof(struct tal))) == NULL)
 		err(EXIT_FAILURE, NULL);
 
-	buf_read_alloc(fd, verb, (void **)&p->pkey, &p->pkeysz);
+	buf_read_alloc(fd, (void **)&p->pkey, &p->pkeysz);
 	assert(p->pkeysz > 0);
-	simple_read(fd, verb, &p->urisz, sizeof(size_t));
+	simple_read(fd, &p->urisz, sizeof(size_t));
 	assert(p->urisz > 0);
 
 	if ((p->uri = calloc(p->urisz, sizeof(char *))) == NULL)
 		err(EXIT_FAILURE, NULL);
 
 	for (i = 0; i < p->urisz; i++)
-		str_read(fd, verb, &p->uri[i]);
+		str_read(fd, &p->uri[i]);
 
 	return p;
 }

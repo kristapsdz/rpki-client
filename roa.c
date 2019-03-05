@@ -376,18 +376,18 @@ roa_read(int fd)
 	if ((p = calloc(1, sizeof(struct roa))) == NULL)
 		err(EXIT_FAILURE, NULL);
 
-	simple_read(fd, 0, &p->asid, sizeof(uint32_t));
-	simple_read(fd, 0, &p->ipsz, sizeof(size_t));
+	simple_read(fd, &p->asid, sizeof(uint32_t));
+	simple_read(fd, &p->ipsz, sizeof(size_t));
 
 	if ((p->ips = calloc(p->ipsz, sizeof(struct roa_ip))) == NULL)
 		err(EXIT_FAILURE, NULL);
 
 	for (i = 0; i < p->ipsz; i++) {
-		simple_read(fd, 0, &p->ips[i].afi, sizeof(uint16_t));
-		simple_read(fd, 0, &p->ips[i].maxlength, sizeof(size_t));
-		simple_read(fd, 0, &p->ips[i].addr.sz, sizeof(size_t));
-		simple_read(fd, 0, p->ips[i].addr.addr, p->ips[i].addr.sz);
-		simple_read(fd, 0, &p->ips[i].addr.unused, sizeof(long));
+		simple_read(fd, &p->ips[i].afi, sizeof(uint16_t));
+		simple_read(fd, &p->ips[i].maxlength, sizeof(size_t));
+		simple_read(fd, &p->ips[i].addr.sz, sizeof(size_t));
+		simple_read(fd, p->ips[i].addr.addr, p->ips[i].addr.sz);
+		simple_read(fd, &p->ips[i].addr.unused, sizeof(long));
 	}
 
 	return p;

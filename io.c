@@ -120,7 +120,7 @@ str_write(int fd, int verb, const char *p)
  * This will fail and exit on EOF or short reads.
  */
 void
-simple_read(int fd, int verb, void *res, size_t sz)
+simple_read(int fd, void *res, size_t sz)
 {
 	ssize_t	 ssz;
 
@@ -141,16 +141,16 @@ simple_read(int fd, int verb, void *res, size_t sz)
  * will still initialise it to NULL.
  */
 void
-buf_read_alloc(int fd, int verb, void **res, size_t *sz)
+buf_read_alloc(int fd, void **res, size_t *sz)
 {
 
 	*res = NULL;
-	simple_read(fd, verb, sz, sizeof(size_t));
+	simple_read(fd, sz, sizeof(size_t));
 	if (*sz == 0)
 		return;
 	if ((*res = malloc(*sz)) == NULL)
 		err(EXIT_FAILURE, NULL);
-	simple_read(fd, verb, *res, *sz);
+	simple_read(fd, *res, *sz);
 }
 
 /*
@@ -158,12 +158,12 @@ buf_read_alloc(int fd, int verb, void **res, size_t *sz)
  * space for it.
  */
 void
-str_read(int fd, int verb, char **res)
+str_read(int fd, char **res)
 {
 	size_t	 sz;
 
-	simple_read(fd, verb, &sz, sizeof(size_t));
+	simple_read(fd, &sz, sizeof(size_t));
 	if ((*res = calloc(sz + 1, 1)) == NULL)
 		err(EXIT_FAILURE, NULL);
-	simple_read(fd, verb, *res, sz);
+	simple_read(fd, *res, sz);
 }

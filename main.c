@@ -82,14 +82,14 @@ rtype_resolve(int verb, const char *uri)
  * The entry's contents must be freed.
  */
 static void
-entry_read(int fd, int verb, struct entry *ent)
+entry_read(int fd, struct entry *ent)
 {
 
 	memset(ent, 0, sizeof(struct entry));
-	simple_read(fd, verb, &ent->type, sizeof(enum rtype));
-	str_read(fd, verb, &ent->uri);
-	simple_read(fd, verb, &ent->has_dgst, sizeof(int));
-	simple_read(fd, verb, ent->dgst, sizeof(ent->dgst));
+	simple_read(fd, &ent->type, sizeof(enum rtype));
+	str_read(fd, &ent->uri);
+	simple_read(fd, &ent->has_dgst, sizeof(int));
+	simple_read(fd, ent->dgst, sizeof(ent->dgst));
 }
 
 /*
@@ -147,12 +147,12 @@ repo_lookup(int fd, int verb, struct repotab *rt, const char *uri)
  * This always returns a valid entry.
  */
 static struct entry *
-entryq_next(int fd, int verb, struct entryq *q)
+entryq_next(int fd, struct entryq *q)
 {
 	struct entry	 ent;
 	struct entry	*entp;
 
-	entry_read(fd, verb, &ent);
+	entry_read(fd, &ent);
 
 	TAILQ_FOREACH(entp, q, entries)
 		if (entp->type == ent.type &&
@@ -429,8 +429,8 @@ proc_rsync(int fd, int verb)
 
 		/* Read host and module. */
 
-		str_read(fd, verb, &host);
-		str_read(fd, verb, &mod);
+		str_read(fd, &host);
+		str_read(fd, &mod);
 
 		/* Create source and destination locations. */
 
@@ -539,7 +539,7 @@ proc_parser(int fd, int verb)
 
 		if ((pfd.revents & POLLIN)) {
 			socket_blocking(fd, verb);
-			entry_read(fd, verb, &ent);
+			entry_read(fd, &ent);
 			entp = calloc(1, sizeof(struct entry));
 			if (entp == NULL)
 				err(EXIT_FAILURE, NULL);
@@ -666,14 +666,14 @@ entry_process(int proc, int rsync, int verb, struct stats *st,
 	case RTYPE_TAL:
 		st->tals++;
 		LOG(verb, "%s: handling tal file", ent->uri);
-		tal = tal_read(proc, verb);
+		tal = tal_read(proc);
 		queue_add_from_tal_set(proc, rsync, verb, q, tal, rt);
 		rc = 1;
 		break;
 	case RTYPE_CER:
 		st->certs++;
 		LOG(verb, "%s: handling certificate file", ent->uri);
-		cert = cert_read(proc, verb);
+		cert = cert_read(proc);
 		if (cert->mft != NULL)
 			queue_add_from_cert(proc, rsync, verb, q, cert->mft, rt);
 		rc = 1;
@@ -681,7 +681,7 @@ entry_process(int proc, int rsync, int verb, struct stats *st,
 	case RTYPE_MFT:
 		st->mfts++;
 		LOG(verb, "%s: handling mft file", ent->uri);
-		mft = mft_read(proc, verb);
+		mft = mft_read(proc);
 		if (mft->stale)
 			st->mfts_stale++;
 		queue_add_from_mft_set(proc, verb, q, mft);
@@ -858,7 +858,7 @@ main(int argc, char *argv[])
 		 */
 
 		if ((pfd[0].revents & POLLIN)) {
-			simple_read(rsync, verb, &i, sizeof(size_t));
+			simple_read(rsync, &i, sizeof(size_t));
 			if (i >= rt.reposz) {
 				WARNX(verb, "repo identifier out of range");
 				goto out;
@@ -876,7 +876,7 @@ main(int argc, char *argv[])
 		 */
 
 		if ((pfd[1].revents & POLLIN)) {
-			ent = entryq_next(proc, verb, &q);
+			ent = entryq_next(proc, &q);
 			if (!entry_process(proc, rsync, 
 			    verb, &stats, &q, ent, &rt)) {
 				WARNX1(verb, "entry_process");
