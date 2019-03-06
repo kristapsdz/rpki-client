@@ -12,6 +12,7 @@
 #include <string.h>
 #include <unistd.h>
 
+#include <openssl/err.h>
 #include <openssl/ssl.h>
 
 #include "extern.h"
@@ -60,8 +61,8 @@ TAILQ_HEAD(entryq, entry);
 /*
  * Mark that our subprocesses will never return.
  */
-static void	 proc_parser(int, int) __attribute__((noreturn));
-static void	 proc_rsync(int, int) __attribute__((noreturn));
+static void	 proc_parser(int) __attribute__((noreturn));
+static void	 proc_rsync(int) __attribute__((noreturn));
 
 /*
  * Resolve the media type of a resource by looking at its suffice.
@@ -96,7 +97,7 @@ entry_read(int fd, struct entry *ent)
  * Look up a repository, queueing it for discovery if not found.
  */
 static const struct repo *
-repo_lookup(int fd, struct repotab *rt, const char *uri)
+repo_lookup(int fd, int verb, struct repotab *rt, const char *uri)
 {
 	const char	*host, *mod;
 	size_t		 hostsz, modsz, i;
@@ -135,6 +136,7 @@ repo_lookup(int fd, struct repotab *rt, const char *uri)
 
 	i = rt->reposz - 1;
 
+	logx(verb, "%s/%s: loading", rp->host, rp->module);
 	simple_write(fd, &i, sizeof(size_t));
 	str_write(fd, rp->host);
 	str_write(fd, rp->module);
@@ -206,7 +208,6 @@ entryq_flush(int fd, int verb,
 	TAILQ_FOREACH(p, q, entries) {
 		if (p->repo < 0 || repo->id != (size_t)p->repo)
 			continue;
-		LOG(verb, "%s: flushing after repository load", p->uri);
 		entry_write(fd, p);
 	}
 }
@@ -231,9 +232,6 @@ entryq_add(int fd, int verb, struct entryq *q,
 	if (p->has_dgst)
 		memcpy(p->dgst, dgst, sizeof(p->dgst));
 	TAILQ_INSERT_TAIL(q, p, entries);
-
-	if (NULL != rp && 0 == rp->loaded)
-		LOG(verb, "%s: delaying til queue flush", p->uri);
 
 	/* 
 	 * Write to the queue if there's no repo or the repo has already
@@ -293,7 +291,6 @@ queue_add_from_mft(int fd, int verb, struct entryq *q,
 	 */
 
 	entryq_add(fd, verb, q, nfile, type, NULL, file->hash);
-	LOG(verb, "%s: added: %s", file->file, nfile);
 }
 
 /*
@@ -323,7 +320,6 @@ queue_add_tal(int fd, int verb, struct entryq *q, const char *file)
 	/* Not in a repository, so directly add to queue. */
 
 	entryq_add(fd, verb, q, nfile, RTYPE_TAL, NULL, NULL);
-	LOG(verb, "%s: added", file);
 }
 
 /*
@@ -340,7 +336,7 @@ queue_add_from_tal(int proc, int rsync, int verb,
 
 	assert(rtype_resolve(uri) == RTYPE_CER);
 
-	repo = repo_lookup(rsync, rt, uri);
+	repo = repo_lookup(rsync, verb, rt, uri);
 	uri += 8 + strlen(repo->host) + 1 + strlen(repo->module) + 1;
 
 	if (asprintf(&nfile, "%s/%s/%s/%s",
@@ -348,7 +344,6 @@ queue_add_from_tal(int proc, int rsync, int verb,
 		err(EXIT_FAILURE, NULL);
 
 	entryq_add(proc, verb, q, nfile, RTYPE_CER, repo, NULL);
-	LOG(verb, "%s: added: %s", uri, nfile);
 }
 
 /*
@@ -382,7 +377,7 @@ queue_add_from_cert(int proc, int rsync, int verb,
 
 	/* Look up the repository. */
 
-	repo = repo_lookup(rsync, rt, uri);
+	repo = repo_lookup(rsync, verb, rt, uri);
 	uri += 8 + strlen(repo->host) + 1 + strlen(repo->module) + 1;
 
 	if (asprintf(&nfile, "%s/%s/%s/%s",
@@ -390,7 +385,6 @@ queue_add_from_cert(int proc, int rsync, int verb,
 		err(EXIT_FAILURE, NULL);
 
 	entryq_add(proc, verb, q, nfile, type, repo, NULL);
-	LOG(verb, "%s: added: %s", uri, nfile);
 }
 
 /*
@@ -402,16 +396,14 @@ queue_add_from_cert(int proc, int rsync, int verb,
  * FIXME: this should use buffered output to prevent deadlocks.
  */
 static void
-proc_rsync(int fd, int verb)
+proc_rsync(int fd)
 {
 	size_t	 id, i;
 	ssize_t	 ssz;
 	char	*host = NULL, *mod = NULL, *uri = NULL, *dst = NULL;
 	pid_t	 pid;
 	char	*args[32];
-	int	 st, rc = 0, c;
-
-	LOG(verb, "rsync process starting");
+	int	 st, rc = 0;
 
 	for (;;) {
 		/* 
@@ -419,13 +411,10 @@ proc_rsync(int fd, int verb)
 		 * That will mean that we can safely exit.
 		 */
 
-		if ((ssz = read(fd, &id, sizeof(size_t))) < 0) {
-			WARN("read");
-			goto out;
-		} else if (ssz == 0) {
-			LOG(verb, "rsync process exiting");
+		if ((ssz = read(fd, &id, sizeof(size_t))) < 0)
+			err(EXIT_FAILURE, "read");
+		if (ssz == 0)
 			break;
-		}
 
 		/* Read host and module. */
 
@@ -441,10 +430,10 @@ proc_rsync(int fd, int verb)
 
 		/* Run process itself, wait for exit, check error. */
 
-		if ((pid = fork()) == -1) {
-			WARN("fork");
-			goto out;
-		} else if (pid == 0) {
+		if ((pid = fork()) == -1)
+			err(EXIT_FAILURE, "fork");
+
+		if (pid == 0) {
 			i = 0;
 			args[i++] = "openrsync";
 			args[i++] = "-r";
@@ -455,17 +444,17 @@ proc_rsync(int fd, int verb)
 			args[i++] = dst;
 			args[i] = NULL;
 			execvp(args[0], args);
-			ERR("openrsync: execvp");
+			err(EXIT_FAILURE, "openrsync: execvp");
 		}
 
-		if (waitpid(pid, &st, 0) == -1) {
-			WARN("waitpid");
+		if (waitpid(pid, &st, 0) == -1)
+			err(EXIT_FAILURE, "waitpid");
+
+		if (!WIFEXITED(st)) {
+			warnx("openrsync did not exit");
 			goto out;
-		} else if (!WIFEXITED(st)) {
-			WARNX(verb, "openrsync did not exit");
-			goto out;
-		} else if ((c = WEXITSTATUS(st)) != EXIT_SUCCESS) {
-			WARNX(verb, "openrsync failed (%d)", c);
+		} else if (WEXITSTATUS(st) != EXIT_SUCCESS) {
+			warnx("openrsync failed");
 			goto out;
 		}
 
@@ -493,7 +482,7 @@ out:
  * The process will exit cleanly only when fd is closed.
  */
 static void
-proc_parser(int fd, int verb)
+proc_parser(int fd)
 {
 	struct tal	*tal;
 	struct cert	*x;
@@ -502,7 +491,7 @@ proc_parser(int fd, int verb)
 	struct entry	 ent;
 	struct entry	*entp;
 	struct entryq	 q;
-	int		 rc = 0, vverb = 0;
+	int		 rc = 0;
 	struct pollfd	 pfd;
 	char		*b = NULL;
 	size_t		 bsz = 0, bmax = 0, bpos = 0;
@@ -512,7 +501,6 @@ proc_parser(int fd, int verb)
 
 	pfd.fd = fd;
 	pfd.events = POLLIN;
-	LOG(verb, "parser process starting");
 
 	socket_nonblocking(pfd.fd);
 
@@ -524,10 +512,8 @@ proc_parser(int fd, int verb)
 		
 		/* If the parent closes, return immediately. */
 
-		if ((pfd.revents & POLLHUP)) {
-			LOG(verb, "parser process exiting");
+		if ((pfd.revents & POLLHUP))
 			break;
-		}
 
 		/*
 		 * Start with read events.
@@ -561,10 +547,8 @@ proc_parser(int fd, int verb)
 
 		if (bsz) {
 			assert(bpos < bmax);
-			if ((ssz = write(fd, b + bpos, bsz)) < 0) {
-				WARN("write");
-				goto out;
-			}
+			if ((ssz = write(fd, b + bpos, bsz)) < 0)
+				err(EXIT_FAILURE, "write");
 			bpos += ssz;
 			bsz -= ssz;
 			if (bsz)
@@ -591,40 +575,32 @@ proc_parser(int fd, int verb)
 		case RTYPE_TAL:
 			assert(!entp->has_dgst);
 			tal = tal_parse(entp->uri);
-			if (tal == NULL) {
-				WARNX1(verb, "tal_parse");
+			if (tal == NULL)
 				goto out;
-			}
 			tal_buffer(&b, &bsz, &bmax, tal);
 			tal_free(tal);
 			break;
 		case RTYPE_CER:
 			x = cert_parse(NULL, entp->uri,
 				entp->has_dgst ? entp->dgst : NULL);
-			if (x == NULL) {
-				WARNX1(verb, "cert_parse");
+			if (x == NULL)
 				goto out;
-			}
 			cert_buffer(&b, &bsz, &bmax, x);
 			cert_free(x);
 			break;
 		case RTYPE_MFT:
 			assert(!entp->has_dgst);
 			mft = mft_parse(NULL, entp->uri);
-			if (mft == NULL) {
-				WARNX1(verb, "mft_parse");
+			if (mft == NULL)
 				goto out;
-			}
 			mft_buffer(&b, &bsz, &bmax, mft);
 			mft_free(mft);
 			break;
 		case RTYPE_ROA:
 			assert(entp->has_dgst);
 			roa = roa_parse(NULL, entp->uri, entp->dgst);
-			if (roa == NULL) {
-				WARNX1(verb, "roa_parse");
+			if (roa == NULL)
 				goto out;
-			}
 			roa_buffer(&b, &bsz, &bmax, roa);
 			roa_free(roa);
 			break;
@@ -652,7 +628,7 @@ out:
  * For non-ROAs, we grok for more data.
  * For ROAs, we want to extract the valid/invalid info.
  */
-static int
+static void
 entry_process(int proc, int rsync, int verb, struct stats *st,
 	struct entryq *q, const struct entry *ent, struct repotab *rt)
 {
@@ -660,38 +636,29 @@ entry_process(int proc, int rsync, int verb, struct stats *st,
 	struct cert	*cert = NULL;
 	struct mft	*mft = NULL;
 	struct roa	*roa = NULL;
-	int		 rc = 0;
 
 	switch (ent->type) {
 	case RTYPE_TAL:
 		st->tals++;
-		LOG(verb, "%s: handling tal file", ent->uri);
 		tal = tal_read(proc);
 		queue_add_from_tal_set(proc, rsync, verb, q, tal, rt);
-		rc = 1;
 		break;
 	case RTYPE_CER:
 		st->certs++;
-		LOG(verb, "%s: handling certificate file", ent->uri);
 		cert = cert_read(proc);
 		if (cert->mft != NULL)
 			queue_add_from_cert(proc, rsync, verb, q, cert->mft, rt);
-		rc = 1;
 		break;
 	case RTYPE_MFT:
 		st->mfts++;
-		LOG(verb, "%s: handling mft file", ent->uri);
 		mft = mft_read(proc);
 		if (mft->stale)
 			st->mfts_stale++;
 		queue_add_from_mft_set(proc, verb, q, mft);
-		rc = 1;
 		break;
 	case RTYPE_ROA:
 		st->roas++;
-		LOG(verb, "%s: handling roa file", ent->uri);
 		roa = roa_read(proc);
-		rc = 1;
 		break;
 	default:
 		abort();
@@ -701,7 +668,6 @@ entry_process(int proc, int rsync, int verb, struct stats *st,
 	mft_free(mft);
 	roa_free(roa);
 	cert_free(cert);
-	return 1;
 }
 
 int
@@ -709,7 +675,7 @@ main(int argc, char *argv[])
 {
 	int		  rc = 0, c, verb = 0, proc, st, rsync,
 			  fl = SOCK_STREAM | SOCK_CLOEXEC;
-	size_t		  i;
+	size_t		  i, j;
 	pid_t		  procpid, rsyncpid;
 	int		  fd[2];
 	struct entryq	  q;
@@ -734,7 +700,7 @@ main(int argc, char *argv[])
 	/* Initialise SSL, errors, and our structures. */
 
 	SSL_library_init();
-	rpki_log_open();
+	SSL_load_error_strings();
 
 	memset(&rt, 0, sizeof(struct repotab));
 	memset(&stats, 0, sizeof(struct stats));
@@ -747,15 +713,15 @@ main(int argc, char *argv[])
 	 */
 
 	if (socketpair(AF_UNIX, fl, 0, fd) == -1)
-		ERR("socketpair");
+		err(EXIT_FAILURE, "socketpair");
 	if ((procpid = fork()) == -1)
-		ERR("fork");
+		err(EXIT_FAILURE, "fork");
 
 	if (procpid == 0) {
 		close(fd[1]);
 		if (pledge("stdio rpath", NULL) == -1)
-			ERR("pledge");
-		proc_parser(fd[0], verb);
+			err(EXIT_FAILURE, "pledge");
+		proc_parser(fd[0]);
 		/* NOTREACHED */
 	} 
 
@@ -770,15 +736,15 @@ main(int argc, char *argv[])
 	 */
 
 	if (socketpair(AF_UNIX, fl, 0, fd) == -1) 
-		ERR("socketpair");
+		err(EXIT_FAILURE, "socketpair");
 	if ((rsyncpid = fork()) == -1) 
-		ERR("fork");
+		err(EXIT_FAILURE, "fork");
 
 	if (rsyncpid == 0) {
 		close(fd[1]);
 		if (pledge("stdio proc exec", NULL) == -1)
-			ERR("pledge");
-		proc_rsync(fd[0], verb);
+			err(EXIT_FAILURE, "pledge");
+		proc_rsync(fd[0]);
 		/* NOTREACHED */
 	}
 
@@ -792,7 +758,7 @@ main(int argc, char *argv[])
 	 */
 
 	if (pledge("stdio", NULL) == -1)
-		ERR("pledge");
+		err(EXIT_FAILURE, "pledge");
 
 	/*
 	 * Prime the process with our TAL file.
@@ -817,33 +783,27 @@ main(int argc, char *argv[])
 		socket_nonblocking(pfd[0].fd);
 		socket_nonblocking(pfd[1].fd);
 
-		if ((c = poll(pfd, 2, 10000)) < 0) {
-			WARN("poll");
-			goto out;
-		} else if (c == 0) {
-			LOG(verb, "stats: dumping...");
-			for (i = 0; i < rt.reposz; i++) {
-				if (rt.repos[i].loaded)
-					continue;
-				LOG(verb, "stats: %s/%s",
-					rt.repos[i].host,
-					rt.repos[i].module);
-			}
+		if ((c = poll(pfd, 2, 10000)) < 0)
+			err(EXIT_FAILURE, "poll");
+		
+		if (c == 0) {
+			for (i = j = 0; i < rt.reposz; i++)
+				if (!rt.repos[i].loaded)
+					j++;
+			logx(verb, "timeout: %zu pending repos", j);
+			j = 0;
 			TAILQ_FOREACH(ent, &q, entries)
-				LOG(verb, "stats: %s", ent->uri);
+				j++;
+			logx(verb, "timeout: %zu pending entries", j);
 			continue;
 		}
 
 		if ((pfd[0].revents & (POLLERR|POLLNVAL)) ||
-		    (pfd[1].revents & (POLLERR|POLLNVAL))) {
-			WARNX(verb, "poll: bad fd");
-			goto out;
-		}
+		    (pfd[1].revents & (POLLERR|POLLNVAL)))
+			errx(EXIT_FAILURE, "poll: bad fd");
 		if ((pfd[0].revents & POLLHUP) ||
-		    (pfd[1].revents & POLLHUP)) {
-			WARNX(verb, "poll: hangup");
-			goto out;
-		}
+		    (pfd[1].revents & POLLHUP))
+			errx(EXIT_FAILURE, "poll: hangup");
 
 		/* Reenable blocking. */
 
@@ -859,13 +819,10 @@ main(int argc, char *argv[])
 
 		if ((pfd[0].revents & POLLIN)) {
 			simple_read(rsync, &i, sizeof(size_t));
-			if (i >= rt.reposz) {
-				WARNX(verb, "repo identifier out of range");
-				goto out;
-			} 
+			assert(i < rt.reposz);
 			assert(!rt.repos[i].loaded);
 			rt.repos[i].loaded = 1;
-			LOG(verb, "%s/%s/%s: loaded", BASE_DIR,
+			logx(verb, "%s/%s/%s: loaded", BASE_DIR,
 				rt.repos[i].host, rt.repos[i].module);
 			stats.repos++;
 			entryq_flush(proc, verb, &q, &rt.repos[i]);
@@ -878,12 +835,9 @@ main(int argc, char *argv[])
 
 		if ((pfd[1].revents & POLLIN)) {
 			ent = entryq_next(proc, &q);
-			if (!entry_process(proc, rsync, 
-			    verb, &stats, &q, ent, &rt)) {
-				WARNX1(verb, "entry_process");
-				goto out;
-			}
-			if (verb)
+			entry_process(proc, rsync, verb,
+				&stats, &q, ent, &rt);
+			if (verb > 1)
 				fprintf(stderr, "%s\n", ent->uri);
 			free(ent->uri);
 			free(ent);
@@ -891,9 +845,9 @@ main(int argc, char *argv[])
 	}
 
 	assert(TAILQ_EMPTY(&q));
-	LOG(verb, "all files parsed: exiting");
+	logx(verb, "all files parsed: exiting");
 	rc = 1;
-out:
+
 	/*
 	 * For clean-up, close the input for the parser and rsync
 	 * process.
@@ -916,6 +870,12 @@ out:
 		rc = 0;
 	}
 
+	logx(verb, "Route announcements: %zu", stats.roas);
+	logx(verb, "Certificates: %zu", stats.certs);
+	logx(verb, "Trust anchor locators: %zu", stats.tals);
+	logx(verb, "Manifests: %zu (%zu stale)", stats.mfts, stats.mfts_stale);
+	logx(verb, "Repositories: %zu", stats.repos);
+
 	/* Memory cleanup. */
 
 	for (i = 0; i < rt.reposz; i++) {
@@ -923,17 +883,7 @@ out:
 		free(rt.repos[i].module);
 	}
 	free(rt.repos);
-
-	rpki_log_close();
-	
-	fprintf(stderr, 
-		"Route announcements: %zu\n"
-		"Certificates: %zu\n"
-		"Trust anchor locators: %zu\n"
-		"Manifests: %zu (%zu stale)\n"
-		"Repositories: %zu\n",
-		stats.roas, stats.certs, stats.tals, stats.mfts,
-		stats.mfts_stale, stats.repos);
+	ERR_free_strings();
 	return rc ? EXIT_SUCCESS : EXIT_FAILURE;
 
 usage:

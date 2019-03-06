@@ -9,6 +9,7 @@
 #include <string.h>
 #include <unistd.h>
 
+#include <openssl/err.h>
 #include <openssl/ssl.h>
 
 #include "extern.h"
@@ -93,7 +94,7 @@ main(int argc, char *argv[])
 	struct cert	*p;
 
 	SSL_library_init();
-	rpki_log_open();
+	SSL_load_error_strings();
 
 	while (-1 != (c = getopt(argc, argv, "c:v"))) 
 		switch (c) {
@@ -127,6 +128,6 @@ main(int argc, char *argv[])
 	}
 
 	X509_free(x);
-	rpki_log_close();
+	ERR_free_strings();
 	return i < (size_t)argc ? EXIT_FAILURE : EXIT_SUCCESS;
 }
