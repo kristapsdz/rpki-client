@@ -886,57 +886,57 @@ sbgp_ipaddrfam(struct parse *p, const unsigned char *d, size_t dsz)
 {
 	struct cert_ip	 	 ip;
 	ASN1_SEQUENCE_ANY	*seq;
-	const ASN1_TYPE		*type;
+	const ASN1_TYPE		*t;
 	int			 rc = 0;
 
 	memset(&ip, 0, sizeof(struct cert_ip));
 
 	if ((seq = d2i_ASN1_SEQUENCE_ANY(NULL, &d, dsz)) == NULL) {
-		X509_WARNX1(p, "d2i_ASN1_SEQUENCE_ANY");
+		cryptowarnx("%s: RFC 3779 section 2.2.3.2: "
+			"IPAddressFamily: failed ASN.1 sequence "
+			"parse", p->fn);
 		goto out;
 	} else if (sk_ASN1_TYPE_num(seq) != 2) {
-		X509_WARNX(p, "%s: want two sequence "
-			"elements, have %d", 
+		warnx("%s: RFC 3779 section 2.2.3.2: "
+			"IPAddressFamily: want 2 elements, have %d",
 			p->fn, sk_ASN1_TYPE_num(seq));
 		goto out;
 	}
 
 	/* Get address family, RFC 3779, 2.2.3.3. */
 
-	type = sk_ASN1_TYPE_value(seq, 0);
-	if (type->type != V_ASN1_OCTET_STRING) {
-		X509_WARNX(p, "%s: want ASN.1 octet "
-			"string, have %s (NID %d)", p->fn, 
-			ASN1_tag2str(type->type), type->type);
+	t = sk_ASN1_TYPE_value(seq, 0);
+	if (t->type != V_ASN1_OCTET_STRING) {
+		warnx("%s: RFC 3779 section 2.2.3.2: addressFamily: "
+			"want ASN.1 octet string, have %s (NID %d)", 
+			p->fn, ASN1_tag2str(t->type), t->type);
 		goto out;
 	} 
 
 	ip.has_safi = 0;
-	if (!ip_addrfamily(type->value.octet_string, &ip.afi)) {
-		X509_WARNX(p, "%s: bad address family", p->fn);
+	if (!ip_addrfamily(t->value.octet_string, &ip.afi)) {
+		warnx("%s: bad address family", p->fn);
 		goto out;
 	}
 
 	/* Next, either sequence or null, RFC 3770 sec. 2.2.3.4. */
 
-	type = sk_ASN1_TYPE_value(seq, 1);
-	if (type->type == V_ASN1_SEQUENCE) {
-		d = type->value.asn1_string->data;
-		dsz = type->value.asn1_string->length;
-
-		if ( ! sbgp_addr_or_range(p, &ip, d, dsz)) {
-			X509_WARNX1(p, "sbgp_addr_or_range");
+	t = sk_ASN1_TYPE_value(seq, 1);
+	switch (t->type) {
+	case V_ASN1_SEQUENCE:
+		d = t->value.asn1_string->data;
+		dsz = t->value.asn1_string->length;
+		if (!sbgp_addr_or_range(p, &ip, d, dsz))
 			goto out;
-		}
-	} else if (type->type == V_ASN1_NULL) {
+		break;
+	case V_ASN1_NULL:
 		ip.type = CERT_IP_INHERIT;
 		append_ip(p, &ip);
-		X509_LOG(p, "%s: parsed IPv%s address (inherit)", 
-			p->fn, 1 == ip.afi ? "4" : "6");
-	} else {
-		X509_WARNX(p, "%s: want ASN.1 null or "
-			"sequence, have %s (NID %d)", p->fn, 
-			ASN1_tag2str(type->type), type->type);
+		break;
+	default:
+		warnx("%s: RFC 3779 section 2.2.3.2: IPAddressChoice: "
+			"want ASN.1 sequence or null, have %s (NID %d)", 
+			p->fn, ASN1_tag2str(t->type), t->type);
 		goto out;
 	}
 
@@ -958,66 +958,78 @@ sbgp_ipaddrblk(struct parse *p, X509_EXTENSION *ext)
 	unsigned char		*sv = NULL;
 	const unsigned char 	*d;
 	ASN1_SEQUENCE_ANY	*seq = NULL, *sseq = NULL;
-	const ASN1_TYPE		*type = NULL;
+	const ASN1_TYPE		*t = NULL;
 	int			 i;
 
 	if ((dsz = i2d_X509_EXTENSION(ext, &sv)) < 0) {
-		X509_CRYPTOX(p, "%s: i2d_X509_EXTENSION", p->fn);
+		cryptowarnx("%s: RFC 6487 section 4.8.10: sbgp-"
+			"ipAddrBlock: failed extension parse", p->fn);
 		goto out;
 	} 
+
 	d = sv;
-
-	/* Top-level sequence. */
-
 	if ((seq = d2i_ASN1_SEQUENCE_ANY(NULL, &d, dsz)) == NULL) {
-		X509_WARNX1(p, "d2i_ASN1_SEQUENCE_ANY");
+		cryptowarnx("%s: RFC 6487 section 4.8.10: sbgp-"
+			"ipAddrBlock: failed ASN.1 sequence "
+			"parse", p->fn);
 		goto out;
-	} 
-
-	/* Skip RFC 3779 2.2.1 and 2.2.2, stop at 2.2.3. */
-
-	for (i = 0; i < sk_ASN1_TYPE_num(seq); i++) {
-		type = sk_ASN1_TYPE_value(seq, i);
-		if (type->type == V_ASN1_OCTET_STRING)
-			break;
-		X509_LOG(p, "%s: ignoring %s (NID %d)", p->fn, 
-			ASN1_tag2str(type->type), type->type);
-	}
-
-	if (i == sk_ASN1_TYPE_num(seq)) {
-		X509_WARNX(p, "%s: missing ASN.1 octet string", p->fn);
+	} else if (sk_ASN1_TYPE_num(seq) != 3) {
+		warnx("%s: RFC 6487 section 4.8.10: sbgp-"
+			"ipAddrBlock: want 3 elements, have %d",
+			p->fn, sk_ASN1_TYPE_num(seq));
 		goto out;
 	}
-	assert(type != NULL);
+
+	t = sk_ASN1_TYPE_value(seq, 0);
+	if (t->type != V_ASN1_OBJECT) {
+		warnx("%s: RFC 6486 section 4.2.1: sbgp-ipAddrBlock: "
+			"want ASN.1 object, have %s (NID %d)", 
+			p->fn, ASN1_tag2str(t->type), t->type);
+		goto out;
+	}
+
+	t = sk_ASN1_TYPE_value(seq, 1);
+	if (t->type != V_ASN1_BOOLEAN) {
+		warnx("%s: RFC 6486 section 4.2.1: sbgp-ipAddrBlock: "
+			"want ASN.1 boolean, have %s (NID %d)", 
+			p->fn, ASN1_tag2str(t->type), t->type);
+		goto out;
+	}
+
+	t = sk_ASN1_TYPE_value(seq, 2);
+	if (t->type != V_ASN1_OCTET_STRING) {
+		warnx("%s: RFC 6486 section 4.2.1: sbgp-ipAddrBlock: "
+			"want ASN.1 octet string, have %s (NID %d)", 
+			p->fn, ASN1_tag2str(t->type), t->type);
+		goto out;
+	}
 
 	/* The blocks sequence, RFC 3779 2.2.3.1. */
 
-	d = type->value.octet_string->data;
-	dsz = type->value.octet_string->length;
+	d = t->value.octet_string->data;
+	dsz = t->value.octet_string->length;
 
 	if ((sseq = d2i_ASN1_SEQUENCE_ANY(NULL, &d, dsz)) == NULL) {
-		X509_WARNX1(p, "d2i_ASN1_SEQUENCE_ANY");
+		cryptowarnx("%s: RFC 3779 section 2.2.3.1: IPAddrBlocks: "
+			"failed ASN.1 sequence parse", p->fn);
 		goto out;
 	} 
 
 	/* Each sequence element contains RFC 3779 sec. 2.2.3.2. */
 
 	for (i = 0; i < sk_ASN1_TYPE_num(sseq); i++) {
-		type = sk_ASN1_TYPE_value(sseq, i);
-		if (V_ASN1_SEQUENCE != type->type) {
-			X509_WARNX(p, "%s: want ASN.1 "
-				"sequence, have %s (NID %d)", p->fn,
-				ASN1_tag2str(type->type), type->type);
+		t = sk_ASN1_TYPE_value(sseq, i);
+		if (V_ASN1_SEQUENCE != t->type) {
+			warnx("%s: RFC 3779 section 2.2.3.2: "
+				"IPAddressFamily: want ASN.1 sequence, "
+				"have %s (NID %d)", p->fn, 
+				ASN1_tag2str(t->type), t->type);
 			goto out;
 		}
-
-		d = type->value.asn1_string->data;
-		dsz = type->value.asn1_string->length;
-
-		if ( ! sbgp_ipaddrfam(p, d, dsz)) {
-			X509_WARNX1(p, "sbgp_ipaddrfam");
+		d = t->value.asn1_string->data;
+		dsz = t->value.asn1_string->length;
+		if (!sbgp_ipaddrfam(p, d, dsz))
 			goto out;
-		}
 	}
 
 	rc = 1;
@@ -1054,11 +1066,8 @@ cert_parse(int verbose, X509 *cacert,
 	p.verbose = verbose;
 	if ((p.res = calloc(1, sizeof(struct cert))) == NULL)
 		err(EXIT_FAILURE, NULL);
-
-	if ((bio = BIO_new_file(fn, "rb")) == NULL) {
-		X509_CRYPTOX(&p, "%s: BIO_new_file", p.fn);
-		goto out;
-	}
+	if ((bio = BIO_new_file(fn, "rb")) == NULL)
+		cryptoerrx("%s: BIO_new_file", p.fn);
 
 	/*
 	 * If we have a digest specified, create an MD chain that will
@@ -1066,18 +1075,16 @@ cert_parse(int verbose, X509 *cacert,
 	 */
 
 	if (dgst != NULL) {
-		if ((shamd = BIO_new(BIO_f_md())) == NULL) {
-			X509_CRYPTOX(&p, "%s: BIO_new", p.fn);
-			goto out;
-		} else if (!BIO_set_md(shamd, EVP_sha256())) {
-			X509_CRYPTOX(&p, "%s: BIO_set_md", p.fn);
-			goto out;
-		}
-		bio = BIO_push(shamd, bio);
+		if ((shamd = BIO_new(BIO_f_md())) == NULL)
+			cryptoerrx("BIO_new");
+		if (!BIO_set_md(shamd, EVP_sha256()))
+			cryptoerrx("BIO_set_md");
+		if ((bio = BIO_push(shamd, bio)) == NULL)
+			cryptoerrx("BIO_push");
 	}
 
 	if ((x = d2i_X509_bio(bio, NULL)) == NULL) {
-		X509_CRYPTOX(&p, "%s: d2i_X509_bio", p.fn);
+		cryptowarnx("%s: d2i_X509_bio", p.fn);
 		goto out;
 	}
 	
@@ -1089,19 +1096,17 @@ cert_parse(int verbose, X509 *cacert,
 	if (dgst != NULL) {
 		shamd = BIO_find_type(bio, BIO_TYPE_MD);
 		assert(shamd != NULL);
-		if (!BIO_get_md(shamd, &md)) {
-			X509_CRYPTOX(&p, "%s: BIO_get_md", p.fn);
-			goto out;
-		}
+
+		if (!BIO_get_md(shamd, &md))
+			cryptoerrx("BIO_get_md");
 		assert(EVP_MD_type(md) == NID_sha256);
-		sz = BIO_gets(shamd, mdbuf, EVP_MAX_MD_SIZE);
-		if (sz < 0) {
-			X509_CRYPTOX(&p, "%s: BIO_gets", p.fn);
-			goto out;
-		}
+
+		if ((sz = BIO_gets(shamd, mdbuf, EVP_MAX_MD_SIZE)) < 0)
+			cryptoerrx("BIO_gets");
 		assert(sz == SHA256_DIGEST_LENGTH);
+
 		if (memcmp(mdbuf, dgst, SHA256_DIGEST_LENGTH)) {
-			X509_WARNX(&p, "%s: bad digest", p.fn);
+			warnx("%s: bad message digest", p.fn);
 			goto out;
 		}
 	}
@@ -1111,21 +1116,16 @@ cert_parse(int verbose, X509 *cacert,
 	 * FIXME: there's more to do here.
 	 */
 
-	if (NULL != cacert) {
-		if (!X509_verify(x, X509_get_pubkey(cacert))) {
-			X509_CRYPTOX(&p, "%s: X509_verify", p.fn);
-			goto out;
-		}
-		X509_LOG(&p, "%s: verified signature", p.fn);
-	} else
-		X509_LOG(&p, "%s: unverified signature", p.fn);
+	if (NULL != cacert &&
+	    !X509_verify(x, X509_get_pubkey(cacert))) {
+		cryptowarnx("%s: X509_verify", p.fn);
+		goto out;
+	}
 
 	/* Look for X509v3 extensions. */
 
-	if ((extsz = X509_get_ext_count(x)) < 0) {
-		X509_CRYPTOX(&p, "%s: X509_get_ext_count", p.fn);
-		goto out;
-	}
+	if ((extsz = X509_get_ext_count(x)) < 0)
+		cryptoerrx("X509_get_ext_count");
 
 	for (i = 0; i < (size_t)extsz; i++) {
 		ext = X509_get_ext(x, i);
@@ -1135,24 +1135,19 @@ cert_parse(int verbose, X509 *cacert,
 
 		switch (OBJ_obj2nid(obj)) {
 		case NID_sbgp_ipAddrBlock:
-			if ((c = sbgp_ipaddrblk(&p, ext)) == 0)
-				X509_WARNX1(&p, "sbgp_ipaddrblk");
+			c = sbgp_ipaddrblk(&p, ext);
 			break;
 		case NID_sbgp_autonomousSysNum:
-			if ((c = sbgp_assysnum(&p, ext)) == 0)
-				X509_WARNX1(&p, "sbgp_assysnum");
+			c = sbgp_assysnum(&p, ext);
 			break;
 		case NID_sinfo_access:
-			if ((c = sbgp_sia(&p, ext)) == 0)
-				X509_WARNX1(&p, "sbgp_sia");
+			c = sbgp_sia(&p, ext);
 			break;
 		case NID_subject_key_identifier:
-			if ((c = sbgp_skey_ident(&p, ext)) == 0)
-				X509_WARNX1(&p, "sbgp_skey_ident");
+			c = sbgp_skey_ident(&p, ext);
 			break;
 		case NID_authority_key_identifier:
-			if ((c = sbgp_akey_ident(&p, ext)) == 0)
-				X509_WARNX1(&p, "sbgp_akey_ident");
+			c = sbgp_akey_ident(&p, ext);
 			break;
 		default:
 			c = 1;
