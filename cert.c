@@ -22,20 +22,6 @@ struct	parse {
 	int		 verbose; /* verbose output */
 };
 
-/* 
- * Wrap around the existing log macros. 
- * Do this to pass the "verbose" variable into the log.
- */
-
-#define X509_WARNX(_p, _fmt, ...) \
-	WARNX((_p)->verbose, (_fmt), ##__VA_ARGS__)
-#define X509_WARNX1(_p, _fmt, ...) \
-	WARNX1((_p)->verbose, (_fmt), ##__VA_ARGS__)
-#define X509_LOG(_p, _fmt, ...) \
-	LOG((_p)->verbose, (_fmt), __VA_ARGS__)
-#define X509_CRYPTOX(_p, _fmt, ...) \
-	CRYPTOX((_p)->verbose, (_fmt), __VA_ARGS__)
-
 /*
  * Wrapper around ASN1_get_object() that preserves the current start
  * state and returns a more meaningful value.
@@ -149,74 +135,81 @@ sbgp_akey_ident(struct parse *p, X509_EXTENSION *ext)
 	unsigned char		*sv = NULL;
 	const unsigned char 	*d;
 	size_t			 dsz;
-	const ASN1_TYPE		*type1, *type2;
-	ASN1_SEQUENCE_ANY	*seq = NULL, *sseq = NULL;
+	const ASN1_TYPE		*t;
+	const ASN1_SEQUENCE_ANY	*seq = NULL, *sseq = NULL;
 	int			 rc = 0, ptag;
 	long			 i, plen;
 	char			 buf[4];
 
 	if ((dsz = i2d_X509_EXTENSION(ext, &sv)) < 0) {
-		X509_CRYPTOX(p, "%s: i2d_X509_EXTENSION", p->fn);
+		cryptowarnx("%s: RFC 6487 section 4.8.3: AKI: "
+			"failed extension parse", p->fn);
 		goto out;
 	} 
-
-	/* Sequence consisting of OID and data. */
-
 	d = sv;
+
 	if ((seq = d2i_ASN1_SEQUENCE_ANY(NULL, &d, dsz)) == NULL) {
-		X509_WARNX1(p, "d2i_ASN1_SEQUENCE_ANY");
+		cryptowarnx("%s: RFC 6487 section 4.8.3: AKI: "
+			"failed ASN.1 sequence parse", p->fn);
 		goto out;
 	} else if (sk_ASN1_TYPE_num(seq) != 2) {
-		X509_WARNX(p, "%s: want 2 elements, have %d",
-			p->fn, sk_ASN1_TYPE_num(seq));
+		warnx("%s: RFC 6487 section 4.8.3: AKI: "
+			"want 2 elements, have %d", p->fn, 
+			sk_ASN1_TYPE_num(seq));
 		goto out;
 	}
 
-	type1 = sk_ASN1_TYPE_value(seq, 0);
-	type2 = sk_ASN1_TYPE_value(seq, 1);
-
-	if (type1->type != V_ASN1_OBJECT) {
-		X509_WARNX(p, "%s: want ASN.1 object, "
-			"have %s (NID %d)", p->fn, 
-			ASN1_tag2str(type1->type), type1->type);
+	t = sk_ASN1_TYPE_value(seq, 0);
+	if (t->type != V_ASN1_OBJECT) {
+		warnx("%s: RFC 6487 section 4.8.3: AKI: "
+			"want ASN.1 object, have %s (NID %d)", 
+			p->fn, ASN1_tag2str(t->type), t->type);
 		goto out;
-	} else if (type2->type != V_ASN1_OCTET_STRING) {
-		X509_WARNX(p, "%s: want ASN.1 octet "
-			"string, have %s (NID %d)", p->fn, 
-			ASN1_tag2str(type2->type), type2->type);
+	}
+	if (OBJ_obj2nid(t->value.object) != NID_authority_key_identifier) {
+		warnx("%s: RFC 6487 section 4.8.3: AKI: "
+			"incorrect OID, have %s (NID %d)", p->fn, 
+			ASN1_tag2str(OBJ_obj2nid(t->value.object)), 
+			OBJ_obj2nid(t->value.object));
+		goto out;
+	}
+
+	t = sk_ASN1_TYPE_value(seq, 1);
+	if (t->type != V_ASN1_OCTET_STRING) {
+		warnx("%s: RFC 6487 section 4.8.3: AKI: "
+			"want ASN.1 octet string, have %s (NID %d)", 
+			p->fn, ASN1_tag2str(t->type), t->type);
 		goto out;
 	}
 
 	/* Data is really a sub-sequence...? */
 
-	d = type2->value.octet_string->data;
-	dsz = type2->value.octet_string->length;
+	d = t->value.octet_string->data;
+	dsz = t->value.octet_string->length;
 
 	if ((sseq = d2i_ASN1_SEQUENCE_ANY(NULL, &d, dsz)) == NULL) {
-		X509_WARNX1(p, "d2i_ASN1_SEQUENCE_ANY");
+		cryptowarnx("%s: RFC 6487 section 4.8.2: SKI: "
+			"failed ASN.1 sub-sequence parse", p->fn);
 		goto out;
 	} else if (sk_ASN1_TYPE_num(sseq) != 1) {
-		X509_WARNX(p, "%s: want one element, have %d",
-			p->fn, sk_ASN1_TYPE_num(sseq));
+		warnx("%s: RFC 6487 section 4.8.3: AKI: "
+			"want 1 element, have %d", p->fn, 
+			sk_ASN1_TYPE_num(seq));
 		goto out;
 	} 
 
-	type1 = sk_ASN1_TYPE_value(sseq, 0);
-	if (type1->type != V_ASN1_OTHER) {
-		X509_WARNX(p, "%s: want ASN.1 other, "
-			"have %s (NID %d)", p->fn, 
-			ASN1_tag2str(type1->type), type1->type);
+	t = sk_ASN1_TYPE_value(sseq, 0);
+	if (t->type != V_ASN1_OTHER) {
+		warnx("%s: RFC 6487 section 4.8.3: AKI: "
+			"want ASN.1 external, have %s (NID %d)", 
+			p->fn, ASN1_tag2str(t->type), t->type);
 		goto out;
 	}
 
-	d = type1->value.asn1_string->data;
-	dsz = type1->value.asn1_string->length;
-
+	d = t->value.asn1_string->data;
+	dsz = t->value.asn1_string->length;
 	if (!ASN1_frame(p, dsz, &d, &plen, &ptag))
 		goto out;
-	if (p->res->aki != NULL)
-		X509_LOG(p, "%s: reallocating", p->fn);
-
 
 	/* Make room for [hex1, hex2, ":"]*, NUL. */
 
@@ -229,9 +222,6 @@ sbgp_akey_ident(struct parse *p, X509_EXTENSION *ext)
 		strlcat(p->res->aki, buf, plen * 3 + 1);
 	}
 	p->res->aki[plen * 3 - 1] = '\0';
-
-	X509_LOG(p, "%s: parsed authority key "
-		"identifier: %s", p->fn, p->res->aki);
 	rc = 1;
 out:
 	sk_ASN1_TYPE_free(seq);
@@ -249,63 +239,70 @@ sbgp_skey_ident(struct parse *p, X509_EXTENSION *ext)
 {
 	size_t			 dsz;
 	const unsigned char 	*d;
-	ASN1_SEQUENCE_ANY	*seq = NULL;
-	const ASN1_TYPE		*type1, *type2;
+	const ASN1_SEQUENCE_ANY	*seq = NULL;
+	const ASN1_TYPE		*t;
 	int			 rc = 0, ptag;
 	unsigned char		*sv = NULL;
 	char			 buf[4];
 	long			 j, plen;
 
 	if ((dsz = i2d_X509_EXTENSION(ext, &sv)) < 0) {
-		X509_CRYPTOX(p, "%s: i2d_X509_EXTENSION", p->fn);
+		cryptowarnx("%s: RFC 6487 section 4.8.2: SKI: "
+			"failed extension parse", p->fn);
 		goto out;
 	} 
-
 	d = sv;
+
 	if ((seq = d2i_ASN1_SEQUENCE_ANY(NULL, &d, dsz)) == NULL) {
-		X509_WARNX1(p, "d2i_ASN1_SEQUENCE_ANY");
+		cryptowarnx("%s: RFC 6487 section 4.8.2: SKI: "
+			"failed ASN.1 sequence parse", p->fn);
 		goto out;
 	} else if (sk_ASN1_TYPE_num(seq) != 2) {
-		X509_WARNX(p, "%s: want 2 elements, have %d",
-			p->fn, sk_ASN1_TYPE_num(seq));
+		warnx("%s: RFC 6487 section 4.8.2: SKI: "
+			"want 2 elements, have %d", p->fn, 
+			sk_ASN1_TYPE_num(seq));
 		goto out;
 	}
 
-	/* Consists of an OID (ignored) and octets. */
-
-	type1 = sk_ASN1_TYPE_value(seq, 0);
-	type2 = sk_ASN1_TYPE_value(seq, 1);
-
-	if (type1->type != V_ASN1_OBJECT) {
-		X509_WARNX(p, "%s: want ASN.1 object, "
-			"have %s (NID %d)", p->fn, 
-			ASN1_tag2str(type1->type), type1->type);
+	t = sk_ASN1_TYPE_value(seq, 0);
+	if (t->type != V_ASN1_OBJECT) {
+		warnx("%s: RFC 6487 section 4.8.2: SKI: "
+			"want ASN.1 object, have %s (NID %d)", 
+			p->fn, ASN1_tag2str(t->type), t->type);
 		goto out;
-	} else if (type2->type != V_ASN1_OCTET_STRING) {
-		X509_WARNX(p, "%s: want ASN.1 octet "
-			"string, have %s (NID %d)", p->fn, 
-			ASN1_tag2str(type2->type), type2->type);
+	}
+	if (OBJ_obj2nid(t->value.object) != NID_subject_key_identifier) {
+		warnx("%s: RFC 6487 section 4.8.2: SKI: "
+			"incorrect OID, have %s (NID %d)", p->fn, 
+			ASN1_tag2str(OBJ_obj2nid(t->value.object)), 
+			OBJ_obj2nid(t->value.object));
+		goto out;
+	}
+
+	t = sk_ASN1_TYPE_value(seq, 1);
+	if (t->type != V_ASN1_OCTET_STRING) {
+		warnx("%s: RFC 6487 section 4.8.2: SKI: "
+			"want ASN.1 octet string, have %s (NID %d)", 
+			p->fn, ASN1_tag2str(t->type), t->type);
 		goto out;
 	}
 
 	/* 
 	 * Parse the frame out of the ASN.1 octet string.
-	 * The content is always a 20 B hash.
+	 * The content is always a 20 B (160 bit) hash.
 	 */
 
-	d = type2->value.octet_string->data;
-	dsz = type2->value.octet_string->length;
+	d = t->value.octet_string->data;
+	dsz = t->value.octet_string->length;
 
 	if (!ASN1_frame(p, dsz, &d, &plen, &ptag))
 		goto out;
 
 	if (plen != 20) {
-		X509_WARNX(p, "%s: expected 20 B "
-			"hash, have %ld B", p->fn, plen);
+		warnx("%s: RFC 6487 section 4.8.2: SKI: want 20 B "
+			"SHA1 hash, have %ld B", p->fn, plen);
 		goto out;
-	} else if (p->res->ski != NULL) 
-		X509_LOG(p, "%s: reallocating key ident", p->fn);
-
+	} 
 	assert(V_ASN1_OCTET_STRING == ptag);
 
 	/* Make room for [hex1, hex2, ":"]*, NUL. */
@@ -319,9 +316,6 @@ sbgp_skey_ident(struct parse *p, X509_EXTENSION *ext)
 		strlcat(p->res->ski, buf, dsz * 3 + 1);
 	}
 	p->res->ski[plen * 3 - 1] = '\0';
-
-	X509_LOG(p, "%s: parsed subject key "
-		"identifier: %s", p->fn, p->res->ski);
 	rc = 1;
 out:
 	sk_ASN1_TYPE_free(seq);
@@ -336,7 +330,7 @@ out:
 static int
 sbgp_sia_bits_repo(struct parse *p, const unsigned char *d, size_t dsz)
 {
-	ASN1_SEQUENCE_ANY	*seq;
+	const ASN1_SEQUENCE_ANY	*seq;
 	const ASN1_TYPE		*t;
 	int			 rc = 0, ptag;
 	char		  	 buf[128];
@@ -1066,7 +1060,6 @@ cert_parse(int verbose, X509 *cacert,
 	X509_EXTENSION	*ext = NULL;
 	ASN1_OBJECT	*obj;
 	struct parse	 p;
-	char		 objn[128];
 	BIO		*bio = NULL, *shamd;
 	EVP_MD		*md;
 	unsigned char	 mdbuf[EVP_MAX_MD_SIZE];
@@ -1161,9 +1154,11 @@ cert_parse(int verbose, X509 *cacert,
 			break;
 		default:
 			c = 1;
+			/*
 			OBJ_obj2txt(objn, sizeof(objn), obj, 0);
-			X509_LOG(&p, "%s: ignoring %s (NID %d)", 
+			warnx("%s: ignoring %s (NID %d)", 
 				p.fn, objn, OBJ_obj2nid(obj));
+			*/
 			break;
 		}
 		if (c == 0)
