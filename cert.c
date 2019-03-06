@@ -331,58 +331,68 @@ out:
 
 /*
  * Parse either the CA repository or manifest, 4.8.8.1.
- * FIXME: 4.8.8.2?
  * Returns zero on failure, non-zero on success.
  */
 static int
 sbgp_sia_bits_repo(struct parse *p, const unsigned char *d, size_t dsz)
 {
 	ASN1_SEQUENCE_ANY	*seq;
-	const ASN1_TYPE		*type1, *type2;
+	const ASN1_TYPE		*t;
 	int			 rc = 0, ptag;
 	char		  	 buf[128];
 	const char		*cp;
 	long			 plen;
 
 	if ((seq = d2i_ASN1_SEQUENCE_ANY(NULL, &d, dsz)) == NULL) {
-		X509_WARNX1(p, "d2i_ASN1_SEQUENCE_ANY");
+		cryptowarnx("%s: RFC 6487 section 4.8.8: SIA: "
+			"failed ASN.1 sequence parse", p->fn);
 		goto out;
 	} else if (sk_ASN1_TYPE_num(seq) != 2) {
-		X509_WARNX(p, "%s: want 2 elements, have %d",
+		warnx("%s: RFC 6487 section 4.8.8: SIA: "
+			"want 2 elements, have %d",
 			p->fn, sk_ASN1_TYPE_num(seq));
 		goto out;
 	}
 
-	type1 = sk_ASN1_TYPE_value(seq, 0);
-	type2 = sk_ASN1_TYPE_value(seq, 1);
-
 	/* Composed of an OID and its continuation. */
 
-	if (type1->type != V_ASN1_OBJECT) {
-		X509_WARNX(p, "%s: want ASN.1 object, "
-			"have %s (NID %d)", p->fn, 
-			ASN1_tag2str(type1->type), type1->type);
+	t = sk_ASN1_TYPE_value(seq, 0);
+	if (t->type != V_ASN1_OBJECT) {
+		warnx("%s: RFC 6487 section 4.8.8: SIA: "
+			"want ASN.1 object, have %s (NID %d)", 
+			p->fn, ASN1_tag2str(t->type), t->type);
 		goto out;
-	} else if (type2->type != V_ASN1_OTHER) {
-		X509_WARNX(p, "%s: want ASN.1 other, "
-			"have %s (NID %d)", p->fn, 
-			ASN1_tag2str(type2->type), type2->type);
+	}
+	OBJ_obj2txt(buf, sizeof(buf), t->value.object, 1);
+
+	/* Ignore rpkiNotify access descriptor. */
+
+	if (strcmp(buf, "1.3.6.1.5.5.7.48.13") == 0) {
+		rc = 1;
 		goto out;
 	}
 
-	OBJ_obj2txt(buf, sizeof(buf), type1->value.object, 1);
+	/* Accept manifest and CA repository. */
 
 	if (strcmp(buf, "1.3.6.1.5.5.7.48.10") &&
 	    strcmp(buf, "1.3.6.1.5.5.7.48.5")) {
-		X509_LOG(p, "%s: ignoring OID %s", p->fn, buf);
-		rc = 1;
+		warnx("%s: RFC 6487 section 4.8.8: SIA: "
+			"unknown OID: %s", p->fn, buf);
+		goto out;
+	}
+
+	t = sk_ASN1_TYPE_value(seq, 1);
+	if (t->type != V_ASN1_OTHER) {
+		warnx("%s: RFC 6487 section 4.8.8: SIA: "
+			"want ASN.1 external, have %s (NID %d)", 
+			p->fn, ASN1_tag2str(t->type), t->type);
 		goto out;
 	}
 
 	/* This is re-framed, so dig using low-level ASN1_frame. */
 
-	d = type2->value.asn1_string->data;
-	dsz = type2->value.asn1_string->length;
+	d = t->value.asn1_string->data;
+	dsz = t->value.asn1_string->length;
 	if (!ASN1_frame(p, dsz, &d, &plen, &ptag))
 		goto out;
 
@@ -396,9 +406,6 @@ sbgp_sia_bits_repo(struct parse *p, const unsigned char *d, size_t dsz)
 			err(EXIT_FAILURE, NULL);
 	}
 
-	X509_LOG(p, "%s: parsed %s: %s", p->fn, 
-		strcmp(buf, "1.3.6.1.5.5.7.48.10") ? 
-		"CA repository" : "manifest", cp);
 	rc = 1;
 out:
 	sk_ASN1_TYPE_free(seq);
@@ -407,36 +414,33 @@ out:
 
 /*
  * Multiple locations as defined in RFC 6487, 4.8.8.1.
- * FIXME: 4.8.8.2?
  * Returns zero on failure, non-zero on success.
  */
 static int
 sbgp_sia_bits(struct parse *p, const unsigned char *d, size_t dsz)
 {
-	ASN1_SEQUENCE_ANY	*seq;
-	const ASN1_TYPE		*type;
+	const ASN1_SEQUENCE_ANY	*seq;
+	const ASN1_TYPE		*t;
 	int			 rc = 0, i;
 
 	if ((seq = d2i_ASN1_SEQUENCE_ANY(NULL, &d, dsz)) == NULL) {
-		X509_WARNX1(p, "d2i_ASN1_SEQUENCE_ANY");
+		cryptowarnx("%s: RFC 6487 section 4.8.8: SIA: "
+			"failed ASN.1 sequence parse", p->fn);
 		goto out;
 	} 
 
 	for (i = 0; i < sk_ASN1_TYPE_num(seq); i++) {
-		type = sk_ASN1_TYPE_value(seq, i);
-		if (type->type != V_ASN1_SEQUENCE) {
-			X509_WARNX(p, "%s: want ASN.1 sequence, "
-				"have %s (NID %d)", p->fn,
-				ASN1_tag2str(type->type), type->type);
+		t = sk_ASN1_TYPE_value(seq, i);
+		if (t->type != V_ASN1_SEQUENCE) {
+			warnx("%s: RFC 6487 section 4.8.8: SIA: "
+				"want ASN.1 sequence, have %s (NID %d)", 
+				p->fn, ASN1_tag2str(t->type), t->type);
 			goto out;
 		}
-
-		d = type->value.asn1_string->data;
-		dsz = type->value.asn1_string->length;
-		if (!sbgp_sia_bits_repo(p, d, dsz)) {
-			X509_WARNX1(p, "sbgp_sia_bits_repo");
+		d = t->value.asn1_string->data;
+		dsz = t->value.asn1_string->length;
+		if (!sbgp_sia_bits_repo(p, d, dsz))
 			goto out;
-		}
 	}
 
 	rc = 1;
@@ -456,49 +460,53 @@ sbgp_sia(struct parse *p, X509_EXTENSION *ext)
 	const unsigned char 	*d;
 	size_t		 	 dsz;
 	ASN1_SEQUENCE_ANY	*seq = NULL;
-	const ASN1_TYPE		*type1, *type2;
+	const ASN1_TYPE		*t;
 	int			 rc = 0;
 
 	if ((dsz = i2d_X509_EXTENSION(ext, &sv)) < 0) {
-		X509_CRYPTOX(p, "%s: i2d_X509_EXTENSION", p->fn);
+		cryptowarnx("%s: RFC 6487 section 4.8.8: SIA: "
+			"failed extension parse", p->fn);
 		goto out;
 	} 
-
-	/* Parse through and ignore our OID/octet string pair. */
-
 	d = sv;
+
 	if ((seq = d2i_ASN1_SEQUENCE_ANY(NULL, &d, dsz)) == NULL) {
-		X509_WARNX1(p, "d2i_ASN1_SEQUENCE_ANY");
+		cryptowarnx("%s: RFC 6487 section 4.8.8: SIA: "
+			"failed ASN.1 sequence parse", p->fn);
 		goto out;
 	} else if (sk_ASN1_TYPE_num(seq) != 2) {
-		X509_WARNX(p, "%s: want 2 elements, have %d",
-			p->fn, sk_ASN1_TYPE_num(seq));
+		warnx("%s: RFC 6487 section 4.8.8: SIA: "
+			"want 2 elements, have %d", p->fn, 
+			sk_ASN1_TYPE_num(seq));
 		goto out;
 	}
 
-	type1 = sk_ASN1_TYPE_value(seq, 0);
-	type2 = sk_ASN1_TYPE_value(seq, 1);
-
-	if (type1->type != V_ASN1_OBJECT) {
-		X509_WARNX(p, "%s: want ASN.1 object, "
-			"have %s (NID %d)", p->fn, 
-			ASN1_tag2str(type1->type), type1->type);
+	t = sk_ASN1_TYPE_value(seq, 0);
+	if (t->type != V_ASN1_OBJECT) {
+		warnx("%s: RFC 6487 section 4.8.8: SIA: "
+			"want ASN.1 object, have %s (NID %d)", 
+			p->fn, ASN1_tag2str(t->type), t->type);
 		goto out;
-	} else if (type2->type != V_ASN1_OCTET_STRING) {
-		X509_WARNX(p, "%s: want ASN.1 octet "
-			"string, have %s (NID %d)", p->fn, 
-			ASN1_tag2str(type2->type), type2->type);
+	} else if (OBJ_obj2nid(t->value.object) != NID_sinfo_access) {
+		warnx("%s: RFC 6487 section 4.8.8: SIA: "
+			"incorrect OID, have %s (NID %d)", p->fn, 
+			ASN1_tag2str(OBJ_obj2nid(t->value.object)), 
+			OBJ_obj2nid(t->value.object));
+		goto out;
+	}
+
+	t = sk_ASN1_TYPE_value(seq, 1);
+	if (t->type != V_ASN1_OCTET_STRING) {
+		warnx("%s: RFC 6487 section 4.8.8: SIA: "
+			"want ASN.1 octet string, have %s (NID %d)", 
+			p->fn, ASN1_tag2str(t->type), t->type);
 		goto out;
 	}
 
-	/* Pass bits to underlying parser. */
-
-	d = type2->value.octet_string->data;
-	dsz = type2->value.octet_string->length;
-	if (!sbgp_sia_bits(p, d, dsz)) {
-		X509_WARNX1(p, "sbgp_sia_obj");
+	d = t->value.octet_string->data;
+	dsz = t->value.octet_string->length;
+	if (!sbgp_sia_bits(p, d, dsz))
 		goto out;
-	}
 
 	rc = 1;
 out:
@@ -966,8 +974,8 @@ sbgp_ipaddrblk(struct parse *p, X509_EXTENSION *ext)
 			"ipAddrBlock: failed extension parse", p->fn);
 		goto out;
 	} 
-
 	d = sv;
+
 	if ((seq = d2i_ASN1_SEQUENCE_ANY(NULL, &d, dsz)) == NULL) {
 		cryptowarnx("%s: RFC 6487 section 4.8.10: sbgp-"
 			"ipAddrBlock: failed ASN.1 sequence "
