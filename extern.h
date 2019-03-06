@@ -159,7 +159,7 @@ __BEGIN_DECLS
 
 void		 tal_buffer(char **, size_t *, size_t *, const struct tal *);
 void		 tal_free(struct tal *);
-struct tal	*tal_parse(int, const char *);
+struct tal	*tal_parse(const char *);
 struct tal	*tal_read(int);
 
 void		 cert_buffer(char **, size_t *, size_t *, const struct cert *);
