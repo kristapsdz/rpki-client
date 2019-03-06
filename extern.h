@@ -169,7 +169,7 @@ struct cert	*cert_read(int);
 
 void		 mft_buffer(char **, size_t *, size_t *, const struct mft *);
 void		 mft_free(struct mft *);
-struct mft 	*mft_parse(int, X509 *, const char *);
+struct mft 	*mft_parse(X509 *, const char *);
 struct mft 	*mft_read(int);
 
 void		 roa_buffer(char **, size_t *, size_t *, const struct roa *);
@@ -207,17 +207,17 @@ void		 cryptowarnx(const char *, ...)
 void		 cryptoerrx(const char *, ...)
 			__attribute__((format(printf, 1, 2)))
 			__attribute__((noreturn));
-void		 socket_blocking(int, int);
-void		 socket_nonblocking(int, int);
+void		 socket_blocking(int);
+void		 socket_nonblocking(int);
 void		 simple_buffer(char **, size_t *, size_t *, const void *, size_t);
 void		 simple_read(int, void *, size_t);
 void		 simple_write(int, const void *, size_t);
 void		 buf_buffer(char **, size_t *, size_t *, const void *, size_t);
 void		 buf_read_alloc(int, void **, size_t *);
-void		 buf_write(int, int, const void *, size_t);
+void		 buf_write(int, const void *, size_t);
 void		 str_buffer(char **, size_t *, size_t *, const char *);
 void		 str_read(int, char **);
-void		 str_write(int, int, const char *);
+void		 str_write(int, const char *);
 
 __END_DECLS
 

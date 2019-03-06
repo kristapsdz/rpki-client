@@ -137,8 +137,8 @@ repo_lookup(int fd, int verb, struct repotab *rt, const char *uri)
 	i = rt->reposz - 1;
 
 	simple_write(fd, &i, sizeof(size_t));
-	str_write(fd, verb, rp->host);
-	str_write(fd, verb, rp->module);
+	str_write(fd, rp->host);
+	str_write(fd, rp->module);
 	return rp;
 }
 
@@ -185,11 +185,11 @@ entry_buffer(char **b, size_t *bsz,
  * Write the queue entry.
  */
 static void
-entry_write(int fd, int verb, const struct entry *ent)
+entry_write(int fd, const struct entry *ent)
 {
 
 	simple_write(fd, &ent->type, sizeof(enum rtype));
-	str_write(fd, verb, ent->uri);
+	str_write(fd, ent->uri);
 	simple_write(fd, &ent->has_dgst, sizeof(int));
 	simple_write(fd, ent->dgst, sizeof(ent->dgst));
 }
@@ -208,7 +208,7 @@ entryq_flush(int fd, int verb,
 		if (p->repo < 0 || repo->id != (size_t)p->repo)
 			continue;
 		LOG(verb, "%s: flushing after repository load", p->uri);
-		entry_write(fd, verb, p);
+		entry_write(fd, p);
 	}
 }
 
@@ -242,7 +242,7 @@ entryq_add(int fd, int verb, struct entryq *q,
 	 */
 
 	if (NULL == rp || rp->loaded)
-		entry_write(fd, verb, p);
+		entry_write(fd, p);
 }
 
 /*
@@ -515,7 +515,7 @@ proc_parser(int fd, int verb)
 	pfd.events = POLLIN;
 	LOG(verb, "parser process starting");
 
-	socket_nonblocking(pfd.fd, verb);
+	socket_nonblocking(pfd.fd);
 
 	for (;;) {
 		if (poll(&pfd, 1, INFTIM) < 0)
@@ -539,7 +539,7 @@ proc_parser(int fd, int verb)
 		 */
 
 		if ((pfd.revents & POLLIN)) {
-			socket_blocking(fd, verb);
+			socket_blocking(fd);
 			entry_read(fd, &ent);
 			entp = calloc(1, sizeof(struct entry));
 			if (entp == NULL)
@@ -547,7 +547,7 @@ proc_parser(int fd, int verb)
 			*entp = ent;
 			TAILQ_INSERT_TAIL(&q, entp, entries);
 			pfd.events |= POLLOUT;
-			socket_nonblocking(fd, verb);
+			socket_nonblocking(fd);
 		}
 
 		if (!(pfd.revents & POLLOUT))
@@ -611,7 +611,7 @@ proc_parser(int fd, int verb)
 			break;
 		case RTYPE_MFT:
 			assert(!entp->has_dgst);
-			mft = mft_parse(vverb, NULL, entp->uri);
+			mft = mft_parse(NULL, entp->uri);
 			if (mft == NULL) {
 				WARNX1(verb, "mft_parse");
 				goto out;
@@ -815,8 +815,8 @@ main(int argc, char *argv[])
 		 * actually talk to the subprocesses.
 		 */
 
-		socket_nonblocking(pfd[0].fd, verb);
-		socket_nonblocking(pfd[1].fd, verb);
+		socket_nonblocking(pfd[0].fd);
+		socket_nonblocking(pfd[1].fd);
 
 		if ((c = poll(pfd, 2, 10000)) < 0) {
 			WARN("poll");
@@ -848,8 +848,8 @@ main(int argc, char *argv[])
 
 		/* Reenable blocking. */
 
-		socket_blocking(pfd[0].fd, verb);
-		socket_blocking(pfd[1].fd, verb);
+		socket_blocking(pfd[0].fd);
+		socket_blocking(pfd[1].fd);
 
 		/* 
 		 * Check the rsync process.
@@ -905,15 +905,15 @@ out:
 	close(rsync);
 
 	if (waitpid(procpid, &st, 0) == -1)
-		ERR("waitpid");
+		err(EXIT_FAILURE, "waitpid");
 	if (!WIFEXITED(st) || WEXITSTATUS(st) != EXIT_SUCCESS) {
-		WARNX(verb, "parser process exited abnormally");
+		warnx("parser process exited abnormally");
 		rc = 0;
 	}
 	if (waitpid(rsyncpid, &st, 0) == -1)
-		ERR("waitpid");
+		err(EXIT_FAILURE, "waitpid");
 	if (!WIFEXITED(st) || WEXITSTATUS(st) != EXIT_SUCCESS) {
-		WARNX(verb, "rsync process exited abnormally");
+		warnx("rsync process exited abnormally");
 		rc = 0;
 	}
 
