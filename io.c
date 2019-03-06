@@ -12,7 +12,7 @@
 #include "extern.h"
 
 void
-socket_blocking(int fd, int verb)
+socket_blocking(int fd)
 {
 	int	 fl;
 
@@ -23,7 +23,7 @@ socket_blocking(int fd, int verb)
 }
 
 void
-socket_nonblocking(int fd, int verb)
+socket_nonblocking(int fd)
 {
 	int	 fl;
 
@@ -85,7 +85,7 @@ buf_buffer(char **b, size_t *bsz,
  * Write a binary buffer of the given size, which may be zero.
  */
 void
-buf_write(int fd, int verb, const void *p, size_t sz)
+buf_write(int fd, const void *p, size_t sz)
 {
 
 	simple_write(fd, &sz, sizeof(size_t));
@@ -107,11 +107,11 @@ str_buffer(char **b, size_t *bsz, size_t *bmax, const char *p)
  * Write a NUL-terminated string, which may be zero-length.
  */
 void
-str_write(int fd, int verb, const char *p)
+str_write(int fd, const char *p)
 {
 	size_t	 sz = (p == NULL) ? 0 : strlen(p);
 
-	buf_write(fd, verb, p, sz);
+	buf_write(fd, p, sz);
 }
 
 /*

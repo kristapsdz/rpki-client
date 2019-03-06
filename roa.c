@@ -302,6 +302,12 @@ out:
 	return rc;
 }
 
+/*
+ * Parse a full RFC 6482 file with a SHA256 digest "dgst" and signed by
+ * the certificate "cacert" (the latter two are optional and may be
+ * passed as NULL to disable).
+ * Returns the ROA or NULL if the document was malformed.
+ */
 struct roa *
 roa_parse(X509 *cacert, const char *fn, const unsigned char *dgst)
 {
@@ -315,13 +321,11 @@ roa_parse(X509 *cacert, const char *fn, const unsigned char *dgst)
 
 	os = cms_parse_validate(cacert, fn,
 		"1.2.840.113549.1.9.16.1.24", dgst);
-
 	if (os == NULL)
 		return NULL;
 
 	if ((p.res = calloc(1, sizeof(struct roa))) == NULL)
 		err(EXIT_FAILURE, NULL);
-
 	if (!roa_parse_econtent(os, &p)) {
 		roa_free(p.res);
 		p.res = NULL;
@@ -330,17 +334,24 @@ roa_parse(X509 *cacert, const char *fn, const unsigned char *dgst)
 
 }
 
+/*
+ * Free an ROA pointer.
+ * Safe to call with NULL.
+ */
 void
 roa_free(struct roa *p)
 {
 
 	if (p == NULL)
 		return;
-
 	free(p->ips);
 	free(p);
 }
 
+/*
+ * Serialise parsed ROA content.
+ * See roa_read() for reader.
+ */
 void
 roa_buffer(char **b, size_t *bsz, size_t *bmax, const struct roa *p)
 {
@@ -364,7 +375,8 @@ roa_buffer(char **b, size_t *bsz, size_t *bmax, const struct roa *p)
 }
 
 /*
- * Read parsed ROA content.
+ * Read parsed ROA content from descriptor.
+ * See roa_buffer() for writer.
  * Result must be passed to roa_free().
  */
 struct roa *
