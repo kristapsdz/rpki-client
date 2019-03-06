@@ -124,10 +124,10 @@ main(int argc, char *argv[])
 	}
 
 	for (i = 0; i < (size_t)argc; i++) {
-		p = cert_parse(verb, x, argv[i], NULL);
-		if (NULL == p)
+		if ((p = cert_parse(verb, x, argv[i], NULL)) == NULL)
 			break;
-		cert_print(p);
+		if (verb)
+			cert_print(p);
 		cert_free(p);
 	}
 
