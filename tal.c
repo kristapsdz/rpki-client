@@ -59,11 +59,11 @@ tal_parse_stream(int verb, const char *fn, FILE *f)
 
 		/* Make sure we're a proper rsync URI. */
 
-		if (!rsync_uri_parse(verb, NULL, NULL, 
-		    NULL, NULL, NULL, NULL, &rp, line)) {
-			WARNX1(verb, "rsync_uri_parse");
+		if (!rsync_uri_parse(NULL, NULL, 
+		    NULL, NULL, NULL, NULL, &rp, line))
 			goto out;
-		} else if (rp != RTYPE_CER) {
+
+		if (rp != RTYPE_CER) {
 			WARNX(verb, "%s: not a certificate", line);
 			goto out;
 		}

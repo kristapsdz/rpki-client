@@ -182,10 +182,9 @@ const ASN1_OCTET_STRING
 			const char *, const unsigned char *);
 int		 ip_addrfamily(const ASN1_OCTET_STRING *, uint16_t *);
 int		 ip_addr(const ASN1_BIT_STRING *, uint16_t, struct cert_ip_addr *);
-int	 	 rsync_uri_parse(int, const char **, size_t *,
+int	 	 rsync_uri_parse(const char **, size_t *,
 			const char **, size_t *, const char **, size_t *,
 			enum rtype *, const char *);
-int	 	 rsync_uri_check(int, const char *);
 void		 rpki_log_open(void);
 void		 rpki_log_close(void);
 void		 rpki_err(const char *, size_t, const char *, ...)
