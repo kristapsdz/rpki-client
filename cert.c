@@ -19,7 +19,6 @@
 struct	parse {
 	struct cert	*res; /* result */
 	const char	*fn; /* currently-parsed file */
-	int		 verbose; /* verbose output */
 };
 
 /*
@@ -1051,8 +1050,7 @@ out:
  * On success, free the pointer with cert_free().
  */
 struct cert *
-cert_parse(int verbose, X509 *cacert,
-	const char *fn, const unsigned char *dgst)
+cert_parse(X509 *cacert, const char *fn, const unsigned char *dgst)
 {
 	int	 	 rc = 0, extsz, c, sz;
 	size_t		 i;
@@ -1066,7 +1064,6 @@ cert_parse(int verbose, X509 *cacert,
 
 	memset(&p, 0, sizeof(struct parse));
 	p.fn = fn;
-	p.verbose = verbose;
 	if ((p.res = calloc(1, sizeof(struct cert))) == NULL)
 		err(EXIT_FAILURE, NULL);
 	if ((bio = BIO_new_file(fn, "rb")) == NULL)

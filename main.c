@@ -599,7 +599,7 @@ proc_parser(int fd, int verb)
 			tal_free(tal);
 			break;
 		case RTYPE_CER:
-			x = cert_parse(vverb, NULL, entp->uri,
+			x = cert_parse(NULL, entp->uri,
 				entp->has_dgst ? entp->dgst : NULL);
 			if (x == NULL) {
 				WARNX1(verb, "cert_parse");
