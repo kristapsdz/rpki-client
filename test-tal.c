@@ -5,7 +5,7 @@
 #include <string.h>
 #include <unistd.h>
 
-#include <openssl/x509.h>
+#include <openssl/ssl.h>
 
 #include "extern.h"
 
@@ -26,6 +26,7 @@ main(int argc, char *argv[])
 	struct tal	*tal;
 	size_t		 i;
 
+	SSL_library_init();
 	rpki_log_open();
 
 	while (-1 != (c = getopt(argc, argv, "v"))) 
@@ -41,7 +42,7 @@ main(int argc, char *argv[])
 	argc -= optind;
 
 	for (i = 0; i < (size_t)argc; i++) {
-		if (NULL == (tal = tal_parse(verb, argv[i])))
+		if (NULL == (tal = tal_parse(argv[i])))
 			break;
 		tal_print(tal);
 		tal_free(tal);

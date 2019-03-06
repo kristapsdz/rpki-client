@@ -17,7 +17,7 @@
  * The pointer must be freed with tal_free().
  */
 static struct tal *
-tal_parse_stream(int verb, const char *fn, FILE *f)
+tal_parse_stream(const char *fn, FILE *f)
 {
 	char		*line = NULL, *b64 = NULL;
 	size_t		 sz, b64sz = 0, linesize = 0, lineno = 0;
@@ -64,18 +64,16 @@ tal_parse_stream(int verb, const char *fn, FILE *f)
 			goto out;
 
 		if (rp != RTYPE_CER) {
-			WARNX(verb, "%s: not a certificate", line);
+			warnx("%s: not a certificate", line);
 			goto out;
 		}
-
-		LOG(verb, "%s: parsed certificate: %s", fn, line);
 	}
 
-	if (ferror(f)) {
-		WARN("%s: getline", fn);
-		goto out;
-	} else if (tal->urisz == 0) {
-		WARNX(verb, "%s: zero URIs", fn);
+	if (ferror(f))
+		err(EXIT_FAILURE, "%s: getline", fn);
+
+	if (tal->urisz == 0) {
+		warnx("%s: no URIs in manifest part", fn);
 		goto out;
 	}
 
@@ -99,11 +97,8 @@ tal_parse_stream(int verb, const char *fn, FILE *f)
 		sz = ((linelen + 2) / 3) * 4 + 1;
 		if ((b64 = realloc(b64, b64sz + sz)) == NULL)
 			err(EXIT_FAILURE, NULL);
-		ssz = b64_pton(line, b64 + b64sz, sz);
-		if (ssz < 0) {
-			WARN("b64_pton");
-			goto out;
-		}
+		if ((ssz = b64_pton(line, b64 + b64sz, sz)) < 0)
+			errx(EXIT_FAILURE, "b64_pton");
 
 		/* 
 		 * This might be different from our allocation size, but
@@ -113,11 +108,11 @@ tal_parse_stream(int verb, const char *fn, FILE *f)
 		b64sz += ssz;
 	}
 	
-	if (ferror(f)) {
-		WARN("%s: getline", fn);
-		goto out;
-	} else if (b64sz == 0) {
-		WARNX(verb, "%s: zero-length public key", fn);
+	if (ferror(f))
+		err(EXIT_FAILURE, "%s: getline", fn);
+
+	if (b64sz == 0) {
+		warnx("%s: zero-length public key", fn);
 		goto out;
 	}
 
@@ -126,8 +121,6 @@ tal_parse_stream(int verb, const char *fn, FILE *f)
 	tal->pkey = b64;
 	tal->pkeysz = b64sz;
 	b64 = NULL;
-
-	LOG(verb, "%s: parsed %zu URIs", fn, tal->urisz);
 	rc = 1;
 out:
 	free(line);
@@ -146,18 +139,15 @@ out:
  * memory, bad syntax, etc.
  */
 struct tal *
-tal_parse(int verb, const char *fn)
+tal_parse(const char *fn)
 {
 	FILE		*f;
 	struct tal	*p;
 
-	if ((f = fopen(fn, "r")) == NULL) {
-		WARN("%s: fopen", fn);
-		return NULL;
-	}
+	if ((f = fopen(fn, "r")) == NULL)
+		err(EXIT_FAILURE, "%s: open", fn);
 
-	LOG(verb, "%s: opened", fn);
-	p = tal_parse_stream(verb, fn, f);
+	p = tal_parse_stream(fn, f);
 	fclose(f);
 	return p;
 }
@@ -173,8 +163,6 @@ tal_free(struct tal *p)
 
 	if (p == NULL)
 		return;
-
-	/* We might set "urisz" before allocating "uri". */
 
 	if (p->uri != NULL)
 		for (i = 0; i < p->urisz; i++)

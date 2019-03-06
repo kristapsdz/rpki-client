@@ -590,7 +590,7 @@ proc_parser(int fd, int verb)
 		switch (entp->type) {
 		case RTYPE_TAL:
 			assert(!entp->has_dgst);
-			tal = tal_parse(vverb, entp->uri);
+			tal = tal_parse(entp->uri);
 			if (tal == NULL) {
 				WARNX1(verb, "tal_parse");
 				goto out;
