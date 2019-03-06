@@ -136,21 +136,6 @@ enum	rtype {
 	RTYPE_CRL
 };
 
-#define ERR(_fmt, ...) \
-	rpki_err(__FILE__, __LINE__, (_fmt), ##__VA_ARGS__)
-#define ERRX(_fmt, ...) \
-	rpki_errx(__FILE__, __LINE__, (_fmt), ##__VA_ARGS__)
-#define CRYPTOX(_v, _fmt, ...) \
-	rpki_cryptox((_v), __FILE__, __LINE__, (_fmt), ##__VA_ARGS__)
-#define WARN(_fmt, ...) \
-	rpki_warn(__FILE__, __LINE__, (_fmt), ##__VA_ARGS__)
-#define WARNX(_v, _fmt, ...) \
-	rpki_warnx((_v), 0, __FILE__, __LINE__, (_fmt), ##__VA_ARGS__)
-#define WARNX1(_v, _fmt, ...) \
-	rpki_warnx((_v), 1, __FILE__, __LINE__, (_fmt), ##__VA_ARGS__)
-#define LOG(_v, _fmt, ...) \
-	rpki_log((_v), __FILE__, __LINE__, (_fmt), ##__VA_ARGS__)
-
 __BEGIN_DECLS
 
 /*
@@ -185,22 +170,8 @@ int		 ip_addr(const ASN1_BIT_STRING *, uint16_t, struct cert_ip_addr *);
 int	 	 rsync_uri_parse(const char **, size_t *,
 			const char **, size_t *, const char **, size_t *,
 			enum rtype *, const char *);
-void		 rpki_log_open(void);
-void		 rpki_log_close(void);
-void		 rpki_err(const char *, size_t, const char *, ...)
-			__attribute__((format(printf, 3, 4)))
-			__attribute__((noreturn));
-void		 rpki_errx(const char *, size_t, const char *, ...)
-			__attribute__((format(printf, 3, 4)))
-			__attribute__((noreturn));
-void		 rpki_warn(const char *, size_t, const char *, ...)
-			__attribute__((format(printf, 3, 4)));
-void		 rpki_warnx(int, int, const char *, size_t, const char *, ...)
-			__attribute__((format(printf, 5, 6)));
-void		 rpki_log(int, const char *, size_t, const char *, ...)
-			__attribute__((format(printf, 4, 5)));
-void		 rpki_cryptox(int, const char *, size_t, const char *, ...)
-			__attribute__((format(printf, 4, 5)));
+void		 logx(int, const char *, ...)
+			__attribute__((format(printf, 2, 3)));
 void		 cryptowarnx(const char *, ...)
 			__attribute__((format(printf, 1, 2)));
 void		 cryptoerrx(const char *, ...)

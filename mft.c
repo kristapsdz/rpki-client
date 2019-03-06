@@ -212,6 +212,7 @@ mft_parse_econtent(const ASN1_OCTET_STRING *os, struct parse *p)
 	const ASN1_TYPE	        *t;
 	int		         i, rc = -1;
 	time_t			 this, next, now = time(NULL);
+	char			 buf[64];
 
 	if ((seq = d2i_ASN1_SEQUENCE_ANY(NULL, &d, dsz)) == NULL) {
 		cryptowarnx("%s: RFC 6486 section 4.2: Manifest: "
@@ -284,7 +285,13 @@ mft_parse_econtent(const ASN1_OCTET_STRING *os, struct parse *p)
 		warnx("%s: before date interval (clock drift?)", p->fn);
 		goto out;
 	} else if (now >= next) {
-		warnx("%s: after date interval (stale)", p->fn);
+		warnx("%s: after date interval: stale", p->fn);
+		ctime_r(&this, buf);
+		buf[strlen(buf) - 1] = '\0';
+		warnx("%s: stale start: %s", p->fn, buf);
+		ctime_r(&next, buf);
+		buf[strlen(buf) - 1] = '\0';
+		warnx("%s: stale next: %s", p->fn, buf);
 		rc = 0;
 		goto out;
 	}
