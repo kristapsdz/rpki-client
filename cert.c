@@ -88,8 +88,7 @@ append_as(struct parse *p, const struct cert_as *as)
 }
 
 /*
- * Parse an IP address, IPv4 or IPv6, as either a minimum or maximum
- * quantity (0x0 or 0xf filled).
+ * Parse an IP address, IPv4 or IPv6.
  * Confirms to RFC 3779 2.2.3.8.
  * Return zero on failure, non-zero on success.
  */
@@ -111,8 +110,8 @@ sbgp_ipaddr(struct parse *p, const struct cert_ip *ip,
 
 	if ((ip->afi == 1 && dsz > 4) ||
 	    (ip->afi == 2 && dsz > 16)) {
-		X509_WARNX(p, "%s: IPv%s too large", 
-			p->fn, 1 == ip->afi ? "4" : "6");
+		warnx("%s: IPv%s address too long: %zu", 
+			p->fn, 1 == ip->afi ? "4" : "6", dsz);
 		return 0;
 	} 
 
@@ -132,17 +131,11 @@ sbgp_addr(struct parse *p,
 {
 	struct cert_ip_rng *rng = &ip->range;
 
-	if (!sbgp_ipaddr(p, ip, &rng->min, bs)) {
-		X509_WARNX1(p, "sbgp_ipaddr");
+	if (!sbgp_ipaddr(p, ip, &rng->min, bs) ||
+	    !sbgp_ipaddr(p, ip, &rng->max, bs))
 		return 0;
-	} else if (!sbgp_ipaddr(p, ip, &rng->max, bs)) {
-		X509_WARNX1(p, "sbgp_ipaddr");
-		return 0;
-	} 
 
 	append_ip(p, ip);
-	X509_LOG(p, "%s: parsed IPv%s address (singleton)", 
-		p->fn, 1 == ip->afi ? "4" : "6");
 	return 1;
 }
 
@@ -772,52 +765,44 @@ sbgp_range(struct parse *p, struct cert_ip *ip,
 {
 	struct cert_ip_rng  	*rng = &ip->range;
 	ASN1_SEQUENCE_ANY	*seq;
-	const ASN1_TYPE		*type;
+	const ASN1_TYPE		*t;
 	int			 rc = 0;
 
 	/* Sequence of two elements. */
 
 	if ((seq = d2i_ASN1_SEQUENCE_ANY(NULL, &d, dsz)) == NULL) {
-		X509_WARNX1(p, "d2i_ASN1_SEQUENCE_ANY");
+		cryptowarnx("%s: RFC 3779 section 2.2.3.9: "
+			"IPAddressRange: failed ASN.1 sequence "
+			"parse", p->fn);
 		goto out;
 	} else if (sk_ASN1_TYPE_num(seq) != 2) {
-		X509_WARNX(p, "%s: want two elements, have %d", 
+		warnx("%s: RFC 3779 section 2.2.3.9: "
+			"IPAddressRange: want 2 elements, have %d",
 			p->fn, sk_ASN1_TYPE_num(seq));
 		goto out;
 	}
 
-	/* 
-	 * Both elements are bit strings.
-	 * Minimum element is 0x00-filled, max is 0xff-filled.
-	 */
+	/* Both elements are bit strings. */
 
-	type = sk_ASN1_TYPE_value(seq, 0);
-	if (type->type != V_ASN1_BIT_STRING) {
-		X509_WARNX(p, "%s: want ASN.1 bit string, "
-			"have %s (NID %d)", p->fn,
-			ASN1_tag2str(type->type), type->type);
+	t = sk_ASN1_TYPE_value(seq, 0);
+	if (t->type != V_ASN1_BIT_STRING) {
+		warnx("%s: RFC 3779 section 2.2.3.9: IPAddress: "
+			"want ASN.1 bit string, have %s (NID %d)", 
+			p->fn, ASN1_tag2str(t->type), t->type);
 		goto out;
-	} 
-	if (!sbgp_ipaddr(p, ip, &rng->min, type->value.bit_string)) {
-		X509_WARNX1(p, "sbgp_ipaddr");
-		return 0;
-	}
+	} else if (!sbgp_ipaddr(p, ip, &rng->min, t->value.bit_string))
+		goto out;
 
-	type = sk_ASN1_TYPE_value(seq, 1);
-	if (type->type != V_ASN1_BIT_STRING) {
-		X509_WARNX(p, "%s: want ASN.1 bit string, "
-			"have %s (NID %d)", p->fn,
-			ASN1_tag2str(type->type), type->type);
+	t = sk_ASN1_TYPE_value(seq, 1);
+	if (t->type != V_ASN1_BIT_STRING) {
+		warnx("%s: RFC 3779 section 2.2.3.9: IPAddress: "
+			"want ASN.1 bit string, have %s (NID %d)", 
+			p->fn, ASN1_tag2str(t->type), t->type);
 		goto out;
-	} 
-	if (!sbgp_ipaddr(p, ip, &rng->max, type->value.bit_string)) {
-		X509_WARNX1(p, "sbgp_ipaddr");
-		return 0;
-	} 
+	} else if (!sbgp_ipaddr(p, ip, &rng->max, t->value.bit_string))
+		goto out;
 
 	append_ip(p, ip);
-	X509_LOG(p, "%s: parsed IPv%s address (range)", 
-		p->fn, (ip->afi == 1) ? "4" : "6");
 	rc = 1;
 out:
 	sk_ASN1_TYPE_free(seq);
@@ -826,7 +811,6 @@ out:
 
 /*
  * Parse an IP address or range, RFC 3779 2.2.3.7.
- * Puts results into "res".
  * Returns zero on failure, non-zero on success.
  */
 static int
@@ -835,44 +819,45 @@ sbgp_addr_or_range(struct parse *p, struct cert_ip *ip,
 {
 	struct cert_ip	 	 nip;
 	ASN1_SEQUENCE_ANY	*seq;
-	const ASN1_TYPE		*type;
-	int			 i, rc;
+	const ASN1_TYPE		*t;
+	int			 i, rc = 0;
 
 	if ((seq = d2i_ASN1_SEQUENCE_ANY(NULL, &d, dsz)) == NULL) {
-		X509_WARNX1(p, "d2i_ASN1_SEQUENCE_ANY");
-		return 0;
+		cryptowarnx("%s: RFC 3779 section 2.2.3.7: "
+			"IPAddressOrRange: failed ASN.1 sequence "
+			"parse", p->fn);
+		goto out;
 	}
+
+	/* Either RFC 3779 2.2.3.8 or 2.2.3.9. */
 
 	for (i = 0; i < sk_ASN1_TYPE_num(seq); i++) {
 		nip = *ip;
-		type = sk_ASN1_TYPE_value(seq, i);
-
-		/* Either RFC 3779 2.2.3.8 or 2.2.3.9. */
-
-		if (type->type == V_ASN1_BIT_STRING) {
+		t = sk_ASN1_TYPE_value(seq, i);
+		switch (t->type) {
+		case V_ASN1_BIT_STRING:
 			nip.type = CERT_IP_ADDR;
-			if (!sbgp_addr(p, &nip, type->value.bit_string)) {
-				X509_WARNX1(p, "sbgp_addr");
-				break;
-			}
-		} else if (type->type == V_ASN1_SEQUENCE) {
-			nip.type = CERT_IP_RANGE;
-			d = type->value.asn1_string->data;
-			dsz = type->value.asn1_string->length;
-			if (!sbgp_range(p, &nip, d, dsz)) {
-				X509_WARNX1(p, "sbgp_range");
-				break;
-			}
-		} else {
-			X509_WARNX(p, "%s: want ASN.1 bit string "
-				"or sequence, have %s (NID %d)",
-				p->fn, ASN1_tag2str(type->type),
-				type->type);
+			if (!sbgp_addr(p, &nip, t->value.bit_string))
+				goto out;
 			break;
+		case V_ASN1_SEQUENCE:
+			nip.type = CERT_IP_RANGE;
+			d = t->value.asn1_string->data;
+			dsz = t->value.asn1_string->length;
+			if (!sbgp_range(p, &nip, d, dsz))
+				goto out;
+			break;
+		default:
+			warnx("%s: RFC 3779 section 2.2.3.7: "
+				"IPAddressOrRange: want ASN.1 sequence "
+				"or bit string, have %s (NID %d)", 
+				p->fn, ASN1_tag2str(t->type), t->type);
+			goto out;
 		}
 	}
 
-	rc = (i == sk_ASN1_TYPE_num(seq));
+	rc = 1;
+out:
 	sk_ASN1_TYPE_free(seq);
 	return rc;
 }
