@@ -1,4 +1,5 @@
 #include <assert.h>
+#include <err.h>
 #include <netinet/in.h>
 #include <resolv.h>
 #include <stdio.h>
@@ -17,8 +18,7 @@
  * Returns zero on failure, non-zero on success.
  */
 int
-rsync_uri_parse(int verb, 
-	const char **hostp, size_t *hostsz,
+rsync_uri_parse(const char **hostp, size_t *hostsz,
 	const char **modulep, size_t *modulesz,
 	const char **pathp, size_t *pathsz,
 	enum rtype *rtypep, const char *uri)
@@ -46,7 +46,7 @@ rsync_uri_parse(int verb,
 	/* Case-insensitive rsync URI. */
 
 	if (strncasecmp(uri, "rsync://", 8)) {
-		WARNX(verb, "%s: not using rsync schema", uri);
+		warnx("%s: not using rsync schema", uri);
 		return 0;
 	}
 
@@ -55,10 +55,10 @@ rsync_uri_parse(int verb,
 	host = uri + 8;
 
 	if ((module = strchr(host, '/')) == NULL) {
-		WARNX(verb, "%s: missing rsync module", uri);
+		warnx("%s: missing rsync module", uri);
 		return 0;
 	} else if (module == host) {
-		WARNX(verb, "%s: zero-length rsync host", uri);
+		warnx("%s: zero-length rsync host", uri);
 		return 0;
 	}
 
@@ -70,7 +70,7 @@ rsync_uri_parse(int verb,
 	/* The non-zero-length module follows the hostname. */
 
 	if ('\0' == module[1]) {
-		WARNX(verb, "%s: zero-length rsync module", uri);
+		warnx("%s: zero-length rsync module", uri);
 		return 0;
 	}
 
@@ -88,7 +88,7 @@ rsync_uri_parse(int verb,
 			*modulesz = strlen(module);
 		return 1;
 	} else if (path == module) {
-		WARNX(verb, "%s: zero-length module", uri); 
+		warnx("%s: zero-length module", uri); 
 		return 0;
 	} 
 
@@ -119,12 +119,4 @@ rsync_uri_parse(int verb,
 	}
 
 	return 1;
-}
-
-int
-rsync_uri_check(int verb, const char *uri)
-{
-
-	return rsync_uri_parse
-		(verb, NULL, NULL, NULL, NULL, NULL, NULL, NULL, uri);
 }

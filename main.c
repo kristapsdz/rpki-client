@@ -68,13 +68,12 @@ static void	 proc_rsync(int, int) __attribute__((noreturn));
  * Returns the type of RTYPE_EOF if not found.
  */
 static enum rtype
-rtype_resolve(int verb, const char *uri)
+rtype_resolve(const char *uri)
 {
 	enum rtype	 rp;
 
-	(void)rsync_uri_parse(verb, NULL,
-		NULL, NULL, NULL, NULL, NULL, &rp, uri);
-
+	(void)rsync_uri_parse(NULL, NULL, 
+		NULL, NULL, NULL, NULL, &rp, uri);
 	return rp;
 }
 
@@ -97,13 +96,13 @@ entry_read(int fd, struct entry *ent)
  * Look up a repository, queueing it for discovery if not found.
  */
 static const struct repo *
-repo_lookup(int fd, int verb, struct repotab *rt, const char *uri)
+repo_lookup(int fd, struct repotab *rt, const char *uri)
 {
 	const char	*host, *mod;
 	size_t		 hostsz, modsz, i;
 	struct repo	*rp;
 
-	if (!rsync_uri_parse(verb, &host, &hostsz,
+	if (!rsync_uri_parse(&host, &hostsz,
 	    &mod, &modsz, NULL, NULL, NULL, uri))
 		errx(EXIT_FAILURE, "%s: malformed", uri);
 
@@ -339,9 +338,9 @@ queue_add_from_tal(int proc, int rsync, int verb,
 
 	/* Look up the repository. */
 
-	assert(rtype_resolve(verb, uri) == RTYPE_CER);
+	assert(rtype_resolve(uri) == RTYPE_CER);
 
-	repo = repo_lookup(rsync, verb, rt, uri);
+	repo = repo_lookup(rsync, rt, uri);
 	uri += 8 + strlen(repo->host) + 1 + strlen(repo->module) + 1;
 
 	if (asprintf(&nfile, "%s/%s/%s/%s",
@@ -376,14 +375,14 @@ queue_add_from_cert(int proc, int rsync, int verb,
 	enum rtype	   type;
 	const struct repo *repo;
 
-	if ((type = rtype_resolve(verb, uri)) == RTYPE_EOF)
+	if ((type = rtype_resolve(uri)) == RTYPE_EOF)
 		errx(EXIT_FAILURE, "%s: unknown file type", uri);
 	if (type != RTYPE_MFT)
 		errx(EXIT_FAILURE, "%s: invalid file type", uri);
 
 	/* Look up the repository. */
 
-	repo = repo_lookup(rsync, verb, rt, uri);
+	repo = repo_lookup(rsync, rt, uri);
 	uri += 8 + strlen(repo->host) + 1 + strlen(repo->module) + 1;
 
 	if (asprintf(&nfile, "%s/%s/%s/%s",
