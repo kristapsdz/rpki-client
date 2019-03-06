@@ -49,23 +49,18 @@ main(int argc, char *argv[])
 	argc -= optind;
 
 	if (NULL != cert) {
-		if (NULL == (bio = BIO_new_file(cert, "rb"))) {
-			CRYPTOX(verb, "%s: BIO_new_file", cert);
-			return EXIT_FAILURE;
-		} else if (NULL == (x = d2i_X509_bio(bio, NULL))) {
-			CRYPTOX(verb, "%s: d2i_X509_bio", cert);
-			BIO_free(bio);
-			return EXIT_FAILURE;
-		}
+		if (NULL == (bio = BIO_new_file(cert, "rb")))
+			cryptoerrx("%s: BIO_new_file", cert);
+		if (NULL == (x = d2i_X509_bio(bio, NULL)))
+			cryptoerrx("%s: d2i_X509_bio", cert);
 		BIO_free(bio);
-		LOG(verb, "%s: attached certificate", cert);
 	}
 
 	for (i = 0; i < (size_t)argc; i++) {
-		p = mft_parse(x, argv[i]);
-		if (NULL == p)
+		if ((p = mft_parse(x, argv[i])) == NULL)
 			break;
-		mft_print(p);
+		if (verb)
+			mft_print(p);
 		mft_free(p);
 	}
 

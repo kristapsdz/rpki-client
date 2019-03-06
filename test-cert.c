@@ -111,16 +111,11 @@ main(int argc, char *argv[])
 	argc -= optind;
 
 	if (NULL != cert) {
-		if (NULL == (bio = BIO_new_file(cert, "rb"))) {
-			CRYPTOX(verb, "%s: BIO_new_file", cert);
-			return EXIT_FAILURE;
-		} else if (NULL == (x = d2i_X509_bio(bio, NULL))) {
-			CRYPTOX(verb, "%s: d2i_X509_bio", cert);
-			BIO_free(bio);
-			return EXIT_FAILURE;
-		}
+		if ((bio = BIO_new_file(cert, "rb")) == NULL)
+			cryptoerrx("%s: BIO_new_file", cert);
+		if ((x = d2i_X509_bio(bio, NULL)) == NULL)
+			cryptoerrx("%s: d2i_X509_bio", cert);
 		BIO_free(bio);
-		LOG(verb, "%s: attached certificate", cert);
 	}
 
 	for (i = 0; i < (size_t)argc; i++) {

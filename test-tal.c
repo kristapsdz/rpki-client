@@ -42,9 +42,10 @@ main(int argc, char *argv[])
 	argc -= optind;
 
 	for (i = 0; i < (size_t)argc; i++) {
-		if (NULL == (tal = tal_parse(argv[i])))
+		if ((tal = tal_parse(argv[i])) == NULL)
 			break;
-		tal_print(tal);
+		if (verb)
+			tal_print(tal);
 		tal_free(tal);
 	}
 
