@@ -19,12 +19,14 @@
 static struct tal *
 tal_parse_stream(const char *fn, FILE *f)
 {
-	char		*line = NULL, *b64 = NULL;
+	char		*line = NULL;
+	unsigned char	*b64 = NULL;
 	size_t		 sz, b64sz = 0, linesize = 0, lineno = 0;
 	ssize_t		 linelen, ssz;
 	int		 rc = 0;
 	struct tal	*tal = NULL;
 	enum rtype	 rp;
+	EVP_PKEY	*pkey = NULL;
 
 	if ((tal = calloc(1, sizeof(struct tal))) == NULL)
 		err(EXIT_FAILURE, NULL);
@@ -64,7 +66,8 @@ tal_parse_stream(const char *fn, FILE *f)
 			goto out;
 
 		if (rp != RTYPE_CER) {
-			warnx("%s: not a certificate", line);
+			warnx("%s: RFC 7730 section 2.1: "
+				"not a certificate URL: %s", fn, line);
 			goto out;
 		}
 	}
@@ -112,15 +115,25 @@ tal_parse_stream(const char *fn, FILE *f)
 		err(EXIT_FAILURE, "%s: getline", fn);
 
 	if (b64sz == 0) {
-		warnx("%s: zero-length public key", fn);
+		warnx("%s: RFC 7730 section 2.1: "
+			"subjectPublicKeyInfo: "
+			"zero-length public key", fn);
 		goto out;
 	}
 
-	/* FIXME: try converting into an encoded public key. */
-
 	tal->pkey = b64;
 	tal->pkeysz = b64sz;
+
+	/* Make sure it's a valid public key. */
+
+	pkey = d2i_PUBKEY(NULL, (const unsigned char **)&b64, b64sz);
 	b64 = NULL;
+	if (pkey == NULL) {
+		cryptowarnx("%s: RFC 7730 section 2.1: "
+			"subjectPublicKeyInfo: "
+			"failed public key parse", fn);
+		goto out;
+	}
 	rc = 1;
 out:
 	free(line);
@@ -129,6 +142,7 @@ out:
 		tal_free(tal);
 		tal = NULL;
 	}
+	EVP_PKEY_free(pkey);
 	return tal;
 }
 
