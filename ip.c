@@ -1,9 +1,7 @@
 #include <sys/socket.h>
 
-#include <arpa/inet.h>
 #include <assert.h>
 #include <err.h>
-#include <inttypes.h>
 #include <stdarg.h>
 #include <stdlib.h>
 #include <string.h>
@@ -18,7 +16,7 @@
  * Return zero on failure, non-zero on success.
  */
 int
-ip_addrfamily(const ASN1_OCTET_STRING *p, uint16_t *afi)
+ip_addr_afi_parse(const ASN1_OCTET_STRING *p, uint16_t *afi)
 {
 	char	 buf[2];
 
@@ -46,8 +44,8 @@ ip_addrfamily(const ASN1_OCTET_STRING *p, uint16_t *afi)
  * Return zero on failure, non-zero on success.
  */
 int
-ip_addr(const ASN1_BIT_STRING *p,
-	uint16_t afi, struct cert_ip_addr *addr)
+ip_addr_parse(const ASN1_BIT_STRING *p,
+	uint16_t afi, struct ip_addr *addr)
 {
 	long	 unused = 0;
 
@@ -74,7 +72,7 @@ ip_addr(const ASN1_BIT_STRING *p,
  * the same).
  */
 static void
-ip4_addr2str(const struct cert_ip_addr *addr,
+ip4_addr2str(const struct ip_addr *addr,
 	char *b, size_t bsz, unsigned char fill)
 {
 	size_t	 pos = 0, i;
@@ -100,7 +98,7 @@ ip4_addr2str(const struct cert_ip_addr *addr,
  * Convert the IPv6 address into CIDR notation.
  */
 static void
-ip6_addr2str(const struct cert_ip_addr *addr,
+ip6_addr2str(const struct ip_addr *addr,
 	char *b, size_t bsz, unsigned char fill)
 {
 	size_t	 i, sz, pos = 0;
@@ -138,12 +136,12 @@ ip6_addr2str(const struct cert_ip_addr *addr,
 }
 
 /*
- * Convert a cert_ip_addr into a NUL-terminated CIDR notation string.
+ * Convert a ip_addr into a NUL-terminated CIDR notation string.
  * The size of the buffer must be at least 64.
  * The AFI must be 1 (IPv4) or 2 (IPv6).
  */
 void
-ip_addr2str(const struct cert_ip_addr *addr,
+ip_addr_print(const struct ip_addr *addr,
 	uint16_t afi, char *buf, size_t bufsz)
 {
 
@@ -154,12 +152,12 @@ ip_addr2str(const struct cert_ip_addr *addr,
 }
 
 /*
- * Convert a cert_ip_addr into a NUL-terminated CIDR notation string.
+ * Convert a ip_addr into a NUL-terminated CIDR notation string.
  * The size of the buffer must be at least 64.
  * The AFI must be 1 (IPv4) or 2 (IPv6).
  */
 void
-ip_addrrange2str(const struct cert_ip_addr *addr,
+ip_addr_range_print(const struct ip_addr *addr,
 	uint16_t afi, char *buf, size_t bufsz, int min)
 {
 
@@ -167,4 +165,33 @@ ip_addrrange2str(const struct cert_ip_addr *addr,
 		ip4_addr2str(addr, buf, bufsz, min ? 0 : 1);
 	else
 		ip6_addr2str(addr, buf, bufsz, min ? 0 : 1);
+}
+
+/*
+ * Serialise an ip_addr for sending over the wire.
+ * Matched with ip_addr_read().
+ */
+void
+ip_addr_buffer(char **b, size_t *bsz,
+	size_t *bmax, const struct ip_addr *p)
+{
+
+	simple_buffer(b, bsz, bmax, &p->sz, sizeof(size_t));
+	assert(p->sz <= 16);
+	simple_buffer(b, bsz, bmax, p->addr, p->sz);
+	simple_buffer(b, bsz, bmax, &p->unused, sizeof(long));
+}
+
+/*
+ * Read an ip_addr from the wire.
+ * Matched with ip_addr_buffer().
+ */
+void
+ip_addr_read(int fd, struct ip_addr *p)
+{
+
+	simple_read(fd, &p->sz, sizeof(size_t));
+	assert(p->sz <= 16);
+	simple_read(fd, p->addr, p->sz);
+	simple_read(fd, &p->unused, sizeof(long));
 }

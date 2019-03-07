@@ -13,12 +13,12 @@
 static void
 test(const char *res, uint16_t afi, size_t sz, size_t unused, ...)
 {
-	va_list	 	    ap;
-	struct cert_ip_addr addr;
-	char		    buf[64];
-	size_t		    i;
+	va_list		 ap;
+	struct ip_addr	 addr;
+	char		 buf[64];
+	size_t		 i;
 
-	memset(&addr, 0, sizeof(struct cert_ip_addr));
+	memset(&addr, 0, sizeof(struct ip_addr));
 
 	va_start(ap, unused);
 	for (i = 0; i < sz - 1; i++) 
@@ -27,7 +27,7 @@ test(const char *res, uint16_t afi, size_t sz, size_t unused, ...)
 
 	addr.sz = sz - 1;
 	addr.unused = unused;
-	ip_addr2str(&addr, afi, buf, sizeof(buf));
+	ip_addr_print(&addr, afi, buf, sizeof(buf));
 	if (res != NULL && strcmp(res, buf)) 
 		errx(EXIT_FAILURE, "fail: %s != %s\n", res, buf);
 	else if (res != NULL)

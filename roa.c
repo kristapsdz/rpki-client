@@ -31,7 +31,7 @@ roa_parse_addr(const ASN1_OCTET_STRING *os,
 	int			 rc = 0;
 	const ASN1_TYPE		*t;
 	const ASN1_INTEGER	*maxlength = NULL;
-	struct cert_ip_addr	 addr;
+	struct ip_addr	 	 addr;
 	struct roa_ip		*res;
 
 	if ((seq = d2i_ASN1_SEQUENCE_ANY(NULL, &d, dsz)) == NULL) {
@@ -56,7 +56,7 @@ roa_parse_addr(const ASN1_OCTET_STRING *os,
 			"want ASN.1 bit string, have %s (NID %d)", 
 			p->fn, ASN1_tag2str(t->type), t->type);
 		goto out;
-	} else if (!ip_addr(t->value.bit_string, afi, &addr)) {
+	} else if (!ip_addr_parse(t->value.bit_string, afi, &addr)) {
 		warnx("%s: RFC 6482 section 3.3: "
 			"address: invalid", p->fn);
 		goto out;
@@ -136,7 +136,7 @@ roa_parse_ipfam(const ASN1_OCTET_STRING *os, struct parse *p)
 			"octet string, have %s (NID %d)", 
 			p->fn, ASN1_tag2str(t->type), t->type);
 		goto out;
-	} else if (!ip_addrfamily(t->value.octet_string, &afi)) {
+	} else if (!ip_addr_afi_parse(t->value.octet_string, &afi)) {
 		warnx("%s: RFC 6482 section 3.3: "
 			"addressFamily: invalid", p->fn);
 		goto out;

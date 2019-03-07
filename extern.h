@@ -31,7 +31,7 @@ struct	cert_as {
  * An IP address as parsed from a RFC 3779 document.
  * This may either be IPv4 or IPv6.
  */
-struct	cert_ip_addr {
+struct	ip_addr {
 	size_t		 sz; /* length of valid bytes */
 	unsigned char	 addr[16]; /* binary address prefix */
 	long		 unused; /* unused bits in last byte */
@@ -42,8 +42,8 @@ struct	cert_ip_addr {
  * its way to the maximum.
  */
 struct	cert_ip_rng {
-	struct cert_ip_addr min; /* minimum ip */
-	struct cert_ip_addr max; /* maximum ip */
+	struct ip_addr min; /* minimum ip */
+	struct ip_addr max; /* maximum ip */
 };
 
 enum	cert_ip_type {
@@ -113,9 +113,9 @@ struct	mft {
 };
 
 struct	roa_ip {
-	uint16_t	    afi; /* AFI value (1 or 2) */
-	size_t		    maxlength; /* max length or zero */
-	struct cert_ip_addr addr;
+	uint16_t	 afi; /* AFI value (1 or 2) */
+	size_t		 maxlength; /* max length or zero */
+	struct ip_addr	 addr;
 };
 
 struct	roa {
@@ -165,10 +165,14 @@ struct roa	*roa_read(int);
 const ASN1_OCTET_STRING
  		*cms_parse_validate(X509 *, const char *,
 			const char *, const unsigned char *);
-int		 ip_addrfamily(const ASN1_OCTET_STRING *, uint16_t *);
-int		 ip_addr(const ASN1_BIT_STRING *, uint16_t, struct cert_ip_addr *);
-void		 ip_addr2str(const struct cert_ip_addr *, uint16_t, char *, size_t);
-void		 ip_addrrange2str(const struct cert_ip_addr *, uint16_t, char *, size_t, int);
+
+int		 ip_addr_afi_parse(const ASN1_OCTET_STRING *, uint16_t *);
+int		 ip_addr_parse(const ASN1_BIT_STRING *, uint16_t, struct ip_addr *);
+void		 ip_addr_print(const struct ip_addr *, uint16_t, char *, size_t);
+void		 ip_addr_range_print(const struct ip_addr *, uint16_t, char *, size_t, int);
+void		 ip_addr_buffer(char **, size_t *, size_t *, const struct ip_addr *);
+void	 	 ip_addr_read(int, struct ip_addr *);
+
 int	 	 rsync_uri_parse(const char **, size_t *,
 			const char **, size_t *, const char **, size_t *,
 			enum rtype *, const char *);

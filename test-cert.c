@@ -54,14 +54,14 @@ cert_print(const struct cert *p)
 			fprintf(stderr, "%5zu: IP: inherit\n", i + 1);
 			break;
 		case CERT_IP_ADDR:
-			ip_addr2str(&p->ips[i].range.min, 
+			ip_addr_print(&p->ips[i].range.min, 
 				p->ips[i].afi, buf1, sizeof(buf1));
 			fprintf(stderr, "%5zu: IP: %s\n", i + 1, buf1);
 			break;
 		case CERT_IP_RANGE:
-			ip_addrrange2str(&p->ips[i].range.min, 
+			ip_addr_range_print(&p->ips[i].range.min, 
 				p->ips[i].afi, buf1, sizeof(buf1), 0);
-			ip_addrrange2str(&p->ips[i].range.max, 
+			ip_addr_range_print(&p->ips[i].range.max, 
 				p->ips[i].afi, buf2, sizeof(buf2), 1);
 			fprintf(stderr, "%5zu: IP: %s--%s\n", i + 1, buf1, buf2);
 			break;

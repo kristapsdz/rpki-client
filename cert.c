@@ -79,7 +79,7 @@ append_as(struct parse *p, const struct cert_as *as)
  */
 static int
 sbgp_ipaddr(struct parse *p, const struct cert_ip *ip,
-	struct cert_ip_addr *addr, const ASN1_BIT_STRING *bs)
+	struct ip_addr *addr, const ASN1_BIT_STRING *bs)
 {
 	long			 unused = 0;
 	const unsigned char	*d;
@@ -915,7 +915,7 @@ sbgp_ipaddrfam(struct parse *p, const unsigned char *d, size_t dsz)
 	} 
 
 	ip.has_safi = 0;
-	if (!ip_addrfamily(t->value.octet_string, &ip.afi)) {
+	if (!ip_addr_afi_parse(t->value.octet_string, &ip.afi)) {
 		warnx("%s: bad address family", p->fn);
 		goto out;
 	}
@@ -1188,17 +1188,6 @@ cert_free(struct cert *p)
 }
 
 static void
-cert_ip_addr_buffer(char **b, size_t *bsz,
-	size_t *bmax, const struct cert_ip_addr *p)
-{
-
-	simple_buffer(b, bsz, bmax, &p->sz, sizeof(size_t));
-	assert(p->sz <= 16);
-	simple_buffer(b, bsz, bmax, p->addr, p->sz);
-	simple_buffer(b, bsz, bmax, &p->unused, sizeof(long));
-}
-
-static void
 cert_ip_buffer(char **b, size_t *bsz,
 	size_t *bmax, const struct cert_ip *p)
 {
@@ -1206,8 +1195,8 @@ cert_ip_buffer(char **b, size_t *bsz,
 	simple_buffer(b, bsz, bmax, &p->afi, sizeof(uint16_t));
 	simple_buffer(b, bsz, bmax, &p->safi, sizeof(uint8_t));
 	simple_buffer(b, bsz, bmax, &p->has_safi, sizeof(int));
-	cert_ip_addr_buffer(b, bsz, bmax, &p->range.min);
-	cert_ip_addr_buffer(b, bsz, bmax, &p->range.max);
+	ip_addr_buffer(b, bsz, bmax, &p->range.min);
+	ip_addr_buffer(b, bsz, bmax, &p->range.max);
 }
 
 static void
@@ -1248,24 +1237,14 @@ cert_buffer(char **b, size_t *bsz, size_t *bmax, const struct cert *p)
 }
 
 static void
-cert_ip_addr_read(int fd, struct cert_ip_addr *p)
-{
-
-	simple_read(fd, &p->sz, sizeof(size_t));
-	assert(p->sz <= 16);
-	simple_read(fd, p->addr, p->sz);
-	simple_read(fd, &p->unused, sizeof(long));
-}
-
-static void
 cert_ip_read(int fd, struct cert_ip *p)
 {
 
 	simple_read(fd, &p->afi, sizeof(uint16_t));
 	simple_read(fd, &p->safi, sizeof(uint8_t));
 	simple_read(fd, &p->has_safi, sizeof(int));
-	cert_ip_addr_read(fd, &p->range.min);
-	cert_ip_addr_read(fd, &p->range.max);
+	ip_addr_read(fd, &p->range.min);
+	ip_addr_read(fd, &p->range.max);
 }
 
 static void
