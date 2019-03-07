@@ -1,6 +1,5 @@
 #include <sys/socket.h>
 
-#include <arpa/inet.h>
 #include <assert.h>
 #include <err.h>
 #include <inttypes.h>
@@ -19,7 +18,6 @@ cert_print(const struct cert *p)
 {
 	size_t		 i;
 	char		 buf1[128], buf2[128];
-	const char	*cp1, *cp2;
 
 	assert(NULL != p);
 
@@ -35,50 +33,37 @@ cert_print(const struct cert *p)
 	for (i = 0; i < p->asz; i++)
 		switch (p->as[i].type) {
 		case CERT_AS_ID:
-			fprintf(stderr, 
-				"%5zu: AS%s: %" PRIu32 "\n", i + 1, 
-				p->as[i].rdi ? " (rdi)" : "", 
-				p->as[i].id);
+			fprintf(stderr, "%5zu: AS%s: %" PRIu32 "\n", i + 1, 
+				p->as[i].rdi ? " (rdi)" : "", p->as[i].id);
 			break;
 		case CERT_AS_NULL:
-			fprintf(stderr,
-				"%5zu: AS%s: inherit\n", i + 1, 
+			fprintf(stderr, "%5zu: AS%s: inherit\n", i + 1, 
 				p->as[i].rdi ? " (rdi)" : "");
 			break;
 		case CERT_AS_RANGE:
 			fprintf(stderr,
-				"%5zu: AS%s: %" PRIu32 
-				" -- %" PRIu32 "\n", i + 1, 
-				p->as[i].rdi ? " (rdi)" : "", 
-				p->as[i].range.min, 
-				p->as[i].range.max);
+				"%5zu: AS%s: %" PRIu32 "--%" PRIu32 "\n", 
+				i + 1, p->as[i].rdi ? " (rdi)" : "", 
+				p->as[i].range.min, p->as[i].range.max);
 			break;
 		}
 
 	for (i = 0; i < p->ipsz; i++)
 		switch (p->ips[i].type) {
 		case CERT_IP_INHERIT:
-			fprintf(stderr, 
-				"%5zu: IPv%s: inherit\n", i + 1, 
-				1 == p->ips[i].afi ? "4" : "6");
+			fprintf(stderr, "%5zu: IP: inherit\n", i + 1);
 			break;
 		case CERT_IP_ADDR:
-			/* FALLTHROUGH */
+			ip_addr2str(&p->ips[i].range.min, 
+				p->ips[i].afi, buf1, sizeof(buf1));
+			fprintf(stderr, "%5zu: IP: %s\n", i + 1, buf1);
+			break;
 		case CERT_IP_RANGE:
-			cp1 = inet_ntop(1 == p->ips[i].afi ? 
-				AF_INET : AF_INET6,
-				p->ips[i].range.min.addr, 
-				buf1, sizeof(buf1));
-			cp2 = inet_ntop(1 == p->ips[i].afi ? 
-				AF_INET : AF_INET6,
-				p->ips[i].range.max.addr, 
-				buf2, sizeof(buf2));
-			if (NULL == cp1 || NULL == cp2)
-				continue;
-			fprintf(stderr, 
-				"%5zu: IPv%s: %s -- %s\n", i + 1, 
-				1 == p->ips[i].afi ? "4" : "6",
-				cp1, cp2);
+			ip_addrrange2str(&p->ips[i].range.min, 
+				p->ips[i].afi, buf1, sizeof(buf1), 0);
+			ip_addrrange2str(&p->ips[i].range.max, 
+				p->ips[i].afi, buf2, sizeof(buf2), 1);
+			fprintf(stderr, "%5zu: IP: %s--%s\n", i + 1, buf1, buf2);
 			break;
 		}
 }
