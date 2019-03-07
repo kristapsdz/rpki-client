@@ -9,11 +9,13 @@ OBJS	 = cms.o \
 	   cert.o
 ALLOBJS	 = $(OBJS) \
 	   main.o \
+	   test-ip.o \
 	   test-mft.o \
 	   test-roa.o \
 	   test-tal.o \
 	   test-cert.o
 BINS	 = rpki-client \
+	   test-ip \
 	   test-mft \
 	   test-roa \
 	   test-tal \
@@ -31,6 +33,9 @@ rpki-client: $(OBJS) main.o
 
 test-tal: $(OBJS) test-tal.o
 	$(CC) -o $@ test-tal.o $(OBJS) $(LDFLAGS) $(LDADD)
+
+test-ip: $(OBJS) test-ip.o
+	$(CC) -o $@ test-ip.o $(OBJS) $(LDFLAGS) $(LDADD)
 
 test-mft: $(OBJS) test-mft.o
 	$(CC) -o $@ test-mft.o $(OBJS) $(LDFLAGS) $(LDADD)

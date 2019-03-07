@@ -33,7 +33,7 @@ struct	cert_as {
  */
 struct	cert_ip_addr {
 	size_t		 sz; /* length of valid bytes */
-	char		 addr[16]; /* binary address prefix */
+	unsigned char	 addr[16]; /* binary address prefix */
 	long		 unused; /* unused bits in last byte */
 };
 
@@ -167,6 +167,8 @@ const ASN1_OCTET_STRING
 			const char *, const unsigned char *);
 int		 ip_addrfamily(const ASN1_OCTET_STRING *, uint16_t *);
 int		 ip_addr(const ASN1_BIT_STRING *, uint16_t, struct cert_ip_addr *);
+void		 ip_addr2str(const struct cert_ip_addr *, uint16_t, char *, size_t);
+void		 ip_addrrange2str(const struct cert_ip_addr *, uint16_t, char *, size_t, int);
 int	 	 rsync_uri_parse(const char **, size_t *,
 			const char **, size_t *, const char **, size_t *,
 			enum rtype *, const char *);
