@@ -19,7 +19,7 @@
 .Os
 .Sh NAME
 .Nm rpki-client
-.Nd produce verified route announcements
+.Nd verifies route announcements
 .Sh SYNOPSIS
 .Nm
 .Op Fl v
@@ -27,7 +27,17 @@
 .Sh DESCRIPTION
 The
 .Nm
-utility processes files ...
+utility verifies all route announcements starting with a trust anchor.
+It uses
+.Xr rsync 1
+to fetch certificates, manifests, and route announcements themselves.
+Its arguments are as follows:
+.Bl -tag -width Ds
+.It Fl v
+Prints information about status.
+.It Ar tal
+A trust anchor locator (TAL) file.
+.El
 .\" The following requests should be uncommented and used where appropriate.
 .\" .Sh CONTEXT
 .\" For section 9 functions only.
@@ -43,12 +53,12 @@ utility processes files ...
 .\" For sections 1, 4, 6, 7, 8, and 9 printf/stderr messages only.
 .\" .Sh ERRORS
 .\" For sections 2, 3, 4, and 9 errno settings only.
-.\" .Sh SEE ALSO
-.\" .Xr foobar 1
+.Sh SEE ALSO
+.Xr rsync 1
 .Sh STANDARDS
 The following standards are used or referenced in
 .Nm :
-.Bl -tag -width -Ds -compact
+.Bl -tag -width -Ds
 .It RFC 3370
 Cryptographic Message Syntax (CMS) Algorithms.
 .It RFC 3770
