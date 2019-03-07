@@ -20,7 +20,7 @@ roa_print(const struct roa *p)
 	assert(p != NULL);
 	fprintf(stderr, "asID: %" PRIu32 "\n", p->asid);
 	for (i = 0; i < p->ipsz; i++) {
-		ip_addr2str(&p->ips[i].addr, 
+		ip_addr_print(&p->ips[i].addr, 
 			p->ips[i].afi, buf, sizeof(buf));
 		fprintf(stderr, "%5zu: %s (max: %zu)\n", i + 1, 
 			buf, p->ips[i].maxlength);
