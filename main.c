@@ -22,25 +22,34 @@
  */
 #define	BASE_DIR "/tmp/rpki-client"
 
+/*
+ * Statistics collected during run-time.
+ */
 struct	stats {
-	size_t	 tals;
-	size_t	 mfts;
-	size_t	 mfts_stale;
-	size_t	 certs;
-	size_t	 roas;
-	size_t	 repos;
+	size_t	 tals; /* total number of locators */
+	size_t	 mfts; /* total number of manifests */
+	size_t	 mfts_stale; /* stale manifests */
+	size_t	 certs; /* certificates */
+	size_t	 roas; /* route announcements */
+	size_t	 repos; /* repositories */
 };
 
+/*
+ * An rsync repository.
+ */
 struct	repo {
-	char	*host;
-	char	*module;
-	int	 loaded;
-	size_t	 id;
+	char	*host; /* hostname */
+	char	*module; /* module name */
+	int	 loaded; /* whether loaded or not */
+	size_t	 id; /* identifier (array index) */
 };
 
+/*
+ * Table of all known repositories.
+ */
 struct	repotab {
-	struct repo	*repos;
-	size_t		 reposz;
+	struct repo	*repos; /* repositories */
+	size_t		 reposz; /* number of repos */
 };
 
 /*
@@ -48,11 +57,14 @@ struct	repotab {
  * and parsed.
  */
 struct	entry {
-	enum rtype	   type; /* type of entry (not RTYPE_EOF/CRL) */
-	char		  *uri; /* file or rsync:// URI */
-	int		   has_dgst; /* whether dgst is specified */
-	unsigned char	   dgst[SHA256_DIGEST_LENGTH]; /* optional */
-	ssize_t		   repo; /* repo index or <0 if w/o repo */
+	enum rtype	 type; /* type of entry (not RTYPE_EOF/CRL) */
+	char		*uri; /* file or rsync:// URI */
+	int		 has_dgst; /* whether dgst is specified */
+	unsigned char	 dgst[SHA256_DIGEST_LENGTH]; /* optional */
+	ssize_t		 repo; /* repo index or <0 if w/o repo */
+	int		 has_pkey; /* whether pkey/sz is specified */
+	unsigned char	*pkey; /* public key (optional) */
+	size_t		 pkeysz; /* public key length (optional) */
 	TAILQ_ENTRY(entry) entries;
 };
 
@@ -62,7 +74,7 @@ TAILQ_HEAD(entryq, entry);
  * Mark that our subprocesses will never return.
  */
 static void	 proc_parser(int) __attribute__((noreturn));
-static void	 proc_rsync(int) __attribute__((noreturn));
+static void	 proc_rsync(int, int) __attribute__((noreturn));
 
 /*
  * Resolve the media type of a resource by looking at its suffice.
@@ -79,6 +91,30 @@ rtype_resolve(const char *uri)
 }
 
 /*
+ * FIXME: this shouldn't be necessary.
+ * It's here because we write back the full entry when responding to
+ * events, but we should only do an identifier like the repo does.
+ */
+static void
+entry_freeup(struct entry *ent)
+{
+
+	if (ent == NULL)
+		return;
+
+	free(ent->pkey);
+	free(ent->uri);
+}
+
+static void
+entry_free(struct entry *ent)
+{
+
+	entry_freeup(ent);
+	free(ent);
+}
+
+/*
  * Read a queue entry from the descriptor.
  * The entry's contents must be freed.
  */
@@ -90,7 +126,11 @@ entry_read(int fd, struct entry *ent)
 	simple_read(fd, &ent->type, sizeof(enum rtype));
 	str_read(fd, &ent->uri);
 	simple_read(fd, &ent->has_dgst, sizeof(int));
-	simple_read(fd, ent->dgst, sizeof(ent->dgst));
+	if (ent->has_dgst)
+		simple_read(fd, ent->dgst, sizeof(ent->dgst));
+	simple_read(fd, &ent->has_pkey, sizeof(int));
+	if (ent->has_pkey)
+		buf_read_alloc(fd, (void **)&ent->pkey, &ent->pkeysz);
 }
 
 /*
@@ -154,6 +194,8 @@ entryq_next(int fd, struct entryq *q)
 	struct entry	 ent;
 	struct entry	*entp;
 
+	/* FIXME: see entry_freeup() note. */
+
 	entry_read(fd, &ent);
 
 	TAILQ_FOREACH(entp, q, entries)
@@ -164,7 +206,7 @@ entryq_next(int fd, struct entryq *q)
 		}
 
 	assert(entp != NULL);
-	free(ent.uri);
+	entry_freeup(&ent);
 	return entp;
 }
 
@@ -179,20 +221,26 @@ entry_buffer(char **b, size_t *bsz,
 	simple_buffer(b, bsz, bmax, &ent->type, sizeof(enum rtype));
 	str_buffer(b, bsz, bmax, ent->uri);
 	simple_buffer(b, bsz, bmax, &ent->has_dgst, sizeof(int));
-	simple_buffer(b, bsz, bmax, ent->dgst, sizeof(ent->dgst));
+	if (ent->has_dgst)
+		simple_buffer(b, bsz, bmax, ent->dgst, sizeof(ent->dgst));
+	simple_buffer(b, bsz, bmax, &ent->has_pkey, sizeof(int));
+	if (ent->has_pkey)
+		buf_buffer(b, bsz, bmax, ent->pkey, ent->pkeysz);
 }
 
 /*
  * Write the queue entry.
+ * Simply a wrapper around entry_buffer().
  */
 static void
 entry_write(int fd, const struct entry *ent)
 {
+	char	*b = NULL;
+	size_t	 bsz = 0, bmax = 0;
 
-	simple_write(fd, &ent->type, sizeof(enum rtype));
-	str_write(fd, ent->uri);
-	simple_write(fd, &ent->has_dgst, sizeof(int));
-	simple_write(fd, ent->dgst, sizeof(ent->dgst));
+	entry_buffer(&b, &bsz, &bmax, ent);
+	simple_write(fd, b, bsz);
+	free(b);
 }
 
 /*
@@ -218,7 +266,8 @@ entryq_flush(int fd, int verb,
 static void
 entryq_add(int fd, int verb, struct entryq *q,
 	char *file, enum rtype type, const struct repo *rp,
-	const unsigned char *dgst)
+	const unsigned char *dgst, const unsigned char *pkey,
+	size_t pkeysz)
 {
 	struct entry	*p;
 
@@ -227,10 +276,17 @@ entryq_add(int fd, int verb, struct entryq *q,
 
 	p->type = type;
 	p->uri = file;
-	p->repo = NULL != rp ? rp->id : -1;
+	p->repo = (NULL != rp) ? rp->id : -1;
 	p->has_dgst = dgst != NULL;
+	p->has_pkey = pkey != NULL;
 	if (p->has_dgst)
 		memcpy(p->dgst, dgst, sizeof(p->dgst));
+	if (p->has_pkey) {
+		p->pkeysz = pkeysz;
+		if ((p->pkey = malloc(pkeysz)) == NULL)
+			err(EXIT_FAILURE, NULL);
+		memcpy(p->pkey, pkey, pkeysz);
+	}
 	TAILQ_INSERT_TAIL(q, p, entries);
 
 	/* 
@@ -290,7 +346,7 @@ queue_add_from_mft(int fd, int verb, struct entryq *q,
 	 * that the repository has already been loaded.
 	 */
 
-	entryq_add(fd, verb, q, nfile, type, NULL, file->hash);
+	entryq_add(fd, verb, q, nfile, type, NULL, file->hash, NULL, 0);
 }
 
 /*
@@ -319,15 +375,15 @@ queue_add_tal(int fd, int verb, struct entryq *q, const char *file)
 
 	/* Not in a repository, so directly add to queue. */
 
-	entryq_add(fd, verb, q, nfile, RTYPE_TAL, NULL, NULL);
+	entryq_add(fd, verb, q, nfile, RTYPE_TAL, NULL, NULL, NULL, 0);
 }
 
 /*
  * Add rsync URIs (CER) from a TAL file, RFC 7730.
  */
 static void
-queue_add_from_tal(int proc, int rsync, int verb,
-	struct entryq *q, const char *uri, struct repotab *rt)
+queue_add_from_tal(int proc, int rsync, int verb, struct entryq *q,
+	const struct tal *tal, const char *uri, struct repotab *rt)
 {
 	char		  *nfile;
 	const struct repo *repo;
@@ -335,7 +391,6 @@ queue_add_from_tal(int proc, int rsync, int verb,
 	/* Look up the repository. */
 
 	assert(rtype_resolve(uri) == RTYPE_CER);
-
 	repo = repo_lookup(rsync, verb, rt, uri);
 	uri += 8 + strlen(repo->host) + 1 + strlen(repo->module) + 1;
 
@@ -343,7 +398,8 @@ queue_add_from_tal(int proc, int rsync, int verb,
 	    BASE_DIR, repo->host, repo->module, uri) < 0)
 		err(EXIT_FAILURE, NULL);
 
-	entryq_add(proc, verb, q, nfile, RTYPE_CER, repo, NULL);
+	entryq_add(proc, verb, q, nfile, RTYPE_CER,
+		repo, NULL, tal->pkey, tal->pkeysz);
 }
 
 /*
@@ -356,7 +412,8 @@ queue_add_from_tal_set(int proc, int rsync, int verb,
 	size_t	 i;
 
 	for (i = 0; i < tal->urisz; i++)
-		queue_add_from_tal(proc, rsync, verb, q, tal->uri[i], rt);
+		queue_add_from_tal(proc, rsync,
+			verb, q, tal, tal->uri[i], rt);
 }
 
 /*
@@ -384,7 +441,7 @@ queue_add_from_cert(int proc, int rsync, int verb,
 	    BASE_DIR, repo->host, repo->module, uri) < 0)
 		err(EXIT_FAILURE, NULL);
 
-	entryq_add(proc, verb, q, nfile, type, repo, NULL);
+	entryq_add(proc, verb, q, nfile, type, repo, NULL, NULL, 0);
 }
 
 /*
@@ -396,7 +453,7 @@ queue_add_from_cert(int proc, int rsync, int verb,
  * FIXME: this should use buffered output to prevent deadlocks.
  */
 static void
-proc_rsync(int fd)
+proc_rsync(int fd, int noop)
 {
 	size_t	 id, i;
 	ssize_t	 ssz;
@@ -420,6 +477,11 @@ proc_rsync(int fd)
 
 		str_read(fd, &host);
 		str_read(fd, &mod);
+
+		if (noop) {
+			simple_write(fd, &id, sizeof(size_t));
+			continue;
+		}
 
 		/* Create source and destination locations. */
 
@@ -574,15 +636,22 @@ proc_parser(int fd)
 		switch (entp->type) {
 		case RTYPE_TAL:
 			assert(!entp->has_dgst);
-			tal = tal_parse(entp->uri);
-			if (tal == NULL)
+			if ((tal = tal_parse(entp->uri)) == NULL)
 				goto out;
 			tal_buffer(&b, &bsz, &bmax, tal);
 			tal_free(tal);
 			break;
 		case RTYPE_CER:
-			x = cert_parse(NULL, entp->uri,
-				entp->has_dgst ? entp->dgst : NULL);
+			/* 
+			 * We get certificates from either manifests or
+			 * TAL files.
+			 * These have digests or public keys.
+			 */
+			assert(entp->has_dgst || entp->has_pkey);
+			x = cert_parse(entp->uri,
+				entp->has_dgst ? entp->dgst : NULL,
+				entp->has_pkey ? entp->pkey : NULL,
+				entp->has_pkey ? entp->pkeysz : 0);
 			if (x == NULL)
 				goto out;
 			cert_buffer(&b, &bsz, &bmax, x);
@@ -609,16 +678,14 @@ proc_parser(int fd)
 		}
 
 		TAILQ_REMOVE(&q, entp, entries);
-		free(entp->uri);
-		free(entp);
+		entry_free(entp);
 	}
 
 	rc = 1;
 out:
 	while ((entp = TAILQ_FIRST(&q)) != NULL) {
 		TAILQ_REMOVE(&q, entp, entries);
-		free(entp->uri);
-		free(entp);
+		entry_free(entp);
 	}
 	exit(rc ? EXIT_SUCCESS : EXIT_FAILURE);
 }
@@ -674,7 +741,7 @@ int
 main(int argc, char *argv[])
 {
 	int		  rc = 0, c, verb = 0, proc, st, rsync,
-			  fl = SOCK_STREAM | SOCK_CLOEXEC;
+			  fl = SOCK_STREAM | SOCK_CLOEXEC, noop = 0;
 	size_t		  i, j;
 	pid_t		  procpid, rsyncpid;
 	int		  fd[2];
@@ -684,8 +751,11 @@ main(int argc, char *argv[])
 	struct repotab	  rt;
 	struct stats	  stats;
 
-	while ((c = getopt(argc, argv, "v")) != -1) 
+	while ((c = getopt(argc, argv, "nv")) != -1) 
 		switch (c) {
+		case 'n':
+			noop = 1;
+			break;
 		case 'v':
 			verb++;
 			break;
@@ -744,7 +814,9 @@ main(int argc, char *argv[])
 		close(fd[1]);
 		if (pledge("stdio proc exec", NULL) == -1)
 			err(EXIT_FAILURE, "pledge");
-		proc_rsync(fd[0]);
+		if (noop && pledge("stdio", NULL) == -1)
+			err(EXIT_FAILURE, "pledge");
+		proc_rsync(fd[0], noop);
 		/* NOTREACHED */
 	}
 
@@ -839,8 +911,7 @@ main(int argc, char *argv[])
 				&stats, &q, ent, &rt);
 			if (verb > 1)
 				fprintf(stderr, "%s\n", ent->uri);
-			free(ent->uri);
-			free(ent);
+			entry_free(ent);
 		}
 	}
 
