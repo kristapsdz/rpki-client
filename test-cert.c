@@ -74,7 +74,7 @@ main(int argc, char *argv[])
 	int		 c, verb = 0;
 	size_t		 i;
 	BIO		*bio;
-	X509		*x = NULL;
+	X509		*x = NULL, *xp = NULL;
 	const char	*cert = NULL;
 	struct cert	*p;
 
@@ -105,11 +105,12 @@ main(int argc, char *argv[])
 	}
 
 	for (i = 0; i < (size_t)argc; i++) {
-		if ((p = cert_parse(argv[i], NULL, NULL, 0)) == NULL)
+		if ((p = cert_parse(&xp, argv[i], NULL)) == NULL)
 			break;
 		if (verb)
 			cert_print(p);
 		cert_free(p);
+		X509_free(xp);
 	}
 
 	X509_free(x);

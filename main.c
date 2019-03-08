@@ -69,6 +69,11 @@ struct	entry {
 	TAILQ_ENTRY(entry) entries;
 };
 
+struct	auth {
+	char		*ski;
+	X509		*cert;
+};
+
 TAILQ_HEAD(entryq, entry);
 
 /*
@@ -249,7 +254,6 @@ entryq_flush(int fd, int verb,
 	struct entry	*p;
 
 	TAILQ_FOREACH(p, q, entries) {
-		warnx("flush check: %zu", p->id);
 		if (p->repo < 0 || repo->id != (size_t)p->repo)
 			continue;
 		entry_write_req(fd, p);
@@ -542,9 +546,10 @@ out:
 }
 
 /*
- * Process responsible for parsing content.
+ * Process responsible for parsing and validating content.
  * All this process does is wait to be told about a file to parse, then
- * it parses it.
+ * it parses it and makes sure that the data being returned is fully
+ * validated and verified.
  * The process will exit cleanly only when fd is closed.
  */
 static void
@@ -559,8 +564,10 @@ proc_parser(int fd)
 	int		 rc = 0;
 	struct pollfd	 pfd;
 	char		*b = NULL;
-	size_t		 bsz = 0, bmax = 0, bpos = 0;
+	size_t		 i, bsz = 0, bmax = 0, bpos = 0, authsz = 0;
 	ssize_t		 ssz;
+	X509		*x509;
+	struct auth	*auths = NULL;
 
 	TAILQ_INIT(&q);
 
@@ -649,13 +656,81 @@ proc_parser(int fd)
 			 * TAL files.
 			 * These have digests or public keys.
 			 */
+
 			assert(entp->has_dgst || entp->has_pkey);
-			x = cert_parse(entp->uri,
-				entp->has_dgst ? entp->dgst : NULL,
-				entp->has_pkey ? entp->pkey : NULL,
-				entp->has_pkey ? entp->pkeysz : 0);
+			x509 = NULL;
+			x = cert_parse(&x509, entp->uri,
+				entp->has_dgst ? entp->dgst : NULL);
 			if (x == NULL)
 				goto out;
+			assert(x509 != NULL);
+			assert(x->ski != NULL);
+
+			/* 
+			 * Validation of public keys: make sure that
+			 * either we don't have an AKI but do have a
+			 * passed-in public key (top-level), or we do
+			 * have an AKI and it's valid.
+			 * Start with not having an AKI.
+			 */
+
+			if (x->aki == NULL || strcmp(x->aki, x->ski) == 0) {
+				if (!entp->has_pkey) {
+					warnx("%s: has neither authority "
+						"key identifier nor public key "
+						"from trust anchor", entp->uri);
+					cert_free(x);
+					X509_free(x509);
+					goto out;
+				}
+				if (!cert_vrfy_pkey
+				    (x509, entp->uri, entp->pkey, entp->pkeysz)) {
+					cert_free(x);
+					X509_free(x509);
+					goto out;
+				}
+				auths = reallocarray(auths,
+					authsz + 1, sizeof(struct auth));
+				if (auths == NULL)
+					err(EXIT_FAILURE, NULL);
+				auths[authsz].ski = strdup(x->ski);
+				if (auths[authsz].ski == NULL)
+					err(EXIT_FAILURE, NULL);
+				auths[authsz].cert = x509;
+				authsz++;
+				cert_buffer(&b, &bsz, &bmax, x);
+				cert_free(x);
+				break;
+			}
+
+			/* Now look up AKI in our cache. */
+
+			for (i = 0; i < authsz; i++)
+				if (strcmp(auths[i].ski, x->aki) == 0)
+					break;
+
+			if (i == authsz) {
+				warnx("%s: matching AKI not "
+					"found in cache", entp->uri);
+				cert_free(x);
+				X509_free(x509);
+				goto out;
+			}
+			if (!cert_vrfy_cert(x509, entp->uri, auths[i].cert)) {
+				cert_free(x);
+				X509_free(x509);
+				goto out;
+			}
+
+			auths = reallocarray(auths,
+				authsz + 1, sizeof(struct auth));
+			if (auths == NULL)
+				err(EXIT_FAILURE, NULL);
+			auths[authsz].ski = strdup(x->ski);
+			if (auths[authsz].ski == NULL)
+				err(EXIT_FAILURE, NULL);
+			auths[authsz].cert = x509;
+			authsz++;
 			cert_buffer(&b, &bsz, &bmax, x);
 			cert_free(x);
 			break;
@@ -689,6 +764,13 @@ out:
 		TAILQ_REMOVE(&q, entp, entries);
 		entry_free(entp);
 	}
+
+	for (i = 0; i < authsz; i++) {
+		free(auths[i].ski);
+		X509_free(auths[i].cert);
+	}
+
+	free(auths);
 	exit(rc ? EXIT_SUCCESS : EXIT_FAILURE);
 }
 
@@ -864,6 +946,8 @@ main(int argc, char *argv[])
 		if ((c = poll(pfd, 2, 10000)) < 0)
 			err(EXIT_FAILURE, "poll");
 		
+		/* Debugging: print some statistics if we stall. */
+
 		if (c == 0) {
 			for (i = j = 0; i < rt.reposz; i++)
 				if (!rt.repos[i].loaded)
@@ -964,6 +1048,6 @@ main(int argc, char *argv[])
 	return rc ? EXIT_SUCCESS : EXIT_FAILURE;
 
 usage:
-	fprintf(stderr, "usage: %s [-v] tal ...\n", getprogname());
+	fprintf(stderr, "usage: %s [-nv] tal ...\n", getprogname());
 	return EXIT_FAILURE;
 }

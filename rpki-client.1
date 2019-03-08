@@ -22,7 +22,7 @@
 .Nd verifies route announcements
 .Sh SYNOPSIS
 .Nm
-.Op Fl v
+.Op Fl nv
 .Ar tal ...
 .Sh DESCRIPTION
 The
@@ -33,6 +33,8 @@ It uses
 to fetch certificates, manifests, and route announcements themselves.
 Its arguments are as follows:
 .Bl -tag -width Ds
+.It Fl n
+Assume that all requested repositories exist: don't update.
 .It Fl v
 Prints information about status.
 .It Ar tal
