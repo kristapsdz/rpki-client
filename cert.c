@@ -1050,7 +1050,8 @@ out:
  * On success, free the pointer with cert_free().
  */
 struct cert *
-cert_parse(X509 *cacert, const char *fn, const unsigned char *dgst)
+cert_parse(const char *fn, const unsigned char *dgst,
+	const unsigned char *pkey, size_t pkeysz)
 {
 	int	 	 rc = 0, extsz, c, sz;
 	size_t		 i;
@@ -1059,6 +1060,7 @@ cert_parse(X509 *cacert, const char *fn, const unsigned char *dgst)
 	ASN1_OBJECT	*obj;
 	struct parse	 p;
 	BIO		*bio = NULL, *shamd;
+	EVP_PKEY	*pk = NULL;
 	EVP_MD		*md;
 	unsigned char	 mdbuf[EVP_MAX_MD_SIZE];
 
@@ -1111,15 +1113,15 @@ cert_parse(X509 *cacert, const char *fn, const unsigned char *dgst)
 		}
 	}
 	
-	/* 
-	 * Conditionally validate.
-	 * FIXME: there's more to do here.
-	 */
-
-	if (NULL != cacert &&
-	    !X509_verify(x, X509_get_pubkey(cacert))) {
-		cryptowarnx("%s: X509_verify", p.fn);
-		goto out;
+	if (pkey != NULL) {
+		assert(pkeysz);
+		pk = d2i_PUBKEY(NULL, &pkey, pkeysz);
+		assert(pk != NULL);
+		if (!X509_verify(x, pk)) {
+			cryptowarnx("%s: could not verify "
+				"with TAL public key", p.fn);
+			goto out;
+		}
 	}
 
 	/* Look for X509v3 extensions. */
@@ -1166,6 +1168,7 @@ cert_parse(X509 *cacert, const char *fn, const unsigned char *dgst)
 out:
 	BIO_free_all(bio);
 	X509_free(x);
+	EVP_PKEY_free(pk);
 	if (rc == 0)
 		cert_free(p.res);
 	return (rc == 0) ? NULL : p.res;
