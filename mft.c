@@ -68,6 +68,7 @@ mft_parse_filehash(struct parse *p, const ASN1_OCTET_STRING *os)
 {
 	const ASN1_SEQUENCE_ANY *seq;
 	const ASN1_TYPE		*file, *hash;
+	char			*fn = NULL;
 	const unsigned char     *d = os->data;
 	size_t		         dsz = os->length, sz;
 	int		 	 rc = 0;
@@ -91,6 +92,40 @@ mft_parse_filehash(struct parse *p, const ASN1_OCTET_STRING *os)
 		warnx("%s: RFC 6486 section 4.2.1: FileAndHash: "
 			"want ASN.1 IA5 string, have %s (NID %d)", 
 			p->fn, ASN1_tag2str(file->type), file->type);
+		goto out;
+	}
+	fn = strndup
+		(file->value.ia5string->data,
+		 file->value.ia5string->length);
+	if (fn == NULL)
+		err(EXIT_FAILURE, NULL);
+
+	/* 
+	 * Make sure we're just a pathname and either a CRL,
+	 * ROA, or CER.
+	 * I don't think that the RFC specifically mentions this, but
+	 * it's in practical use and would really screw things up
+	 * (arbitrary filenames) otherwise.
+	 */
+
+	if (strchr(fn, '/') != NULL) {
+		warnx("%s: path components disallowed in "
+			"filename: %s", p->fn, fn);
+		goto out;
+	} else if ((sz = strlen(fn)) <= 4) {
+		warnx("%s: filename must be large enough "
+			"for suffix part: %s", p->fn, fn);
+		goto out;
+	}
+
+	if (strcasecmp(fn + sz - 4, ".roa") &&
+	    strcasecmp(fn + sz - 4, ".cer") &&
+	    strcasecmp(fn + sz - 4, ".crl")) {
+		warnx("%s: ignoring filename without roa, cer, "
+			"or crl suffix: %s", p->fn, fn);
+		free(fn);
+		fn = NULL;
+		rc = 1;
 		goto out;
 	}
 
@@ -123,42 +158,14 @@ mft_parse_filehash(struct parse *p, const ASN1_OCTET_STRING *os)
 	fent = &p->res->files[p->res->filesz++];
 	memset(fent, 0, sizeof(struct mftfile));
 
-	fent->file = strndup
-		(file->value.ia5string->data, 
-		 file->value.ia5string->length);
-	if (fent->file == NULL)
-		err(EXIT_FAILURE, NULL);
+	fent->file = fn;
+	fn = NULL;
 	memcpy(fent->hash, hash->value.bit_string->data,
 		SHA256_DIGEST_LENGTH);
 
-	/* 
-	 * Make sure we're just a pathname and either a CRL,
-	 * ROA, or CER.
-	 * I don't think that the RFC specifically mentions this, but
-	 * it's in practical use and would really screw things up
-	 * (arbitrary filenames) otherwise.
-	 */
-
-	if (strchr(fent->file, '/') != NULL) {
-		warnx("%s: path components disallowed in "
-			"filename: %s", p->fn, fent->file);
-		goto out;
-	} else if ((sz = strlen(fent->file)) <= 4) {
-		warnx("%s: filename must be large enough "
-			"for suffix part: %s", p->fn, fent->file);
-		goto out;
-	}
-
-	if (strcasecmp(fent->file + sz - 4, ".roa") &&
-	    strcasecmp(fent->file + sz - 4, ".cer") &&
-	    strcasecmp(fent->file + sz - 4, ".crl")) {
-		warnx("%s: filename must be have roa, cer, "
-			"or crl suffix: %s", p->fn, fent->file);
-		goto out;
-	}
-
 	rc = 1;
 out:
+	free(fn);
 	sk_ASN1_TYPE_free(seq);
 	return rc;
 }
