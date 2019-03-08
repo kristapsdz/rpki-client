@@ -57,6 +57,7 @@ struct	repotab {
  * and parsed.
  */
 struct	entry {
+	size_t		 id; /* unique identifier */
 	enum rtype	 type; /* type of entry (not RTYPE_EOF/CRL) */
 	char		*uri; /* file or rsync:// URI */
 	int		 has_dgst; /* whether dgst is specified */
@@ -90,13 +91,8 @@ rtype_resolve(const char *uri)
 	return rp;
 }
 
-/*
- * FIXME: this shouldn't be necessary.
- * It's here because we write back the full entry when responding to
- * events, but we should only do an identifier like the repo does.
- */
 static void
-entry_freeup(struct entry *ent)
+entry_free(struct entry *ent)
 {
 
 	if (ent == NULL)
@@ -104,25 +100,19 @@ entry_freeup(struct entry *ent)
 
 	free(ent->pkey);
 	free(ent->uri);
-}
-
-static void
-entry_free(struct entry *ent)
-{
-
-	entry_freeup(ent);
 	free(ent);
 }
 
 /*
  * Read a queue entry from the descriptor.
- * The entry's contents must be freed.
+ * Matched by entry_buffer_req().
+ * The pointer must be passed entry_free().
  */
 static void
-entry_read(int fd, struct entry *ent)
+entry_read_req(int fd, struct entry *ent)
 {
 
-	memset(ent, 0, sizeof(struct entry));
+	simple_read(fd, &ent->id, sizeof(size_t));
 	simple_read(fd, &ent->type, sizeof(enum rtype));
 	str_read(fd, &ent->uri);
 	simple_read(fd, &ent->has_dgst, sizeof(int));
@@ -191,33 +181,38 @@ repo_lookup(int fd, int verb, struct repotab *rt, const char *uri)
 static struct entry *
 entryq_next(int fd, struct entryq *q)
 {
-	struct entry	 ent;
+	size_t		 id;
 	struct entry	*entp;
 
-	/* FIXME: see entry_freeup() note. */
-
-	entry_read(fd, &ent);
+	simple_read(fd, &id, sizeof(size_t));
 
 	TAILQ_FOREACH(entp, q, entries)
-		if (entp->type == ent.type &&
-	 	    0 == strcmp(entp->uri, ent.uri)) {
-			TAILQ_REMOVE(q, entp, entries);
+		if (entp->id == id)
 			break;
-		}
 
 	assert(entp != NULL);
-	entry_freeup(&ent);
+	TAILQ_REMOVE(q, entp, entries);
 	return entp;
 }
 
-/*
- * Like entry_write() but into a buffer.
- */
 static void
-entry_buffer(char **b, size_t *bsz,
+entry_buffer_resp(char **b, size_t *bsz,
 	size_t *bmax, const struct entry *ent)
 {
 
+	simple_buffer(b, bsz, bmax, &ent->id, sizeof(size_t));
+}
+
+/*
+ * Like entry_write_req() but into a buffer.
+ * Matched by entry_read_req().
+ */
+static void
+entry_buffer_req(char **b, size_t *bsz,
+	size_t *bmax, const struct entry *ent)
+{
+
+	simple_buffer(b, bsz, bmax, &ent->id, sizeof(size_t));
 	simple_buffer(b, bsz, bmax, &ent->type, sizeof(enum rtype));
 	str_buffer(b, bsz, bmax, ent->uri);
 	simple_buffer(b, bsz, bmax, &ent->has_dgst, sizeof(int));
@@ -230,15 +225,15 @@ entry_buffer(char **b, size_t *bsz,
 
 /*
  * Write the queue entry.
- * Simply a wrapper around entry_buffer().
+ * Simply a wrapper around entry_buffer_req().
  */
 static void
-entry_write(int fd, const struct entry *ent)
+entry_write_req(int fd, const struct entry *ent)
 {
 	char	*b = NULL;
 	size_t	 bsz = 0, bmax = 0;
 
-	entry_buffer(&b, &bsz, &bmax, ent);
+	entry_buffer_req(&b, &bsz, &bmax, ent);
 	simple_write(fd, b, bsz);
 	free(b);
 }
@@ -254,9 +249,10 @@ entryq_flush(int fd, int verb,
 	struct entry	*p;
 
 	TAILQ_FOREACH(p, q, entries) {
+		warnx("flush check: %zu", p->id);
 		if (p->repo < 0 || repo->id != (size_t)p->repo)
 			continue;
-		entry_write(fd, p);
+		entry_write_req(fd, p);
 	}
 }
 
@@ -267,13 +263,14 @@ static void
 entryq_add(int fd, int verb, struct entryq *q,
 	char *file, enum rtype type, const struct repo *rp,
 	const unsigned char *dgst, const unsigned char *pkey,
-	size_t pkeysz)
+	size_t pkeysz, size_t *eid)
 {
 	struct entry	*p;
 
 	if ((p = calloc(1, sizeof(struct entry))) == NULL)
 		err(EXIT_FAILURE, NULL);
 
+	p->id = (*eid)++;
 	p->type = type;
 	p->uri = file;
 	p->repo = (NULL != rp) ? rp->id : -1;
@@ -295,7 +292,7 @@ entryq_add(int fd, int verb, struct entryq *q,
 	 */
 
 	if (NULL == rp || rp->loaded)
-		entry_write(fd, p);
+		entry_write_req(fd, p);
 }
 
 /*
@@ -304,7 +301,7 @@ entryq_add(int fd, int verb, struct entryq *q,
  */
 static void
 queue_add_from_mft(int fd, int verb, struct entryq *q,
-	const char *mft, const struct mftfile *file)
+	const char *mft, const struct mftfile *file, size_t *eid)
 {
 	size_t	 	 sz = strlen(file->file);
 	char		*cp, *nfile;
@@ -346,27 +343,30 @@ queue_add_from_mft(int fd, int verb, struct entryq *q,
 	 * that the repository has already been loaded.
 	 */
 
-	entryq_add(fd, verb, q, nfile, type, NULL, file->hash, NULL, 0);
+	entryq_add(fd, verb, q, nfile, type,
+		NULL, file->hash, NULL, 0, eid);
 }
 
 /*
  * Loops over queue_add_from_mft() for all files.
  */
 static void
-queue_add_from_mft_set(int fd, int verb,
-	struct entryq *q, const struct mft *mft)
+queue_add_from_mft_set(int fd, int verb, struct entryq *q,
+	const struct mft *mft, size_t *eid)
 {
 	size_t	 i;
 
 	for (i = 0; i < mft->filesz; i++)
-		queue_add_from_mft(fd, verb, q, mft->file, &mft->files[i]);
+		queue_add_from_mft(fd, verb, q,
+			mft->file, &mft->files[i], eid);
 }
 
 /*
  * Add a local TAL file (RFC 7730) to the queue of files to fetch.
  */
 static void
-queue_add_tal(int fd, int verb, struct entryq *q, const char *file)
+queue_add_tal(int fd, int verb,
+	struct entryq *q, const char *file, size_t *eid)
 {
 	char		*nfile;
 
@@ -375,7 +375,8 @@ queue_add_tal(int fd, int verb, struct entryq *q, const char *file)
 
 	/* Not in a repository, so directly add to queue. */
 
-	entryq_add(fd, verb, q, nfile, RTYPE_TAL, NULL, NULL, NULL, 0);
+	entryq_add(fd, verb, q, nfile,
+		RTYPE_TAL, NULL, NULL, NULL, 0, eid);
 }
 
 /*
@@ -383,7 +384,8 @@ queue_add_tal(int fd, int verb, struct entryq *q, const char *file)
  */
 static void
 queue_add_from_tal(int proc, int rsync, int verb, struct entryq *q,
-	const struct tal *tal, const char *uri, struct repotab *rt)
+	const struct tal *tal, const char *uri, struct repotab *rt,
+	size_t *eid)
 {
 	char		  *nfile;
 	const struct repo *repo;
@@ -399,7 +401,7 @@ queue_add_from_tal(int proc, int rsync, int verb, struct entryq *q,
 		err(EXIT_FAILURE, NULL);
 
 	entryq_add(proc, verb, q, nfile, RTYPE_CER,
-		repo, NULL, tal->pkey, tal->pkeysz);
+		repo, NULL, tal->pkey, tal->pkeysz, eid);
 }
 
 /*
@@ -407,21 +409,22 @@ queue_add_from_tal(int proc, int rsync, int verb, struct entryq *q,
  */
 static void
 queue_add_from_tal_set(int proc, int rsync, int verb,
-	struct entryq *q, const struct tal *tal, struct repotab *rt)
+	struct entryq *q, const struct tal *tal, struct repotab *rt,
+	size_t *eid)
 {
 	size_t	 i;
 
 	for (i = 0; i < tal->urisz; i++)
 		queue_add_from_tal(proc, rsync,
-			verb, q, tal, tal->uri[i], rt);
+			verb, q, tal, tal->uri[i], rt, eid);
 }
 
 /*
  * Add a manifest (MFT) found in an X509 certificate, RFC 6487.
  */
 static void
-queue_add_from_cert(int proc, int rsync, int verb,
-	struct entryq *q, const char *uri, struct repotab *rt)
+queue_add_from_cert(int proc, int rsync, int verb, struct entryq *q,
+	const char *uri, struct repotab *rt, size_t *eid)
 {
 	char		  *nfile;
 	enum rtype	   type;
@@ -441,7 +444,8 @@ queue_add_from_cert(int proc, int rsync, int verb,
 	    BASE_DIR, repo->host, repo->module, uri) < 0)
 		err(EXIT_FAILURE, NULL);
 
-	entryq_add(proc, verb, q, nfile, type, repo, NULL, NULL, 0);
+	entryq_add(proc, verb, q, nfile,
+		type, repo, NULL, NULL, 0, eid);
 }
 
 /*
@@ -550,7 +554,6 @@ proc_parser(int fd)
 	struct cert	*x;
 	struct mft	*mft;
 	struct roa	*roa;
-	struct entry	 ent;
 	struct entry	*entp;
 	struct entryq	 q;
 	int		 rc = 0;
@@ -587,11 +590,10 @@ proc_parser(int fd)
 
 		if ((pfd.revents & POLLIN)) {
 			socket_blocking(fd);
-			entry_read(fd, &ent);
 			entp = calloc(1, sizeof(struct entry));
 			if (entp == NULL)
 				err(EXIT_FAILURE, NULL);
-			*entp = ent;
+			entry_read_req(fd, entp);
 			TAILQ_INSERT_TAIL(&q, entp, entries);
 			pfd.events |= POLLOUT;
 			socket_nonblocking(fd);
@@ -631,7 +633,7 @@ proc_parser(int fd)
 		entp = TAILQ_FIRST(&q);
 		assert(entp != NULL);
 
-		entry_buffer(&b, &bsz, &bmax, entp);
+		entry_buffer_resp(&b, &bsz, &bmax, entp);
 
 		switch (entp->type) {
 		case RTYPE_TAL:
@@ -697,7 +699,8 @@ out:
  */
 static void
 entry_process(int proc, int rsync, int verb, struct stats *st,
-	struct entryq *q, const struct entry *ent, struct repotab *rt)
+	struct entryq *q, const struct entry *ent, struct repotab *rt,
+	size_t *eid)
 {
 	struct tal	*tal = NULL;
 	struct cert	*cert = NULL;
@@ -708,20 +711,23 @@ entry_process(int proc, int rsync, int verb, struct stats *st,
 	case RTYPE_TAL:
 		st->tals++;
 		tal = tal_read(proc);
-		queue_add_from_tal_set(proc, rsync, verb, q, tal, rt);
+		queue_add_from_tal_set(proc,
+			rsync, verb, q, tal, rt, eid);
 		break;
 	case RTYPE_CER:
 		st->certs++;
 		cert = cert_read(proc);
-		if (cert->mft != NULL)
-			queue_add_from_cert(proc, rsync, verb, q, cert->mft, rt);
+		if (cert->mft == NULL)
+			break;
+		queue_add_from_cert(proc, rsync,
+			verb, q, cert->mft, rt, eid);
 		break;
 	case RTYPE_MFT:
 		st->mfts++;
 		mft = mft_read(proc);
 		if (mft->stale)
 			st->mfts_stale++;
-		queue_add_from_mft_set(proc, verb, q, mft);
+		queue_add_from_mft_set(proc, verb, q, mft, eid);
 		break;
 	case RTYPE_ROA:
 		st->roas++;
@@ -742,7 +748,7 @@ main(int argc, char *argv[])
 {
 	int		  rc = 0, c, verb = 0, proc, st, rsync,
 			  fl = SOCK_STREAM | SOCK_CLOEXEC, noop = 0;
-	size_t		  i, j;
+	size_t		  i, j, eid = 1;
 	pid_t		  procpid, rsyncpid;
 	int		  fd[2];
 	struct entryq	  q;
@@ -839,7 +845,7 @@ main(int argc, char *argv[])
 	 */
 
 	for (i = 0; i < (size_t)argc; i++)
-		queue_add_tal(proc, verb, &q, argv[i]);
+		queue_add_tal(proc, verb, &q, argv[i], &eid);
 
 	pfd[0].fd = rsync;
 	pfd[1].fd = proc;
@@ -908,7 +914,7 @@ main(int argc, char *argv[])
 		if ((pfd[1].revents & POLLIN)) {
 			ent = entryq_next(proc, &q);
 			entry_process(proc, rsync, verb,
-				&stats, &q, ent, &rt);
+				&stats, &q, ent, &rt, &eid);
 			if (verb > 1)
 				fprintf(stderr, "%s\n", ent->uri);
 			entry_free(ent);
