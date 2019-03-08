@@ -1043,6 +1043,56 @@ out:
 	return rc;
 }
 
+int
+cert_vrfy_cert(X509 *x, const char *fn, X509 *akix)
+{
+
+	return 1;
+}
+
+int
+cert_vrfy_pkey(X509 *x, const char *fn, 
+	const unsigned char *pkey, size_t pkeysz)
+{
+	EVP_PKEY	*pk = NULL, *opk = NULL;
+	int		 c = 0;
+
+	assert(pkeysz);
+	assert(pkey != NULL);
+	pk = d2i_PUBKEY(NULL, &pkey, pkeysz);
+	assert(pk != NULL);
+
+	if ((opk = X509_get_pubkey(x)) == NULL) {
+		cryptowarnx("%s: does not have public key ", fn);
+		goto out;
+	}
+
+	/* First, make sure the certificate is signed with the given. */
+
+	if (!X509_verify(x, pk)) {
+		cryptowarnx("%s: could not verify "
+			"with TAL public key", fn);
+		goto out;
+	}
+	
+	/* 
+	 * Next, make sure that the self-signed key and the given public
+	 * key are the same.
+	 */
+
+	if (!EVP_PKEY_cmp(pk, opk)) {
+		cryptowarnx("%s: given and self-signing "
+			"public keys are different", fn);
+		goto out;
+	}
+
+	c = 1;
+out:
+	EVP_PKEY_free(pk);
+	EVP_PKEY_free(opk);
+	return c;
+}
+
 /*
  * Parse and optionally validate a signed X509 certificate.
  * Then parse the X509v3 extensions as defined in RFC 6487.
@@ -1050,8 +1100,7 @@ out:
  * On success, free the pointer with cert_free().
  */
 struct cert *
-cert_parse(const char *fn, const unsigned char *dgst,
-	const unsigned char *pkey, size_t pkeysz)
+cert_parse(X509 **xp, const char *fn, const unsigned char *dgst)
 {
 	int	 	 rc = 0, extsz, c, sz;
 	size_t		 i;
@@ -1060,10 +1109,10 @@ cert_parse(const char *fn, const unsigned char *dgst,
 	ASN1_OBJECT	*obj;
 	struct parse	 p;
 	BIO		*bio = NULL, *shamd;
-	EVP_PKEY	*pk = NULL;
 	EVP_MD		*md;
 	unsigned char	 mdbuf[EVP_MAX_MD_SIZE];
 
+	*xp = NULL;
 	memset(&p, 0, sizeof(struct parse));
 	p.fn = fn;
 	if ((p.res = calloc(1, sizeof(struct cert))) == NULL)
@@ -1085,7 +1134,7 @@ cert_parse(const char *fn, const unsigned char *dgst,
 			cryptoerrx("BIO_push");
 	}
 
-	if ((x = d2i_X509_bio(bio, NULL)) == NULL) {
+	if ((x = *xp = d2i_X509_bio(bio, NULL)) == NULL) {
 		cryptowarnx("%s: d2i_X509_bio", p.fn);
 		goto out;
 	}
@@ -1113,17 +1162,6 @@ cert_parse(const char *fn, const unsigned char *dgst,
 		}
 	}
 	
-	if (pkey != NULL) {
-		assert(pkeysz);
-		pk = d2i_PUBKEY(NULL, &pkey, pkeysz);
-		assert(pk != NULL);
-		if (!X509_verify(x, pk)) {
-			cryptowarnx("%s: could not verify "
-				"with TAL public key", p.fn);
-			goto out;
-		}
-	}
-
 	/* Look for X509v3 extensions. */
 
 	if ((extsz = X509_get_ext_count(x)) < 0)
@@ -1164,13 +1202,19 @@ cert_parse(const char *fn, const unsigned char *dgst,
 			goto out;
 	}
 
+	if (p.res->ski == NULL) {
+		warnx("%s: lacks subject key identifier", p.fn);
+		goto out;
+	}
+
 	rc = 1;
 out:
 	BIO_free_all(bio);
-	X509_free(x);
-	EVP_PKEY_free(pk);
-	if (rc == 0)
+	if (rc == 0) {
 		cert_free(p.res);
+		X509_free(x);
+		*xp = NULL;
+	}
 	return (rc == 0) ? NULL : p.res;
 }
 

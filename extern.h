@@ -75,7 +75,7 @@ struct	cert {
 	char		*rep; /* CA repository */
 	char		*mft; /* manifest (rsync:// uri) */
 	char		*ski; /* subject key identifier */
-	char		*aki; /* authority key identifier */
+	char		*aki; /* authority key identifier (or NULL) */
 };
 
 /*
@@ -149,10 +149,10 @@ struct tal	*tal_read(int);
 
 void		 cert_buffer(char **, size_t *, size_t *, const struct cert *);
 void		 cert_free(struct cert *);
-struct cert	*cert_parse(const char *,
-			const unsigned char *,
-			const unsigned char *, size_t);
+struct cert	*cert_parse(X509 **, const char *, const unsigned char *);
 struct cert	*cert_read(int);
+int		 cert_vrfy_pkey(X509 *, const char *, const unsigned char *, size_t);
+int		 cert_vrfy_cert(X509 *, const char *, X509 *);
 
 void		 mft_buffer(char **, size_t *, size_t *, const struct mft *);
 void		 mft_free(struct mft *);
