@@ -41,8 +41,6 @@ cert_print(const struct cert *p)
 		fprintf(stderr, "CA repository: %s\n", p->rep);
 	if (NULL != p->mft)
 		fprintf(stderr, "Manifest: %s\n", p->mft);
-	if (NULL != p->ski)
-		fprintf(stderr, "Subject key identifier: %s\n", p->ski);
 
 	for (i = 0; i < p->asz; i++)
 		switch (p->as[i].type) {

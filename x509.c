@@ -254,12 +254,14 @@ out:
  * This conforms to RFC 6487 in the case where the public key is given
  * in the TAL file and is self-signed---that is, it does not specify a
  * different authority key identifier.
+ * Augments the key cache with the certificate's SKI, public key, and
+ * parsed data.
  * Returns zero on failure, non-zero on success.
  */
 int
-x509_authorise_selfsigned(X509 *x, const char *fn,
+x509_auth_selfsigned(X509 *x, const char *fn,
 	struct auth **auths, size_t *authsz,
-	const unsigned char *pkey, size_t pkeysz)
+	const unsigned char *pkey, size_t pkeysz, struct cert *cert)
 {
 	EVP_PKEY	*pk = NULL, *opk = NULL;
 	int		 rc = 0, extsz, i;
@@ -268,6 +270,7 @@ x509_authorise_selfsigned(X509 *x, const char *fn,
 	X509_EXTENSION	*ext;
 	ASN1_OBJECT	*obj;
 
+	assert(cert != NULL);
 	assert(pkeysz);
 	assert(pkey != NULL);
 	pk = d2i_PUBKEY(NULL, &pkey, pkeysz);
@@ -340,8 +343,11 @@ x509_authorise_selfsigned(X509 *x, const char *fn,
 		*authsz + 1, sizeof(struct auth));
 	if (*auths == NULL)
 		err(EXIT_FAILURE, NULL);
+	(*auths)[*authsz].id = *authsz;
+	(*auths)[*authsz].parent = *authsz;
 	(*auths)[*authsz].ski = ski;
-	(*auths)[*authsz].cert = opk;
+	(*auths)[*authsz].pkey = opk;
+	(*auths)[*authsz].cert = cert;
 	(*authsz)++;
 
 	opk = NULL;
@@ -359,12 +365,13 @@ out:
  * Take a signed certificate as specified in RFC 6487, look up the
  * referenced certificate (AKI) in the key cache, and verify the
  * signature.
- * If append is non-zero, augment the key cache with the cert's SKI.
+ * If cert is non-NULL, augments the key cache with the certificate's
+ * SKI, public key, and parsed data.
  * Returns zero on failure, non-zero on success.
  */
 int
-x509_authorise_signed(X509 *x, const char *fn,
-	struct auth **auths, size_t *authsz, int append)
+x509_auth_signed(X509 *x, const char *fn,
+	struct auth **auths, size_t *authsz, struct cert *cert)
 {
 	int	 	 i, extsz, rc = 0;
 	size_t		 j;
@@ -434,20 +441,23 @@ x509_authorise_signed(X509 *x, const char *fn,
 		warnx("%s: RFC 6487: authority key "
 			"identifier not found", fn);
 		goto out;
-	} else if (!X509_verify(x, (*auths)[j].cert)) {
+	} else if (!X509_verify(x, (*auths)[j].pkey)) {
 		cryptowarnx("%s: RFC 6487: key verification failed", fn);
 		goto out;
 	}
 
-	/* Append our own public key to the key cache. */
+	/* Conditionally append our own public key to the key cache. */
 
-	if (append) {
+	if (cert != NULL) {
 		*auths = reallocarray(*auths,
 			*authsz + 1, sizeof(struct auth));
 		if (*auths == NULL)
 			err(EXIT_FAILURE, NULL);
+		(*auths)[*authsz].id = *authsz;
+		(*auths)[*authsz].parent = j;
 		(*auths)[*authsz].ski = ski;
-		(*auths)[*authsz].cert = pk;
+		(*auths)[*authsz].pkey = pk;
+		(*auths)[*authsz].cert = cert;
 		(*authsz)++;
 		ski = NULL;
 		pk = NULL;
