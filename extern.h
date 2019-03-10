@@ -81,6 +81,8 @@ struct	cert_ip {
 /*
  * Parsed components of a validated X509 certificate stipulated by RFC
  * 6847 and further (within) by RFC 3779.
+ * All AS numbers are guaranteed to be non-overlapping and properly
+ * inheriting.
  */
 struct	cert {
 	struct cert_ip	*ips; /* list of IP address ranges */

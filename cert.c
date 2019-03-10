@@ -82,17 +82,35 @@ append_ip(struct parse *p, const struct cert_ip *ip)
 
 /*
  * Append an AS identifier structure to our list of results.
+ * Makes sure that the identifiers do not overlap or improperly inherit
+ * as defined by RFC 3779 section 3.3.
  */
-static void
+static int
 append_as(struct parse *p, const struct cert_as *as)
 {
 	struct cert	*res = p->res;
+	size_t		 i;
+
+	/*
+	 * Check to see that we have a most a single INHERIT element;
+	 * otherwise by definition we'll be a superset of our parent.
+	 */
+
+	for (i = 0; i < res->asz; i++)
+		if (CERT_AS_INHERIT == res->as[i].type) {
+			warnx("%s: RFC 3779 section 3.2.3.3: "
+				"inherit: cannot have inheritence "
+				"and multiple ASidentifiers",
+				p->fn);
+			return 0;
+		}
 
 	res->as = reallocarray(res->as, 
 		res->asz + 1, sizeof(struct cert_as));
 	if (res->as == NULL)
 		err(EXIT_FAILURE, NULL);
 	res->as[res->asz++] = *as;
+	return 1;
 }
 
 /*
@@ -385,9 +403,9 @@ sbgp_asrange(struct parse *p, const unsigned char *d, size_t dsz)
 		warnx("%s: RFC 3379 section 3.2.3.8: ASRange: "
 			"range is out of order", p->fn);
 		goto out;
-	}
+	} else if (!append_as(p, &as))
+		goto out;
 
-	append_as(p, &as);
 	rc = 1;
 out:
 	sk_ASN1_TYPE_free(seq);
@@ -397,7 +415,7 @@ out:
 /*
  * Parse an entire 3.2.3.10 integer type.
  */
-static void
+static int
 sbgp_asid(struct parse *p, const ASN1_INTEGER *i)
 {
 	struct cert_as	 as;
@@ -406,7 +424,7 @@ sbgp_asid(struct parse *p, const ASN1_INTEGER *i)
 
 	as.type = CERT_AS_ID;
 	as.id = ASN1_INTEGER_get(i);
-	append_as(p, &as);
+	return append_as(p, &as);
 }
 
 /*
@@ -440,7 +458,8 @@ sbgp_asnum(struct parse *p, const unsigned char *d, size_t dsz)
 	case V_ASN1_NULL:
 		memset(&as, 0, sizeof(struct cert_as));
 		as.type = CERT_AS_INHERIT;
-		append_as(p, &as);
+		if (!append_as(p, &as))
+			goto out;
 		rc = 1;
 		goto out;
 	case V_ASN1_SEQUENCE:
@@ -468,7 +487,8 @@ sbgp_asnum(struct parse *p, const unsigned char *d, size_t dsz)
 		t = sk_ASN1_TYPE_value(seq, i);
 		switch (t->type) {
 		case V_ASN1_INTEGER:
-			sbgp_asid(p, t->value.integer);
+			if (!sbgp_asid(p, t->value.integer))
+				goto out;
 			break;
 		case V_ASN1_SEQUENCE:
 			d = t->value.asn1_string->data;
