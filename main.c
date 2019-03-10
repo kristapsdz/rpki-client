@@ -563,7 +563,7 @@ static void
 proc_parser(int fd)
 {
 	struct tal	*tal;
-	struct cert	*x;
+	struct cert	*cert;
 	struct mft	*mft;
 	struct roa	*roa;
 	struct entry	*entp;
@@ -669,31 +669,30 @@ proc_parser(int fd)
 
 			assert(entp->has_dgst || entp->has_pkey);
 			x509 = NULL;
-			x = cert_parse(&x509, entp->uri,
+			cert = cert_parse(&x509, entp->uri,
 				entp->has_dgst ? entp->dgst : NULL);
-			if (x == NULL)
+			if (cert == NULL)
 				goto out;
 			assert(x509 != NULL);
 			c = entp->has_pkey ?
-				x509_authorise_selfsigned(x509, 
+				x509_auth_selfsigned(x509, 
 					entp->uri, &auths, &authsz,
-					entp->pkey, entp->pkeysz) :
-				x509_authorise_signed(x509,
-					entp->uri, &auths, &authsz, 1);
+					entp->pkey, entp->pkeysz, cert) :
+				x509_auth_signed(x509,
+					entp->uri, &auths, &authsz, cert);
 			X509_free(x509);
 			if (!c) {
-				cert_free(x);
+				cert_free(cert);
 				goto out;
 			}
-			cert_buffer(&b, &bsz, &bmax, x);
-			cert_free(x);
+			cert_buffer(&b, &bsz, &bmax, cert);
 			break;
 		case RTYPE_MFT:
 			assert(!entp->has_dgst);
 			if ((mft = mft_parse(&x509, entp->uri)) == NULL)
 				goto out;
-			c = x509_authorise_signed
-				(x509, entp->uri, &auths, &authsz, 0);
+			c = x509_auth_signed
+				(x509, entp->uri, &auths, &authsz, NULL);
 			X509_free(x509);
 			if (!c) {
 				mft_free(mft);
@@ -707,8 +706,8 @@ proc_parser(int fd)
 			roa = roa_parse(&x509, entp->uri, entp->dgst);
 			if (roa == NULL)
 				goto out;
-			c = x509_authorise_signed
-				(x509, entp->uri, &auths, &authsz, 0);
+			c = x509_auth_signed
+				(x509, entp->uri, &auths, &authsz, NULL);
 			X509_free(x509);
 			if (!c) {
 				roa_free(roa);
@@ -734,7 +733,8 @@ out:
 
 	for (i = 0; i < authsz; i++) {
 		free(auths[i].ski);
-		EVP_PKEY_free(auths[i].cert);
+		EVP_PKEY_free(auths[i].pkey);
+		cert_free(auths[i].cert);
 	}
 
 	free(auths);

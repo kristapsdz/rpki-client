@@ -90,7 +90,6 @@ struct	cert {
 	size_t		 asz; /* length of "asz" */
 	char		*rep; /* CA repository */
 	char		*mft; /* manifest (rsync:// uri) */
-	char		*ski; /* subject key identifier */
 };
 
 /*
@@ -133,20 +132,27 @@ struct	roa_ip {
 	struct ip_addr	 addr;
 };
 
+/*
+ * An ROA, RFC 6482.
+ * This consists of the concerned ASID and its IP prefixes.
+ */
 struct	roa {
 	uint32_t	 asid; /* asID of ROA */
-	struct roa_ip	*ips;
-	size_t		 ipsz;
+	struct roa_ip	*ips; /* IP prefixes */
+	size_t		 ipsz; /* number of IP prefixes */
 };
 
 /*
- * An authentication pair.
+ * An authentication tuple.
  * This specifies a public key and a subject key identifier used to
  * verify children nodes in the tree of entities.
  */
 struct	auth {
 	char		*ski; /* subject key identifier */
-	EVP_PKEY	*cert; /* public key */
+	EVP_PKEY	*pkey; /* public key */
+	struct cert	*cert; /* owner information */
+	size_t		 id; /* self-index */
+	size_t		 parent; /* index of parent pair (or self) */
 };
 
 /*
@@ -185,11 +191,11 @@ struct roa	*roa_read(int);
 
 /* Authentication of X509 objects. */
 
-int		 x509_authorise_signed(X509 *, const char *,
-			struct auth **, size_t *, int);
-int		 x509_authorise_selfsigned(X509 *, const char *,
-			struct auth **, size_t *,
-			const unsigned char *, size_t);
+int		 x509_auth_signed(X509 *, const char *,
+			struct auth **, size_t *, struct cert *);
+int		 x509_auth_selfsigned(X509 *, const char *,
+			struct auth **, size_t *, const unsigned char *,
+			size_t, struct cert *);
 
 /* Working with CMS files. */
 
