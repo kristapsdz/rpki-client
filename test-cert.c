@@ -45,17 +45,15 @@ cert_print(const struct cert *p)
 	for (i = 0; i < p->asz; i++)
 		switch (p->as[i].type) {
 		case CERT_AS_ID:
-			fprintf(stderr, "%5zu: AS%s: %" PRIu32 "\n", i + 1, 
-				p->as[i].rdi ? " (rdi)" : "", p->as[i].id);
+			fprintf(stderr, "%5zu: AS: %" 
+				PRIu32 "\n", i + 1, p->as[i].id);
 			break;
-		case CERT_AS_NULL:
-			fprintf(stderr, "%5zu: AS%s: inherit\n", i + 1, 
-				p->as[i].rdi ? " (rdi)" : "");
+		case CERT_AS_INHERIT:
+			fprintf(stderr, "%5zu: AS: inherit\n", i + 1);
 			break;
 		case CERT_AS_RANGE:
-			fprintf(stderr,
-				"%5zu: AS%s: %" PRIu32 "--%" PRIu32 "\n", 
-				i + 1, p->as[i].rdi ? " (rdi)" : "", 
+			fprintf(stderr, "%5zu: AS: %" 
+				PRIu32 "--%" PRIu32 "\n", i + 1, 
 				p->as[i].range.min, p->as[i].range.max);
 			break;
 		}
