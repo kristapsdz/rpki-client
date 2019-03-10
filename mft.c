@@ -344,7 +344,7 @@ out:
  * The MFT content is otherwise returned.
  */
 struct mft *
-mft_parse(X509 *cacert, const char *fn)
+mft_parse(X509 **x509, const char *fn)
 {
 	struct parse		 p;
 	const ASN1_OCTET_STRING *os;
@@ -354,7 +354,7 @@ mft_parse(X509 *cacert, const char *fn)
 	memset(&p, 0, sizeof(struct parse));
 	p.fn = fn;
 
-	os = cms_parse_validate(cacert, fn,
+	os = cms_parse_validate(x509, fn,
 		"1.2.840.113549.1.9.16.1.26", NULL);
 	if (os == NULL)
 		return NULL;
@@ -380,6 +380,10 @@ mft_parse(X509 *cacert, const char *fn)
 	} else if (rc < 0) {
 		mft_free(p.res);
 		p.res = NULL;
+		if (x509 != NULL) {
+			X509_free(*x509);
+			*x509 = NULL;
+		}
 	}
 
 	return p.res;

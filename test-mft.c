@@ -26,19 +26,14 @@ main(int argc, char *argv[])
 {
 	int		 c, verb = 0;
 	size_t		 i;
-	const char	*cert = NULL;
-	BIO		*bio;
-	X509		*x = NULL;
 	struct mft	*p;
+	X509		*xp = NULL;
 
 	SSL_library_init();
 	SSL_load_error_strings();
 
-	while (-1 != (c = getopt(argc, argv, "c:v"))) 
+	while (-1 != (c = getopt(argc, argv, "v"))) 
 		switch (c) {
-		case 'c':
-			cert = optarg;
-			break;
 		case 'v':
 			verb++;
 			break;
@@ -49,23 +44,15 @@ main(int argc, char *argv[])
 	argv += optind;
 	argc -= optind;
 
-	if (NULL != cert) {
-		if (NULL == (bio = BIO_new_file(cert, "rb")))
-			cryptoerrx("%s: BIO_new_file", cert);
-		if (NULL == (x = d2i_X509_bio(bio, NULL)))
-			cryptoerrx("%s: d2i_X509_bio", cert);
-		BIO_free(bio);
-	}
-
 	for (i = 0; i < (size_t)argc; i++) {
-		if ((p = mft_parse(x, argv[i])) == NULL)
+		if ((p = mft_parse(&xp, argv[i])) == NULL)
 			break;
 		if (verb)
 			mft_print(p);
 		mft_free(p);
+		X509_free(xp);
 	}
 
-	X509_free(x);
 	ERR_free_strings();
 	return i < (size_t)argc ? EXIT_FAILURE : EXIT_SUCCESS;
 }

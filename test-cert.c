@@ -27,8 +27,6 @@ cert_print(const struct cert *p)
 		fprintf(stderr, "Manifest: %s\n", p->mft);
 	if (NULL != p->ski)
 		fprintf(stderr, "Subject key identifier: %s\n", p->ski);
-	if (NULL != p->aki)
-		fprintf(stderr, "Authority key identifier: %s\n", p->ski);
 
 	for (i = 0; i < p->asz; i++)
 		switch (p->as[i].type) {
@@ -73,19 +71,14 @@ main(int argc, char *argv[])
 {
 	int		 c, verb = 0;
 	size_t		 i;
-	BIO		*bio;
-	X509		*x = NULL, *xp = NULL;
-	const char	*cert = NULL;
+	X509		*xp = NULL;
 	struct cert	*p;
 
 	SSL_library_init();
 	SSL_load_error_strings();
 
-	while (-1 != (c = getopt(argc, argv, "c:v"))) 
+	while (-1 != (c = getopt(argc, argv, "v"))) 
 		switch (c) {
-		case 'c':
-			cert = optarg;
-			break;
 		case 'v':
 			verb++;
 			break;
@@ -96,14 +89,6 @@ main(int argc, char *argv[])
 	argv += optind;
 	argc -= optind;
 
-	if (NULL != cert) {
-		if ((bio = BIO_new_file(cert, "rb")) == NULL)
-			cryptoerrx("%s: BIO_new_file", cert);
-		if ((x = d2i_X509_bio(bio, NULL)) == NULL)
-			cryptoerrx("%s: d2i_X509_bio", cert);
-		BIO_free(bio);
-	}
-
 	for (i = 0; i < (size_t)argc; i++) {
 		if ((p = cert_parse(&xp, argv[i], NULL)) == NULL)
 			break;
@@ -113,7 +98,6 @@ main(int argc, char *argv[])
 		X509_free(xp);
 	}
 
-	X509_free(x);
 	ERR_free_strings();
 	return i < (size_t)argc ? EXIT_FAILURE : EXIT_SUCCESS;
 }

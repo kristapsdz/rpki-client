@@ -125,204 +125,6 @@ sbgp_addr(struct parse *p,
 }
 
 /*
- * Parse X509v3 authority key identifier, RFC 6487 sec. 4.8.3.
- * Returns zero on failure, non-zero on success.
- */
-static int
-sbgp_akey_ident(struct parse *p, X509_EXTENSION *ext)
-{
-	unsigned char		*sv = NULL;
-	const unsigned char 	*d;
-	size_t			 dsz;
-	const ASN1_TYPE		*t;
-	const ASN1_SEQUENCE_ANY	*seq = NULL, *sseq = NULL;
-	int			 rc = 0, ptag;
-	long			 i, plen;
-	char			 buf[4];
-
-	if ((dsz = i2d_X509_EXTENSION(ext, &sv)) < 0) {
-		cryptowarnx("%s: RFC 6487 section 4.8.3: AKI: "
-			"failed extension parse", p->fn);
-		goto out;
-	} 
-	d = sv;
-
-	if ((seq = d2i_ASN1_SEQUENCE_ANY(NULL, &d, dsz)) == NULL) {
-		cryptowarnx("%s: RFC 6487 section 4.8.3: AKI: "
-			"failed ASN.1 sequence parse", p->fn);
-		goto out;
-	} else if (sk_ASN1_TYPE_num(seq) != 2) {
-		warnx("%s: RFC 6487 section 4.8.3: AKI: "
-			"want 2 elements, have %d", p->fn, 
-			sk_ASN1_TYPE_num(seq));
-		goto out;
-	}
-
-	t = sk_ASN1_TYPE_value(seq, 0);
-	if (t->type != V_ASN1_OBJECT) {
-		warnx("%s: RFC 6487 section 4.8.3: AKI: "
-			"want ASN.1 object, have %s (NID %d)", 
-			p->fn, ASN1_tag2str(t->type), t->type);
-		goto out;
-	}
-	if (OBJ_obj2nid(t->value.object) != NID_authority_key_identifier) {
-		warnx("%s: RFC 6487 section 4.8.3: AKI: "
-			"incorrect OID, have %s (NID %d)", p->fn, 
-			ASN1_tag2str(OBJ_obj2nid(t->value.object)), 
-			OBJ_obj2nid(t->value.object));
-		goto out;
-	}
-
-	t = sk_ASN1_TYPE_value(seq, 1);
-	if (t->type != V_ASN1_OCTET_STRING) {
-		warnx("%s: RFC 6487 section 4.8.3: AKI: "
-			"want ASN.1 octet string, have %s (NID %d)", 
-			p->fn, ASN1_tag2str(t->type), t->type);
-		goto out;
-	}
-
-	/* Data is really a sub-sequence...? */
-
-	d = t->value.octet_string->data;
-	dsz = t->value.octet_string->length;
-
-	if ((sseq = d2i_ASN1_SEQUENCE_ANY(NULL, &d, dsz)) == NULL) {
-		cryptowarnx("%s: RFC 6487 section 4.8.2: SKI: "
-			"failed ASN.1 sub-sequence parse", p->fn);
-		goto out;
-	} else if (sk_ASN1_TYPE_num(sseq) != 1) {
-		warnx("%s: RFC 6487 section 4.8.3: AKI: "
-			"want 1 element, have %d", p->fn, 
-			sk_ASN1_TYPE_num(seq));
-		goto out;
-	} 
-
-	t = sk_ASN1_TYPE_value(sseq, 0);
-	if (t->type != V_ASN1_OTHER) {
-		warnx("%s: RFC 6487 section 4.8.3: AKI: "
-			"want ASN.1 external, have %s (NID %d)", 
-			p->fn, ASN1_tag2str(t->type), t->type);
-		goto out;
-	}
-
-	d = t->value.asn1_string->data;
-	dsz = t->value.asn1_string->length;
-	if (!ASN1_frame(p, dsz, &d, &plen, &ptag))
-		goto out;
-
-	/* Make room for [hex1, hex2, ":"]*, NUL. */
-
-	free(p->res->aki);
-	if ((p->res->aki = calloc(plen * 3 + 1, 1)) == NULL)
-		err(EXIT_FAILURE, NULL);
-
-	for (i = 0; i < plen; i++) {
-		snprintf(buf, sizeof(buf), "%0.2X:", d[i]);
-		strlcat(p->res->aki, buf, plen * 3 + 1);
-	}
-	p->res->aki[plen * 3 - 1] = '\0';
-	rc = 1;
-out:
-	sk_ASN1_TYPE_free(seq);
-	sk_ASN1_TYPE_free(sseq);
-	free(sv);
-	return rc;
-}
-
-/*
- * Parse X509v3 subject key identifier, RFC 6487 sec. 4.8.2.
- * Returns zero on failure, non-zero on success.
- */
-static int
-sbgp_skey_ident(struct parse *p, X509_EXTENSION *ext)
-{
-	size_t			 dsz;
-	const unsigned char 	*d;
-	const ASN1_SEQUENCE_ANY	*seq = NULL;
-	const ASN1_TYPE		*t;
-	int			 rc = 0, ptag;
-	unsigned char		*sv = NULL;
-	char			 buf[4];
-	long			 j, plen;
-
-	if ((dsz = i2d_X509_EXTENSION(ext, &sv)) < 0) {
-		cryptowarnx("%s: RFC 6487 section 4.8.2: SKI: "
-			"failed extension parse", p->fn);
-		goto out;
-	} 
-	d = sv;
-
-	if ((seq = d2i_ASN1_SEQUENCE_ANY(NULL, &d, dsz)) == NULL) {
-		cryptowarnx("%s: RFC 6487 section 4.8.2: SKI: "
-			"failed ASN.1 sequence parse", p->fn);
-		goto out;
-	} else if (sk_ASN1_TYPE_num(seq) != 2) {
-		warnx("%s: RFC 6487 section 4.8.2: SKI: "
-			"want 2 elements, have %d", p->fn, 
-			sk_ASN1_TYPE_num(seq));
-		goto out;
-	}
-
-	t = sk_ASN1_TYPE_value(seq, 0);
-	if (t->type != V_ASN1_OBJECT) {
-		warnx("%s: RFC 6487 section 4.8.2: SKI: "
-			"want ASN.1 object, have %s (NID %d)", 
-			p->fn, ASN1_tag2str(t->type), t->type);
-		goto out;
-	}
-	if (OBJ_obj2nid(t->value.object) != NID_subject_key_identifier) {
-		warnx("%s: RFC 6487 section 4.8.2: SKI: "
-			"incorrect OID, have %s (NID %d)", p->fn, 
-			ASN1_tag2str(OBJ_obj2nid(t->value.object)), 
-			OBJ_obj2nid(t->value.object));
-		goto out;
-	}
-
-	t = sk_ASN1_TYPE_value(seq, 1);
-	if (t->type != V_ASN1_OCTET_STRING) {
-		warnx("%s: RFC 6487 section 4.8.2: SKI: "
-			"want ASN.1 octet string, have %s (NID %d)", 
-			p->fn, ASN1_tag2str(t->type), t->type);
-		goto out;
-	}
-
-	/* 
-	 * Parse the frame out of the ASN.1 octet string.
-	 * The content is always a 20 B (160 bit) hash.
-	 */
-
-	d = t->value.octet_string->data;
-	dsz = t->value.octet_string->length;
-
-	if (!ASN1_frame(p, dsz, &d, &plen, &ptag))
-		goto out;
-
-	if (plen != 20) {
-		warnx("%s: RFC 6487 section 4.8.2: SKI: want 20 B "
-			"SHA1 hash, have %ld B", p->fn, plen);
-		goto out;
-	} 
-	assert(V_ASN1_OCTET_STRING == ptag);
-
-	/* Make room for [hex1, hex2, ":"]*, NUL. */
-
-	free(p->res->ski);
-	if ((p->res->ski = calloc(plen * 3 + 1, 1)) == NULL)
-		err(EXIT_FAILURE, NULL);
-
-	for (j = 0; j < plen; j++) {
-		snprintf(buf, sizeof(buf), "%0.2X:", d[j]);
-		strlcat(p->res->ski, buf, dsz * 3 + 1);
-	}
-	p->res->ski[plen * 3 - 1] = '\0';
-	rc = 1;
-out:
-	sk_ASN1_TYPE_free(seq);
-	free(sv);
-	return rc;
-}
-
-/*
  * Parse either the CA repository or manifest, 4.8.8.1.
  * Returns zero on failure, non-zero on success.
  */
@@ -1043,56 +845,6 @@ out:
 	return rc;
 }
 
-int
-cert_vrfy_cert(X509 *x, const char *fn, X509 *akix)
-{
-
-	return 1;
-}
-
-int
-cert_vrfy_pkey(X509 *x, const char *fn, 
-	const unsigned char *pkey, size_t pkeysz)
-{
-	EVP_PKEY	*pk = NULL, *opk = NULL;
-	int		 c = 0;
-
-	assert(pkeysz);
-	assert(pkey != NULL);
-	pk = d2i_PUBKEY(NULL, &pkey, pkeysz);
-	assert(pk != NULL);
-
-	if ((opk = X509_get_pubkey(x)) == NULL) {
-		cryptowarnx("%s: does not have public key ", fn);
-		goto out;
-	}
-
-	/* First, make sure the certificate is signed with the given. */
-
-	if (!X509_verify(x, pk)) {
-		cryptowarnx("%s: could not verify "
-			"with TAL public key", fn);
-		goto out;
-	}
-	
-	/* 
-	 * Next, make sure that the self-signed key and the given public
-	 * key are the same.
-	 */
-
-	if (!EVP_PKEY_cmp(pk, opk)) {
-		cryptowarnx("%s: given and self-signing "
-			"public keys are different", fn);
-		goto out;
-	}
-
-	c = 1;
-out:
-	EVP_PKEY_free(pk);
-	EVP_PKEY_free(opk);
-	return c;
-}
-
 /*
  * Parse and optionally validate a signed X509 certificate.
  * Then parse the X509v3 extensions as defined in RFC 6487.
@@ -1205,12 +957,6 @@ cert_parse(X509 **xp, const char *fn, const unsigned char *dgst)
 		case NID_sinfo_access:
 			c = sbgp_sia(&p, ext);
 			break;
-		case NID_subject_key_identifier:
-			c = sbgp_skey_ident(&p, ext);
-			break;
-		case NID_authority_key_identifier:
-			c = sbgp_akey_ident(&p, ext);
-			break;
 		default:
 			c = 1;
 			/*
@@ -1222,14 +968,6 @@ cert_parse(X509 **xp, const char *fn, const unsigned char *dgst)
 		}
 		if (c == 0)
 			goto out;
-	}
-
-	/* RFC 6487, section 4.8.2. */
-
-	if (p.res->ski == NULL) {
-		warnx("%s: RFC 6487 section 4.8.2: "
-			"missing subject key identifier", p.fn);
-		goto out;
 	}
 
 	rc = 1;
@@ -1252,8 +990,6 @@ cert_free(struct cert *p)
 
 	free(p->rep);
 	free(p->mft);
-	free(p->ski);
-	free(p->aki);
 	free(p->ips);
 	free(p->as);
 	free(p);
@@ -1304,8 +1040,6 @@ cert_buffer(char **b, size_t *bsz, size_t *bmax, const struct cert *p)
 
 	str_buffer(b, bsz, bmax, p->rep);
 	str_buffer(b, bsz, bmax, p->mft);
-	str_buffer(b, bsz, bmax, p->ski);
-	str_buffer(b, bsz, bmax, p->aki);
 }
 
 static void
@@ -1361,8 +1095,6 @@ cert_read(int fd)
 
 	str_read(fd, &p->rep);
 	str_read(fd, &p->mft);
-	str_read(fd, &p->ski);
-	str_read(fd, &p->aki);
 	return p;
 }
 

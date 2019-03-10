@@ -309,7 +309,7 @@ out:
  * Returns the ROA or NULL if the document was malformed.
  */
 struct roa *
-roa_parse(X509 *cacert, const char *fn, const unsigned char *dgst)
+roa_parse(X509 **x509, const char *fn, const unsigned char *dgst)
 {
 	struct parse		 p;
 	const ASN1_OCTET_STRING	*os;
@@ -319,7 +319,7 @@ roa_parse(X509 *cacert, const char *fn, const unsigned char *dgst)
 
 	/* OID from section 2, RFC 6482. */
 
-	os = cms_parse_validate(cacert, fn,
+	os = cms_parse_validate(x509, fn,
 		"1.2.840.113549.1.9.16.1.24", dgst);
 	if (os == NULL)
 		return NULL;
@@ -329,6 +329,10 @@ roa_parse(X509 *cacert, const char *fn, const unsigned char *dgst)
 	if (!roa_parse_econtent(os, &p)) {
 		roa_free(p.res);
 		p.res = NULL;
+		if (x509 != NULL) {
+			X509_free(*x509);
+			*x509 = NULL;
+		}
 	}
 	return p.res;
 

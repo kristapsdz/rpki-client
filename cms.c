@@ -11,13 +11,13 @@
 
 /*
  * Parse and validate a self-signed CMS message, where the signing X509
- * certificate has been signed by cacert (optional) and SHA256 hashes to
- * dgst (also optional).
+ * certificate has been hashed to dgst (optional).
+ * Conforms to RFC 6488.
  * The eContentType of the message must be an oid object.
  * Return the eContent as an octet string or NULL on "soft" failure.
  */
 const ASN1_OCTET_STRING *
-cms_parse_validate(X509 *cacert, const char *fn,
+cms_parse_validate(X509 **xp, const char *fn,
 	const char *oid, const unsigned char *dgst)
 {
 	const ASN1_OBJECT  *obj;
@@ -27,9 +27,10 @@ cms_parse_validate(X509 *cacert, const char *fn,
 	char 		    buf[128];
 	int		    rc = 0, sz;
 	STACK_OF(X509)	   *certs = NULL;
-	X509		   *cert;
 	EVP_MD		   *md;
 	unsigned char	    mdbuf[EVP_MAX_MD_SIZE];
+
+	*xp = NULL;
 
 	if ((bio = BIO_new_file(fn, "rb")) == NULL)
 		cryptoerrx("%s: BIO_new_file", fn);
@@ -76,12 +77,16 @@ cms_parse_validate(X509 *cacert, const char *fn,
 		}
 	}
 
-	/* Check the CMS object's eContentType. */
+	/* RFC 6488 section 2.1.3.1: check the object's eContentType. */
 
 	obj = CMS_get0_eContentType(cms);
-	OBJ_obj2txt(buf, sizeof(buf), obj, 1);
+	if ((sz = OBJ_obj2txt(buf, sizeof(buf), obj, 1)) < 0)
+		cryptoerrx("OBJ_obj2txt");
 
-	if (strcmp(buf, oid)) {
+	if ((size_t)sz >= sizeof(buf)) {
+		warnx("%s: OID too long", fn);
+		goto out;
+	} else if (strcmp(buf, oid)) {
 		warnx("%s: bad content type: %s, want %s", fn, buf, oid);
 		goto out;
 	}
@@ -99,30 +104,33 @@ cms_parse_validate(X509 *cacert, const char *fn,
 
 	/*
 	 * The self-signing certificate is further signed by the input
-	 * signing authority, which we conditionally check now.
+	 * signing authority according to RFC 6488, 2.1.4.
+	 * We extract that certificate now for later verification.
 	 */
 
-	if (cacert != NULL) {
-		certs = CMS_get0_signers(cms);
-		if (certs == NULL || sk_X509_num(certs) != 1) {
-			warnx("%s: multiple signers", fn);
-			goto out;
-		}
-		cert = sk_X509_value(certs, 0);
-		if (X509_verify(cert, X509_get_pubkey(cacert)) <= 0) {
-			cryptowarnx("%s: X509_verify", fn);
-			goto out;
-		} 
+	certs = CMS_get0_signers(cms);
+	if (certs == NULL || sk_X509_num(certs) != 1) {
+		warnx("%s: multiple signers", fn);
+		goto out;
+	}
+	*xp = X509_dup(sk_X509_value(certs, 0));
+
+	/* Extract eContent and pass to output function. */
+
+	if ((os = CMS_get0_content(cms)) == NULL || *os == NULL) {
+		warnx("%s: empty content", fn);
+		goto out;
 	}
 
-	/* Extract eContents and pass to output function. */
-
-	if ((os = CMS_get0_content(cms)) == NULL || *os == NULL)
-		warnx("%s: empty content", fn);
-	else
-		rc = 1;
+	rc = 1;
 out:
 	BIO_free_all(bio);
 	sk_X509_free(certs);
-	return rc ? *os : NULL;
+
+	if (rc == 0) {
+		X509_free(*xp);
+		*xp = NULL;
+	}
+
+	return (rc == 0) ? NULL : *os;
 }
