@@ -30,6 +30,13 @@
 #include "extern.h"
 
 /*
+ * Type of ASIdentifier (RFC 3779, 3.2.3).
+ */
+#define	ASID_TYPE_ASNUM	0x00
+#define ASID_TYPE_RDI	0x01
+#define ASID_TYPE_MAX	ASID_TYPE_RDI
+
+/*
  * A parsing sequence of a file (which may just be <stdin>).
  */
 struct	parse {
@@ -331,8 +338,7 @@ out:
  * Returns zero on failure, non-zero on success.
  */
 static int
-sbgp_asrange(struct parse *p, int rdi,
-	const unsigned char *d, size_t dsz)
+sbgp_asrange(struct parse *p, const unsigned char *d, size_t dsz)
 {
 	struct cert_as	 	 as;
 	ASN1_SEQUENCE_ANY	*seq;
@@ -352,7 +358,6 @@ sbgp_asrange(struct parse *p, int rdi,
 
 	memset(&as, 0, sizeof(struct cert_as));
 	as.type = CERT_AS_RANGE;
-	as.rdi = rdi;
 
 	t = sk_ASN1_TYPE_value(seq, 0);
 	if (t->type != V_ASN1_INTEGER) {
@@ -372,6 +377,16 @@ sbgp_asrange(struct parse *p, int rdi,
 	}
 	as.range.max = ASN1_INTEGER_get(t->value.integer);
 
+	if (as.range.max == as.range.min) {
+		warnx("%s: RFC 3379 section 3.2.3.8: ASRange: "
+			"range is singular", p->fn);
+		goto out;
+	} else if (as.range.max < as.range.min) {
+		warnx("%s: RFC 3379 section 3.2.3.8: ASRange: "
+			"range is out of order", p->fn);
+		goto out;
+	}
+
 	append_as(p, &as);
 	rc = 1;
 out:
@@ -383,13 +398,12 @@ out:
  * Parse an entire 3.2.3.10 integer type.
  */
 static void
-sbgp_asid(struct parse *p, int rdi, const ASN1_INTEGER *i)
+sbgp_asid(struct parse *p, const ASN1_INTEGER *i)
 {
 	struct cert_as	 as;
 
 	memset(&as, 0, sizeof(struct cert_as));
 
-	as.rdi = rdi;
 	as.type = CERT_AS_ID;
 	as.id = ASN1_INTEGER_get(i);
 	append_as(p, &as);
@@ -400,8 +414,7 @@ sbgp_asid(struct parse *p, int rdi, const ASN1_INTEGER *i)
  * Returns zero on failure, non-zero on success.
  */
 static int
-sbgp_asnum(struct parse *p, int rdi, 
-	const unsigned char *d, size_t dsz)
+sbgp_asnum(struct parse *p, const unsigned char *d, size_t dsz)
 {
 	struct cert_as	 	 as;
 	ASN1_TYPE		*t;
@@ -426,8 +439,7 @@ sbgp_asnum(struct parse *p, int rdi,
 	switch (t->type) {
 	case V_ASN1_NULL:
 		memset(&as, 0, sizeof(struct cert_as));
-		as.rdi = rdi;
-		as.type = CERT_AS_NULL;
+		as.type = CERT_AS_INHERIT;
 		append_as(p, &as);
 		rc = 1;
 		goto out;
@@ -456,12 +468,12 @@ sbgp_asnum(struct parse *p, int rdi,
 		t = sk_ASN1_TYPE_value(seq, i);
 		switch (t->type) {
 		case V_ASN1_INTEGER:
-			sbgp_asid(p, rdi, t->value.integer);
+			sbgp_asid(p, t->value.integer);
 			break;
 		case V_ASN1_SEQUENCE:
 			d = t->value.asn1_string->data;
 			dsz = t->value.asn1_string->length;
-			if (!sbgp_asrange(p, rdi, d, dsz))
+			if (!sbgp_asrange(p, d, dsz))
 				goto out;
 			break;
 		default:
@@ -572,12 +584,17 @@ sbgp_assysnum(struct parse *p, X509_EXTENSION *ext)
 		if (!ASN1_frame(p, dsz, &d, &plen, &ptag))
 			goto out;
 
-		if (ptag > 0x01) {
+		/* Ignore bad AS identifiers and RDI entries. */
+
+		if (ptag > ASID_TYPE_MAX) {
 			warnx("%s: RFC 3779 section 3.2.3.1: "
 				"ASIdentifiers: unknown explicit "
 				"tag 0x%0.2x", p->fn, ptag);
 			goto out;
-		} else if (!sbgp_asnum(p, ptag, d, plen))
+		} else if (ptag == ASID_TYPE_RDI)
+			continue;
+
+		if (!sbgp_asnum(p, d, plen))
 			goto out;
 	}
 
@@ -1028,7 +1045,6 @@ cert_as_buffer(char **b, size_t *bsz,
 	size_t *bmax, const struct cert_as *p)
 {
 
-	io_simple_buffer(b, bsz, bmax, &p->rdi, sizeof(int));
 	io_simple_buffer(b, bsz, bmax, &p->type, sizeof(enum cert_as_type));
 	if (p->type == CERT_AS_RANGE) {
 		io_simple_buffer(b, bsz, bmax, &p->range.min, sizeof(uint32_t));
@@ -1073,7 +1089,6 @@ static void
 cert_as_read(int fd, struct cert_as *p)
 {
 
-	io_simple_read(fd, &p->rdi, sizeof(int));
 	io_simple_read(fd, &p->type, sizeof(enum cert_as_type));
 	if (p->type == CERT_AS_RANGE) {
 		io_simple_read(fd, &p->range.min, sizeof(uint32_t));

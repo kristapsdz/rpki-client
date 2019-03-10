@@ -19,7 +19,7 @@
 
 enum	cert_as_type {
 	CERT_AS_ID, /* single identifier */
-	CERT_AS_NULL, /* inherit from parent */
+	CERT_AS_INHERIT, /* inherit from parent */
 	CERT_AS_RANGE, /* range of identifiers */
 };
 
@@ -35,7 +35,6 @@ struct	cert_as_range {
  * An autonomous system (AS) object.
  */
 struct	cert_as {
-	int		  rdi; /* routing domain identifier? */
 	enum cert_as_type type; /* type of AS specification */
 	union {
 		uint32_t id; /* singleton */
