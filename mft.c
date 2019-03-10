@@ -1,3 +1,19 @@
+/*	$Id$ */
+/*
+ * Copyright (c) 2019 Kristaps Dzonsons <kristaps@bsd.lv>
+ *
+ * Permission to use, copy, modify, and distribute this software for any
+ * purpose with or without fee is hereby granted, provided that the above
+ * copyright notice and this permission notice appear in all copies.
+ *
+ * THE SOFTWARE IS PROVIDED "AS IS" AND THE AUTHOR DISCLAIMS ALL WARRANTIES
+ * WITH REGARD TO THIS SOFTWARE INCLUDING ALL IMPLIED WARRANTIES OF
+ * MERCHANTABILITY AND FITNESS. IN NO EVENT SHALL THE AUTHOR BE LIABLE FOR
+ * ANY SPECIAL, DIRECT, INDIRECT, OR CONSEQUENTIAL DAMAGES OR ANY DAMAGES
+ * WHATSOEVER RESULTING FROM LOSS OF USE, DATA OR PROFITS, WHETHER IN AN
+ * ACTION OF CONTRACT, NEGLIGENCE OR OTHER TORTIOUS ACTION, ARISING OUT OF
+ * OR IN CONNECTION WITH THE USE OR PERFORMANCE OF THIS SOFTWARE.
+ */
 #include <assert.h>
 #include <err.h>
 #include <stdarg.h>
@@ -101,8 +117,7 @@ mft_parse_filehash(struct parse *p, const ASN1_OCTET_STRING *os)
 		err(EXIT_FAILURE, NULL);
 
 	/* 
-	 * Make sure we're just a pathname and either a CRL,
-	 * ROA, or CER.
+	 * Make sure we're just a pathname and either an ROA or CER.
 	 * I don't think that the RFC specifically mentions this, but
 	 * it's in practical use and would really screw things up
 	 * (arbitrary filenames) otherwise.
@@ -119,10 +134,7 @@ mft_parse_filehash(struct parse *p, const ASN1_OCTET_STRING *os)
 	}
 
 	if (strcasecmp(fn + sz - 4, ".roa") &&
-	    strcasecmp(fn + sz - 4, ".cer") &&
-	    strcasecmp(fn + sz - 4, ".crl")) {
-		warnx("%s: ignoring filename without roa, cer, "
-			"or crl suffix: %s", p->fn, fn);
+	    strcasecmp(fn + sz - 4, ".cer")) {
 		free(fn);
 		fn = NULL;
 		rc = 1;
@@ -419,13 +431,13 @@ mft_buffer(char **b, size_t *bsz, size_t *bmax, const struct mft *p)
 {
 	size_t		 i;
 
-	simple_buffer(b, bsz, bmax, &p->stale, sizeof(int));
-	str_buffer(b, bsz, bmax, p->file);
-	simple_buffer(b, bsz, bmax, &p->filesz, sizeof(size_t));
+	io_simple_buffer(b, bsz, bmax, &p->stale, sizeof(int));
+	io_str_buffer(b, bsz, bmax, p->file);
+	io_simple_buffer(b, bsz, bmax, &p->filesz, sizeof(size_t));
 
 	for (i = 0; i < p->filesz; i++) {
-		str_buffer(b, bsz, bmax, p->files[i].file);
-		simple_buffer(b, bsz, bmax,
+		io_str_buffer(b, bsz, bmax, p->files[i].file);
+		io_simple_buffer(b, bsz, bmax,
 			p->files[i].hash, SHA256_DIGEST_LENGTH);
 	}
 }
@@ -443,16 +455,16 @@ mft_read(int fd)
 	if ((p = calloc(1, sizeof(struct mft))) == NULL)
 		err(EXIT_FAILURE, NULL);
 
-	simple_read(fd, &p->stale, sizeof(int));
-	str_read(fd, &p->file);
-	simple_read(fd, &p->filesz, sizeof(size_t));
+	io_simple_read(fd, &p->stale, sizeof(int));
+	io_str_read(fd, &p->file);
+	io_simple_read(fd, &p->filesz, sizeof(size_t));
 	
 	if ((p->files = calloc(p->filesz, sizeof(struct mftfile))) == NULL)
 		err(EXIT_FAILURE, NULL);
 
 	for (i = 0; i < p->filesz; i++) {
-		str_read(fd, &p->files[i].file);
-		simple_read(fd, p->files[i].hash, SHA256_DIGEST_LENGTH);
+		io_str_read(fd, &p->files[i].file);
+		io_simple_read(fd, p->files[i].hash, SHA256_DIGEST_LENGTH);
 	}
 
 	return p;

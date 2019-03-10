@@ -1,3 +1,19 @@
+/*	$Id$ */
+/*
+ * Copyright (c) 2019 Kristaps Dzonsons <kristaps@bsd.lv>
+ *
+ * Permission to use, copy, modify, and distribute this software for any
+ * purpose with or without fee is hereby granted, provided that the above
+ * copyright notice and this permission notice appear in all copies.
+ *
+ * THE SOFTWARE IS PROVIDED "AS IS" AND THE AUTHOR DISCLAIMS ALL WARRANTIES
+ * WITH REGARD TO THIS SOFTWARE INCLUDING ALL IMPLIED WARRANTIES OF
+ * MERCHANTABILITY AND FITNESS. IN NO EVENT SHALL THE AUTHOR BE LIABLE FOR
+ * ANY SPECIAL, DIRECT, INDIRECT, OR CONSEQUENTIAL DAMAGES OR ANY DAMAGES
+ * WHATSOEVER RESULTING FROM LOSS OF USE, DATA OR PROFITS, WHETHER IN AN
+ * ACTION OF CONTRACT, NEGLIGENCE OR OTHER TORTIOUS ACTION, ARISING OUT OF
+ * OR IN CONNECTION WITH THE USE OR PERFORMANCE OF THIS SOFTWARE.
+ */
 #include <sys/queue.h>
 #include <sys/socket.h>
 #include <sys/wait.h>
@@ -58,7 +74,7 @@ struct	repotab {
  */
 struct	entry {
 	size_t		 id; /* unique identifier */
-	enum rtype	 type; /* type of entry (not RTYPE_EOF/CRL) */
+	enum rtype	 type; /* type of entry (not RTYPE_EOF) */
 	char		*uri; /* file or rsync:// URI */
 	int		 has_dgst; /* whether dgst is specified */
 	unsigned char	 dgst[SHA256_DIGEST_LENGTH]; /* optional */
@@ -112,15 +128,15 @@ static void
 entry_read_req(int fd, struct entry *ent)
 {
 
-	simple_read(fd, &ent->id, sizeof(size_t));
-	simple_read(fd, &ent->type, sizeof(enum rtype));
-	str_read(fd, &ent->uri);
-	simple_read(fd, &ent->has_dgst, sizeof(int));
+	io_simple_read(fd, &ent->id, sizeof(size_t));
+	io_simple_read(fd, &ent->type, sizeof(enum rtype));
+	io_str_read(fd, &ent->uri);
+	io_simple_read(fd, &ent->has_dgst, sizeof(int));
 	if (ent->has_dgst)
-		simple_read(fd, ent->dgst, sizeof(ent->dgst));
-	simple_read(fd, &ent->has_pkey, sizeof(int));
+		io_simple_read(fd, ent->dgst, sizeof(ent->dgst));
+	io_simple_read(fd, &ent->has_pkey, sizeof(int));
 	if (ent->has_pkey)
-		buf_read_alloc(fd, (void **)&ent->pkey, &ent->pkeysz);
+		io_buf_read_alloc(fd, (void **)&ent->pkey, &ent->pkeysz);
 }
 
 /*
@@ -167,9 +183,9 @@ repo_lookup(int fd, int verb, struct repotab *rt, const char *uri)
 	i = rt->reposz - 1;
 
 	logx(verb, "%s/%s: loading", rp->host, rp->module);
-	simple_write(fd, &i, sizeof(size_t));
-	str_write(fd, rp->host);
-	str_write(fd, rp->module);
+	io_simple_write(fd, &i, sizeof(size_t));
+	io_str_write(fd, rp->host);
+	io_str_write(fd, rp->module);
 	return rp;
 }
 
@@ -184,7 +200,7 @@ entryq_next(int fd, struct entryq *q)
 	size_t		 id;
 	struct entry	*entp;
 
-	simple_read(fd, &id, sizeof(size_t));
+	io_simple_read(fd, &id, sizeof(size_t));
 
 	TAILQ_FOREACH(entp, q, entries)
 		if (entp->id == id)
@@ -200,7 +216,7 @@ entry_buffer_resp(char **b, size_t *bsz,
 	size_t *bmax, const struct entry *ent)
 {
 
-	simple_buffer(b, bsz, bmax, &ent->id, sizeof(size_t));
+	io_simple_buffer(b, bsz, bmax, &ent->id, sizeof(size_t));
 }
 
 /*
@@ -212,15 +228,15 @@ entry_buffer_req(char **b, size_t *bsz,
 	size_t *bmax, const struct entry *ent)
 {
 
-	simple_buffer(b, bsz, bmax, &ent->id, sizeof(size_t));
-	simple_buffer(b, bsz, bmax, &ent->type, sizeof(enum rtype));
-	str_buffer(b, bsz, bmax, ent->uri);
-	simple_buffer(b, bsz, bmax, &ent->has_dgst, sizeof(int));
+	io_simple_buffer(b, bsz, bmax, &ent->id, sizeof(size_t));
+	io_simple_buffer(b, bsz, bmax, &ent->type, sizeof(enum rtype));
+	io_str_buffer(b, bsz, bmax, ent->uri);
+	io_simple_buffer(b, bsz, bmax, &ent->has_dgst, sizeof(int));
 	if (ent->has_dgst)
-		simple_buffer(b, bsz, bmax, ent->dgst, sizeof(ent->dgst));
-	simple_buffer(b, bsz, bmax, &ent->has_pkey, sizeof(int));
+		io_simple_buffer(b, bsz, bmax, ent->dgst, sizeof(ent->dgst));
+	io_simple_buffer(b, bsz, bmax, &ent->has_pkey, sizeof(int));
 	if (ent->has_pkey)
-		buf_buffer(b, bsz, bmax, ent->pkey, ent->pkeysz);
+		io_buf_buffer(b, bsz, bmax, ent->pkey, ent->pkeysz);
 }
 
 /*
@@ -234,7 +250,7 @@ entry_write_req(int fd, const struct entry *ent)
 	size_t	 bsz = 0, bmax = 0;
 
 	entry_buffer_req(&b, &bsz, &bmax, ent);
-	simple_write(fd, b, bsz);
+	io_simple_write(fd, b, bsz);
 	free(b);
 }
 
@@ -295,7 +311,7 @@ entryq_add(int fd, int verb, struct entryq *q,
 }
 
 /*
- * Add a file (CER, ROA, or CRL) from an MFT file, RFC 6486.
+ * Add a file (CER, ROA) from an MFT file, RFC 6486.
  * These are always relative to the directory in which "mft" sits.
  */
 static void
@@ -311,16 +327,12 @@ queue_add_from_mft(int fd, int verb, struct entryq *q,
 
 	/* Determine the file type, ignoring revocation lists. */
 
-	if (strcasecmp(file->file + sz - 4, ".crl") == 0)
-		type = RTYPE_CRL;
-	else if (strcasecmp(file->file + sz - 4, ".cer") == 0)
+	if (strcasecmp(file->file + sz - 4, ".cer") == 0)
 		type = RTYPE_CER;
 	else if (strcasecmp(file->file + sz - 4, ".roa") == 0)
 		type = RTYPE_ROA;
 
 	assert(type != RTYPE_EOF);
-	if (type == RTYPE_CRL)
-		return;
 
 	/* Construct local path from filename. */
 
@@ -478,11 +490,11 @@ proc_rsync(int fd, int noop)
 
 		/* Read host and module. */
 
-		str_read(fd, &host);
-		str_read(fd, &mod);
+		io_str_read(fd, &host);
+		io_str_read(fd, &mod);
 
 		if (noop) {
-			simple_write(fd, &id, sizeof(size_t));
+			io_simple_write(fd, &id, sizeof(size_t));
 			continue;
 		}
 
@@ -528,7 +540,7 @@ proc_rsync(int fd, int noop)
 		free(host);
 		free(uri);
 		mod = dst = host = uri = NULL;
-		simple_write(fd, &id, sizeof(size_t));
+		io_simple_write(fd, &id, sizeof(size_t));
 	}
 
 	rc = 1;
@@ -569,7 +581,7 @@ proc_parser(int fd)
 	pfd.fd = fd;
 	pfd.events = POLLIN;
 
-	socket_nonblocking(pfd.fd);
+	io_socket_nonblocking(pfd.fd);
 
 	for (;;) {
 		if (poll(&pfd, 1, INFTIM) < 0)
@@ -591,14 +603,14 @@ proc_parser(int fd)
 		 */
 
 		if ((pfd.revents & POLLIN)) {
-			socket_blocking(fd);
+			io_socket_blocking(fd);
 			entp = calloc(1, sizeof(struct entry));
 			if (entp == NULL)
 				err(EXIT_FAILURE, NULL);
 			entry_read_req(fd, entp);
 			TAILQ_INSERT_TAIL(&q, entp, entries);
 			pfd.events |= POLLOUT;
-			socket_nonblocking(fd);
+			io_socket_nonblocking(fd);
 		}
 
 		if (!(pfd.revents & POLLOUT))
@@ -895,8 +907,8 @@ main(int argc, char *argv[])
 		 * actually talk to the subprocesses.
 		 */
 
-		socket_nonblocking(pfd[0].fd);
-		socket_nonblocking(pfd[1].fd);
+		io_socket_nonblocking(pfd[0].fd);
+		io_socket_nonblocking(pfd[1].fd);
 
 		if ((c = poll(pfd, 2, 10000)) < 0)
 			err(EXIT_FAILURE, "poll");
@@ -924,8 +936,8 @@ main(int argc, char *argv[])
 
 		/* Reenable blocking. */
 
-		socket_blocking(pfd[0].fd);
-		socket_blocking(pfd[1].fd);
+		io_socket_blocking(pfd[0].fd);
+		io_socket_blocking(pfd[1].fd);
 
 		/* 
 		 * Check the rsync process.
@@ -935,7 +947,7 @@ main(int argc, char *argv[])
 		 */
 
 		if ((pfd[0].revents & POLLIN)) {
-			simple_read(rsync, &i, sizeof(size_t));
+			io_simple_read(rsync, &i, sizeof(size_t));
 			assert(i < rt.reposz);
 			assert(!rt.repos[i].loaded);
 			rt.repos[i].loaded = 1;

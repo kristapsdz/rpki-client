@@ -1,3 +1,19 @@
+/*	$Id$ */
+/*
+ * Copyright (c) 2019 Kristaps Dzonsons <kristaps@bsd.lv>
+ *
+ * Permission to use, copy, modify, and distribute this software for any
+ * purpose with or without fee is hereby granted, provided that the above
+ * copyright notice and this permission notice appear in all copies.
+ *
+ * THE SOFTWARE IS PROVIDED "AS IS" AND THE AUTHOR DISCLAIMS ALL WARRANTIES
+ * WITH REGARD TO THIS SOFTWARE INCLUDING ALL IMPLIED WARRANTIES OF
+ * MERCHANTABILITY AND FITNESS. IN NO EVENT SHALL THE AUTHOR BE LIABLE FOR
+ * ANY SPECIAL, DIRECT, INDIRECT, OR CONSEQUENTIAL DAMAGES OR ANY DAMAGES
+ * WHATSOEVER RESULTING FROM LOSS OF USE, DATA OR PROFITS, WHETHER IN AN
+ * ACTION OF CONTRACT, NEGLIGENCE OR OTHER TORTIOUS ACTION, ARISING OUT OF
+ * OR IN CONNECTION WITH THE USE OR PERFORMANCE OF THIS SOFTWARE.
+ */
 #include <assert.h>
 #include <err.h>
 #include <stdarg.h>
@@ -361,19 +377,19 @@ roa_buffer(char **b, size_t *bsz, size_t *bmax, const struct roa *p)
 {
 	size_t	 i;
 
-	simple_buffer(b, bsz, bmax, &p->asid, sizeof(uint32_t));
-	simple_buffer(b, bsz, bmax, &p->ipsz, sizeof(size_t));
+	io_simple_buffer(b, bsz, bmax, &p->asid, sizeof(uint32_t));
+	io_simple_buffer(b, bsz, bmax, &p->ipsz, sizeof(size_t));
 
 	for (i = 0; i < p->ipsz; i++) {
-		simple_buffer(b, bsz, bmax,
+		io_simple_buffer(b, bsz, bmax,
 			&p->ips[i].afi, sizeof(uint16_t));
-		simple_buffer(b, bsz, bmax,
+		io_simple_buffer(b, bsz, bmax,
 			&p->ips[i].maxlength, sizeof(size_t));
-		simple_buffer(b, bsz, bmax,
+		io_simple_buffer(b, bsz, bmax,
 			&p->ips[i].addr.sz, sizeof(size_t));
-		simple_buffer(b, bsz, bmax,
+		io_simple_buffer(b, bsz, bmax,
 			p->ips[i].addr.addr, p->ips[i].addr.sz);
-		simple_buffer(b, bsz, bmax,
+		io_simple_buffer(b, bsz, bmax,
 			&p->ips[i].addr.unused, sizeof(long));
 	}
 }
@@ -392,18 +408,18 @@ roa_read(int fd)
 	if ((p = calloc(1, sizeof(struct roa))) == NULL)
 		err(EXIT_FAILURE, NULL);
 
-	simple_read(fd, &p->asid, sizeof(uint32_t));
-	simple_read(fd, &p->ipsz, sizeof(size_t));
+	io_simple_read(fd, &p->asid, sizeof(uint32_t));
+	io_simple_read(fd, &p->ipsz, sizeof(size_t));
 
 	if ((p->ips = calloc(p->ipsz, sizeof(struct roa_ip))) == NULL)
 		err(EXIT_FAILURE, NULL);
 
 	for (i = 0; i < p->ipsz; i++) {
-		simple_read(fd, &p->ips[i].afi, sizeof(uint16_t));
-		simple_read(fd, &p->ips[i].maxlength, sizeof(size_t));
-		simple_read(fd, &p->ips[i].addr.sz, sizeof(size_t));
-		simple_read(fd, p->ips[i].addr.addr, p->ips[i].addr.sz);
-		simple_read(fd, &p->ips[i].addr.unused, sizeof(long));
+		io_simple_read(fd, &p->ips[i].afi, sizeof(uint16_t));
+		io_simple_read(fd, &p->ips[i].maxlength, sizeof(size_t));
+		io_simple_read(fd, &p->ips[i].addr.sz, sizeof(size_t));
+		io_simple_read(fd, p->ips[i].addr.addr, p->ips[i].addr.sz);
+		io_simple_read(fd, &p->ips[i].addr.unused, sizeof(long));
 	}
 
 	return p;

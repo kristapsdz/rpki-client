@@ -1,3 +1,19 @@
+/*	$Id$ */
+/*
+ * Copyright (c) 2019 Kristaps Dzonsons <kristaps@bsd.lv>
+ *
+ * Permission to use, copy, modify, and distribute this software for any
+ * purpose with or without fee is hereby granted, provided that the above
+ * copyright notice and this permission notice appear in all copies.
+ *
+ * THE SOFTWARE IS PROVIDED "AS IS" AND THE AUTHOR DISCLAIMS ALL WARRANTIES
+ * WITH REGARD TO THIS SOFTWARE INCLUDING ALL IMPLIED WARRANTIES OF
+ * MERCHANTABILITY AND FITNESS. IN NO EVENT SHALL THE AUTHOR BE LIABLE FOR
+ * ANY SPECIAL, DIRECT, INDIRECT, OR CONSEQUENTIAL DAMAGES OR ANY DAMAGES
+ * WHATSOEVER RESULTING FROM LOSS OF USE, DATA OR PROFITS, WHETHER IN AN
+ * ACTION OF CONTRACT, NEGLIGENCE OR OTHER TORTIOUS ACTION, ARISING OUT OF
+ * OR IN CONNECTION WITH THE USE OR PERFORMANCE OF THIS SOFTWARE.
+ */
 #include <sys/socket.h>
 
 #include <arpa/inet.h>
@@ -257,6 +273,23 @@ x509_authorise_selfsigned(X509 *x, const char *fn,
 	pk = d2i_PUBKEY(NULL, &pkey, pkeysz);
 	assert(pk != NULL);
 
+	/* Public keys should match and verify. */
+
+	if ((opk = X509_get_pubkey(x)) == NULL) {
+		cryptowarnx("%s: RFC 6487: no public key", fn);
+		goto out;
+	} else if (!EVP_PKEY_cmp(pk, opk)) {
+		cryptowarnx("%s: given and self-signing "
+			"public keys are different", fn);
+		goto out;
+	} else if (!X509_verify(x, pk)) {
+		cryptowarnx("%s: RFC 6487: self-signed key does "
+			"not match TAL-specified key", fn);
+		goto out;
+	}
+
+	/* Get the SKI and (optionally) AKI. */
+
 	if ((extsz = X509_get_ext_count(x)) < 0)
 		cryptoerrx("X509_get_ext_count");
 
@@ -288,23 +321,8 @@ x509_authorise_selfsigned(X509 *x, const char *fn,
 		warnx("%s: RFC 6487: no subject key identifier", fn);
 		goto out;
 	} else if (aki != NULL && strcmp(aki, ski)) {
-		warnx("%s: RFC 6487: subject and authoritative key "
-			"identifiers don't match", fn);
-		goto out;
-	}
-
-	/* Public keys should match and be signing. */
-
-	if ((opk = X509_get_pubkey(x)) == NULL) {
-		cryptowarnx("%s: RFC 6487: missing public key ", fn);
-		goto out;
-	} else if (!EVP_PKEY_cmp(pk, opk)) {
-		cryptowarnx("%s: given and self-signing "
-			"public keys are different", fn);
-		goto out;
-	} else if (!X509_verify(x, pk)) {
-		cryptowarnx("%s: RFC 6487: self-signed key does "
-			"not match TAL-specified key", fn);
+		warnx("%s: RFC 6487: non-matching subject and "
+			"authoritative key identifiers", fn);
 		goto out;
 	}
 
@@ -312,14 +330,14 @@ x509_authorise_selfsigned(X509 *x, const char *fn,
 
 	for (j = 0; j < *authsz; j++)
 		if (strcmp((*auths)[j].ski, ski) == 0) {
-			warnx("%s: RFC 6487: subject key identifier "
-				"already in key cache", fn);
+			warnx("%s: RFC 6487: duplicate certificate", fn);
 			goto out;
 		}
 
 	/* Append our own public key to the key cache. */
 
-	*auths = reallocarray(*auths, *authsz + 1, sizeof(struct auth));
+	*auths = reallocarray(*auths,
+		*authsz + 1, sizeof(struct auth));
 	if (*auths == NULL)
 		err(EXIT_FAILURE, NULL);
 	(*auths)[*authsz].ski = ski;
@@ -341,7 +359,7 @@ out:
  * Take a signed certificate as specified in RFC 6487, look up the
  * referenced certificate (AKI) in the key cache, and verify the
  * signature.
- * On success, augment the key cache with the certificate's SKI.
+ * If append is non-zero, augment the key cache with the cert's SKI.
  * Returns zero on failure, non-zero on success.
  */
 int
@@ -354,6 +372,8 @@ x509_authorise_signed(X509 *x, const char *fn,
 	X509_EXTENSION	*ext;
 	ASN1_OBJECT	*obj;
 	EVP_PKEY	*pk;
+
+	/* Get the public key, SKI, and AKI. */
 
 	if ((pk = X509_get_pubkey(x)) == NULL) {
 		cryptowarnx("%s: no public key", fn);
@@ -368,12 +388,14 @@ x509_authorise_signed(X509 *x, const char *fn,
 		assert(obj != NULL);
 		switch (OBJ_obj2nid(obj)) {
 		case NID_authority_key_identifier:
+			free(aki);
 			aki = x509_get_aki(X509_get_ext(x, i), fn);
 			if (aki == NULL)
 				goto out;
 			break;
 		return 0;
 		case NID_subject_key_identifier:
+			free(ski);
 			ski = x509_get_ski(X509_get_ext(x, i), fn);
 			if (ski == NULL)
 				goto out;
@@ -398,24 +420,22 @@ x509_authorise_signed(X509 *x, const char *fn,
 
 	for (j = 0; j < *authsz; j++)
 		if (strcmp((*auths)[j].ski, ski) == 0) {
-			warnx("%s: RFC 6487: subject key identifier "
-				"already in key cache", fn);
+			warnx("%s: RFC 6487: duplicate certificate", fn);
 			goto out;
 		}
 
-	/* Look for a matching identifier. */
+	/* Look for a certificate matching the AKI. */
 
 	for (j = 0; j < *authsz; j++)
 		if (strcmp((*auths)[j].ski, aki) == 0)
 			break;
 
 	if (j == *authsz) {
-		warnx("%s: RFC 6487: matching authority key "
-			"identifier not found in key cache", fn);
+		warnx("%s: RFC 6487: authority key "
+			"identifier not found", fn);
 		goto out;
 	} else if (!X509_verify(x, (*auths)[j].cert)) {
-		cryptowarnx("%s: RFC 6487: verification failed "
-			"for signer's public key", fn);
+		cryptowarnx("%s: RFC 6487: key verification failed", fn);
 		goto out;
 	}
 
