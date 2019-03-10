@@ -27,7 +27,8 @@
 .Sh DESCRIPTION
 The
 .Nm
-utility verifies all route announcements starting with a trust anchor.
+utility verifies all route announcements starting with trust anchor
+locators.
 It uses
 .Xr rsync 1
 to fetch certificates, manifests, and route announcements themselves.
@@ -65,8 +66,6 @@ The following standards are used or referenced in
 Cryptographic Message Syntax (CMS) Algorithms.
 .It RFC 3770
 Resource Public Key Infrastructure (RPKI) Trust Anchor Locator.
-.Nm
-relaxes this standard by accepting both UNIX and CRLF line formats.
 .It RFC 3779
 X.509 Extensions for IP Addresses and AS Identifiers.
 .It RFC 5652
@@ -82,6 +81,9 @@ Infrastructure (RPKI).
 Manifests for the Resource Public Key Infrastructure (RPKI).
 .It RFC 6487
 A Profile for X.509 PKIX Resource Certificates.
+.It RFC 6488
+Signed Object Template for the Resource Public Key Infrastructure
+(RPKI).
 .El
 .\" .Sh HISTORY
 .\" .Sh AUTHORS

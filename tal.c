@@ -1,3 +1,19 @@
+/*	$Id$ */
+/*
+ * Copyright (c) 2019 Kristaps Dzonsons <kristaps@bsd.lv>
+ *
+ * Permission to use, copy, modify, and distribute this software for any
+ * purpose with or without fee is hereby granted, provided that the above
+ * copyright notice and this permission notice appear in all copies.
+ *
+ * THE SOFTWARE IS PROVIDED "AS IS" AND THE AUTHOR DISCLAIMS ALL WARRANTIES
+ * WITH REGARD TO THIS SOFTWARE INCLUDING ALL IMPLIED WARRANTIES OF
+ * MERCHANTABILITY AND FITNESS. IN NO EVENT SHALL THE AUTHOR BE LIABLE FOR
+ * ANY SPECIAL, DIRECT, INDIRECT, OR CONSEQUENTIAL DAMAGES OR ANY DAMAGES
+ * WHATSOEVER RESULTING FROM LOSS OF USE, DATA OR PROFITS, WHETHER IN AN
+ * ACTION OF CONTRACT, NEGLIGENCE OR OTHER TORTIOUS ACTION, ARISING OUT OF
+ * OR IN CONNECTION WITH THE USE OR PERFORMANCE OF THIS SOFTWARE.
+ */
 #include <netinet/in.h>
 
 #include <assert.h>
@@ -196,11 +212,11 @@ tal_buffer(char **b, size_t *bsz, size_t *bmax, const struct tal *p)
 {
 	size_t	 i;
 
-	buf_buffer(b, bsz, bmax, p->pkey, p->pkeysz);
-	simple_buffer(b, bsz, bmax, &p->urisz, sizeof(size_t));
+	io_buf_buffer(b, bsz, bmax, p->pkey, p->pkeysz);
+	io_simple_buffer(b, bsz, bmax, &p->urisz, sizeof(size_t));
 
 	for (i = 0; i < p->urisz; i++)
-		str_buffer(b, bsz, bmax, p->uri[i]);
+		io_str_buffer(b, bsz, bmax, p->uri[i]);
 }
 
 /*
@@ -217,16 +233,16 @@ tal_read(int fd)
 	if ((p = calloc(1, sizeof(struct tal))) == NULL)
 		err(EXIT_FAILURE, NULL);
 
-	buf_read_alloc(fd, (void **)&p->pkey, &p->pkeysz);
+	io_buf_read_alloc(fd, (void **)&p->pkey, &p->pkeysz);
 	assert(p->pkeysz > 0);
-	simple_read(fd, &p->urisz, sizeof(size_t));
+	io_simple_read(fd, &p->urisz, sizeof(size_t));
 	assert(p->urisz > 0);
 
 	if ((p->uri = calloc(p->urisz, sizeof(char *))) == NULL)
 		err(EXIT_FAILURE, NULL);
 
 	for (i = 0; i < p->urisz; i++)
-		str_read(fd, &p->uri[i]);
+		io_str_read(fd, &p->uri[i]);
 
 	return p;
 }

@@ -1,3 +1,19 @@
+/*	$Id$ */
+/*
+ * Copyright (c) 2019 Kristaps Dzonsons <kristaps@bsd.lv>
+ *
+ * Permission to use, copy, modify, and distribute this software for any
+ * purpose with or without fee is hereby granted, provided that the above
+ * copyright notice and this permission notice appear in all copies.
+ *
+ * THE SOFTWARE IS PROVIDED "AS IS" AND THE AUTHOR DISCLAIMS ALL WARRANTIES
+ * WITH REGARD TO THIS SOFTWARE INCLUDING ALL IMPLIED WARRANTIES OF
+ * MERCHANTABILITY AND FITNESS. IN NO EVENT SHALL THE AUTHOR BE LIABLE FOR
+ * ANY SPECIAL, DIRECT, INDIRECT, OR CONSEQUENTIAL DAMAGES OR ANY DAMAGES
+ * WHATSOEVER RESULTING FROM LOSS OF USE, DATA OR PROFITS, WHETHER IN AN
+ * ACTION OF CONTRACT, NEGLIGENCE OR OTHER TORTIOUS ACTION, ARISING OUT OF
+ * OR IN CONNECTION WITH THE USE OR PERFORMANCE OF THIS SOFTWARE.
+ */
 #include <sys/socket.h>
 
 #include <arpa/inet.h>
@@ -1000,9 +1016,9 @@ cert_ip_buffer(char **b, size_t *bsz,
 	size_t *bmax, const struct cert_ip *p)
 {
 
-	simple_buffer(b, bsz, bmax, &p->afi, sizeof(uint16_t));
-	simple_buffer(b, bsz, bmax, &p->safi, sizeof(uint8_t));
-	simple_buffer(b, bsz, bmax, &p->has_safi, sizeof(int));
+	io_simple_buffer(b, bsz, bmax, &p->afi, sizeof(uint16_t));
+	io_simple_buffer(b, bsz, bmax, &p->safi, sizeof(uint8_t));
+	io_simple_buffer(b, bsz, bmax, &p->has_safi, sizeof(int));
 	ip_addr_buffer(b, bsz, bmax, &p->range.min);
 	ip_addr_buffer(b, bsz, bmax, &p->range.max);
 }
@@ -1012,13 +1028,13 @@ cert_as_buffer(char **b, size_t *bsz,
 	size_t *bmax, const struct cert_as *p)
 {
 
-	simple_buffer(b, bsz, bmax, &p->rdi, sizeof(int));
-	simple_buffer(b, bsz, bmax, &p->type, sizeof(enum cert_as_type));
+	io_simple_buffer(b, bsz, bmax, &p->rdi, sizeof(int));
+	io_simple_buffer(b, bsz, bmax, &p->type, sizeof(enum cert_as_type));
 	if (p->type == CERT_AS_RANGE) {
-		simple_buffer(b, bsz, bmax, &p->range.min, sizeof(uint32_t));
-		simple_buffer(b, bsz, bmax, &p->range.max, sizeof(uint32_t));
+		io_simple_buffer(b, bsz, bmax, &p->range.min, sizeof(uint32_t));
+		io_simple_buffer(b, bsz, bmax, &p->range.max, sizeof(uint32_t));
 	} else if (p->type == CERT_AS_ID)
-		simple_buffer(b, bsz, bmax, &p->id, sizeof(uint32_t));
+		io_simple_buffer(b, bsz, bmax, &p->id, sizeof(uint32_t));
 }
 
 /*
@@ -1030,25 +1046,25 @@ cert_buffer(char **b, size_t *bsz, size_t *bmax, const struct cert *p)
 {
 	size_t	 i;
 
-	simple_buffer(b, bsz, bmax, &p->ipsz, sizeof(size_t));
+	io_simple_buffer(b, bsz, bmax, &p->ipsz, sizeof(size_t));
 	for (i = 0; i < p->ipsz; i++)
 		cert_ip_buffer(b, bsz, bmax, &p->ips[i]);
 
-	simple_buffer(b, bsz, bmax, &p->asz, sizeof(size_t));
+	io_simple_buffer(b, bsz, bmax, &p->asz, sizeof(size_t));
 	for (i = 0; i < p->asz; i++)
 		cert_as_buffer(b, bsz, bmax, &p->as[i]);
 
-	str_buffer(b, bsz, bmax, p->rep);
-	str_buffer(b, bsz, bmax, p->mft);
+	io_str_buffer(b, bsz, bmax, p->rep);
+	io_str_buffer(b, bsz, bmax, p->mft);
 }
 
 static void
 cert_ip_read(int fd, struct cert_ip *p)
 {
 
-	simple_read(fd, &p->afi, sizeof(uint16_t));
-	simple_read(fd, &p->safi, sizeof(uint8_t));
-	simple_read(fd, &p->has_safi, sizeof(int));
+	io_simple_read(fd, &p->afi, sizeof(uint16_t));
+	io_simple_read(fd, &p->safi, sizeof(uint8_t));
+	io_simple_read(fd, &p->has_safi, sizeof(int));
 	ip_addr_read(fd, &p->range.min);
 	ip_addr_read(fd, &p->range.max);
 }
@@ -1057,13 +1073,13 @@ static void
 cert_as_read(int fd, struct cert_as *p)
 {
 
-	simple_read(fd, &p->rdi, sizeof(int));
-	simple_read(fd, &p->type, sizeof(enum cert_as_type));
+	io_simple_read(fd, &p->rdi, sizeof(int));
+	io_simple_read(fd, &p->type, sizeof(enum cert_as_type));
 	if (p->type == CERT_AS_RANGE) {
-		simple_read(fd, &p->range.min, sizeof(uint32_t));
-		simple_read(fd, &p->range.max, sizeof(uint32_t));
+		io_simple_read(fd, &p->range.min, sizeof(uint32_t));
+		io_simple_read(fd, &p->range.max, sizeof(uint32_t));
 	} else if (p->type == CERT_AS_ID)
-		simple_read(fd, &p->id, sizeof(uint32_t));
+		io_simple_read(fd, &p->id, sizeof(uint32_t));
 }
 
 /*
@@ -1079,22 +1095,22 @@ cert_read(int fd)
 	if ((p = calloc(1, sizeof(struct cert))) == NULL)
 		err(EXIT_FAILURE, NULL);
 
-	simple_read(fd, &p->ipsz, sizeof(size_t));
+	io_simple_read(fd, &p->ipsz, sizeof(size_t));
 	p->ips = calloc(p->ipsz, sizeof(struct cert_ip));
 	if (p->ips == NULL)
 		err(EXIT_FAILURE, NULL);
 	for (i = 0; i < p->ipsz; i++)
 		cert_ip_read(fd, &p->ips[i]);
 
-	simple_read(fd, &p->asz, sizeof(size_t));
+	io_simple_read(fd, &p->asz, sizeof(size_t));
 	p->as = calloc(p->asz, sizeof(struct cert_as));
 	if (p->as == NULL)
 		err(EXIT_FAILURE, NULL);
 	for (i = 0; i < p->asz; i++)
 		cert_as_read(fd, &p->as[i]);
 
-	str_read(fd, &p->rep);
-	str_read(fd, &p->mft);
+	io_str_read(fd, &p->rep);
+	io_str_read(fd, &p->mft);
 	return p;
 }
 

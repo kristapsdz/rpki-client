@@ -1,3 +1,19 @@
+/*	$Id$ */
+/*
+ * Copyright (c) 2019 Kristaps Dzonsons <kristaps@bsd.lv>
+ *
+ * Permission to use, copy, modify, and distribute this software for any
+ * purpose with or without fee is hereby granted, provided that the above
+ * copyright notice and this permission notice appear in all copies.
+ *
+ * THE SOFTWARE IS PROVIDED "AS IS" AND THE AUTHOR DISCLAIMS ALL WARRANTIES
+ * WITH REGARD TO THIS SOFTWARE INCLUDING ALL IMPLIED WARRANTIES OF
+ * MERCHANTABILITY AND FITNESS. IN NO EVENT SHALL THE AUTHOR BE LIABLE FOR
+ * ANY SPECIAL, DIRECT, INDIRECT, OR CONSEQUENTIAL DAMAGES OR ANY DAMAGES
+ * WHATSOEVER RESULTING FROM LOSS OF USE, DATA OR PROFITS, WHETHER IN AN
+ * ACTION OF CONTRACT, NEGLIGENCE OR OTHER TORTIOUS ACTION, ARISING OUT OF
+ * OR IN CONNECTION WITH THE USE OR PERFORMANCE OF THIS SOFTWARE.
+ */
 #ifndef EXTERN_H
 #define EXTERN_H
 
@@ -123,28 +139,29 @@ struct	roa {
 	size_t		 ipsz;
 };
 
+/*
+ * An authentication pair.
+ * This specifies a public key and a subject key identifier used to
+ * verify children nodes in the tree of entities.
+ */
 struct	auth {
-	char		*ski;
-	EVP_PKEY	*cert;
+	char		*ski; /* subject key identifier */
+	EVP_PKEY	*cert; /* public key */
 };
 
 /*
- * Resource types.
+ * Resource types specified by the RPKI profiles.
+ * There are others (e.g., gbr, crl) that we don't consider.
  */
 enum	rtype {
 	RTYPE_EOF = 0,
 	RTYPE_TAL,
 	RTYPE_MFT,
 	RTYPE_ROA,
-	RTYPE_CER,
-	RTYPE_CRL
+	RTYPE_CER
 };
 
-__BEGIN_DECLS
-
-/*
- * Routines for RPKI data files.
- */
+/* Routines for RPKI entities. */
 
 void		 tal_buffer(char **, size_t *, size_t *, const struct tal *);
 void		 tal_free(struct tal *);
@@ -166,15 +183,21 @@ void		 roa_free(struct roa *);
 struct roa 	*roa_parse(X509 **, const char *, const unsigned char *);
 struct roa	*roa_read(int);
 
+/* Authentication of X509 objects. */
+
 int		 x509_authorise_signed(X509 *, const char *,
 			struct auth **, size_t *, int);
 int		 x509_authorise_selfsigned(X509 *, const char *,
 			struct auth **, size_t *,
 			const unsigned char *, size_t);
 
+/* Working with CMS files. */
+
 const ASN1_OCTET_STRING
  		*cms_parse_validate(X509 **, const char *,
 			const char *, const unsigned char *);
+
+/* Work with RFC 3779 IP addresses, prefixes, ranges. */
 
 int		 ip_addr_afi_parse(const ASN1_OCTET_STRING *, uint16_t *);
 int		 ip_addr_parse(const ASN1_BIT_STRING *, uint16_t, struct ip_addr *);
@@ -183,9 +206,13 @@ void		 ip_addr_range_print(const struct ip_addr *, uint16_t, char *, size_t, int
 void		 ip_addr_buffer(char **, size_t *, size_t *, const struct ip_addr *);
 void	 	 ip_addr_read(int, struct ip_addr *);
 
+/* Rsync-specific. */
+
 int	 	 rsync_uri_parse(const char **, size_t *,
 			const char **, size_t *, const char **, size_t *,
 			enum rtype *, const char *);
+
+/* Logging (though really used for OpenSSL errors). */
 
 void		 logx(int, const char *, ...)
 			__attribute__((format(printf, 2, 3)));
@@ -195,18 +222,18 @@ void		 cryptoerrx(const char *, ...)
 			__attribute__((format(printf, 1, 2)))
 			__attribute__((noreturn));
 
-void		 socket_blocking(int);
-void		 socket_nonblocking(int);
-void		 simple_buffer(char **, size_t *, size_t *, const void *, size_t);
-void		 simple_read(int, void *, size_t);
-void		 simple_write(int, const void *, size_t);
-void		 buf_buffer(char **, size_t *, size_t *, const void *, size_t);
-void		 buf_read_alloc(int, void **, size_t *);
-void		 buf_write(int, const void *, size_t);
-void		 str_buffer(char **, size_t *, size_t *, const char *);
-void		 str_read(int, char **);
-void		 str_write(int, const char *);
+/* Functions for moving data between processes. */
 
-__END_DECLS
+void		 io_socket_blocking(int);
+void		 io_socket_nonblocking(int);
+void		 io_simple_buffer(char **, size_t *, size_t *, const void *, size_t);
+void		 io_simple_read(int, void *, size_t);
+void		 io_simple_write(int, const void *, size_t);
+void		 io_buf_buffer(char **, size_t *, size_t *, const void *, size_t);
+void		 io_buf_read_alloc(int, void **, size_t *);
+void		 io_buf_write(int, const void *, size_t);
+void		 io_str_buffer(char **, size_t *, size_t *, const char *);
+void		 io_str_read(int, char **);
+void		 io_str_write(int, const char *);
 
 #endif /* ! EXTERN_H */

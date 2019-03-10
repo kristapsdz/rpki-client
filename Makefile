@@ -6,7 +6,8 @@ OBJS	 = cms.o \
 	   roa.o \
 	   rsync.o \
 	   tal.o \
-	   cert.o
+	   cert.o \
+	   x509.o
 ALLOBJS	 = $(OBJS) \
 	   main.o \
 	   test-ip.o \
