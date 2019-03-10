@@ -69,11 +69,6 @@ struct	entry {
 	TAILQ_ENTRY(entry) entries;
 };
 
-struct	auth {
-	char		*ski;
-	X509		*cert;
-};
-
 TAILQ_HEAD(entryq, entry);
 
 /*
@@ -561,7 +556,7 @@ proc_parser(int fd)
 	struct roa	*roa;
 	struct entry	*entp;
 	struct entryq	 q;
-	int		 rc = 0;
+	int		 rc = 0, c;
 	struct pollfd	 pfd;
 	char		*b = NULL;
 	size_t		 i, bsz = 0, bmax = 0, bpos = 0, authsz = 0;
@@ -652,9 +647,12 @@ proc_parser(int fd)
 			break;
 		case RTYPE_CER:
 			/* 
-			 * We get certificates from either manifests or
-			 * TAL files.
-			 * These have digests or public keys.
+			 * Certificates are from manifests or TALs.
+			 * In the former case, the certificates have
+			 * digests and infer the signer from the SKI
+			 * record of the certificate.
+			 * In the latter case, we're given the public
+			 * key from the TAL itself.
 			 */
 
 			assert(entp->has_dgst || entp->has_pkey);
@@ -664,89 +662,46 @@ proc_parser(int fd)
 			if (x == NULL)
 				goto out;
 			assert(x509 != NULL);
-			assert(x->ski != NULL);
-
-			/* 
-			 * Validation of public keys: make sure that
-			 * either we don't have an AKI but do have a
-			 * passed-in public key (top-level), or we do
-			 * have an AKI and it's valid.
-			 * Start with not having an AKI.
-			 */
-
-			if (x->aki == NULL || strcmp(x->aki, x->ski) == 0) {
-				if (!entp->has_pkey) {
-					warnx("%s: has neither authority "
-						"key identifier nor public key "
-						"from trust anchor", entp->uri);
-					cert_free(x);
-					X509_free(x509);
-					goto out;
-				}
-				if (!cert_vrfy_pkey
-				    (x509, entp->uri, entp->pkey, entp->pkeysz)) {
-					cert_free(x);
-					X509_free(x509);
-					goto out;
-				}
-				auths = reallocarray(auths,
-					authsz + 1, sizeof(struct auth));
-				if (auths == NULL)
-					err(EXIT_FAILURE, NULL);
-				auths[authsz].ski = strdup(x->ski);
-				if (auths[authsz].ski == NULL)
-					err(EXIT_FAILURE, NULL);
-				auths[authsz].cert = x509;
-				authsz++;
-				cert_buffer(&b, &bsz, &bmax, x);
+			c = entp->has_pkey ?
+				x509_authorise_selfsigned(x509, 
+					entp->uri, &auths, &authsz,
+					entp->pkey, entp->pkeysz) :
+				x509_authorise_signed(x509,
+					entp->uri, &auths, &authsz, 1);
+			X509_free(x509);
+			if (!c) {
 				cert_free(x);
-				break;
-			}
-
-			/* Now look up AKI in our cache. */
-
-			for (i = 0; i < authsz; i++)
-				if (strcmp(auths[i].ski, x->aki) == 0)
-					break;
-
-			if (i == authsz) {
-				warnx("%s: matching AKI not "
-					"found in cache", entp->uri);
-				cert_free(x);
-				X509_free(x509);
 				goto out;
 			}
-			if (!cert_vrfy_cert(x509, entp->uri, auths[i].cert)) {
-				cert_free(x);
-				X509_free(x509);
-				goto out;
-			}
-
-			auths = reallocarray(auths,
-				authsz + 1, sizeof(struct auth));
-			if (auths == NULL)
-				err(EXIT_FAILURE, NULL);
-			auths[authsz].ski = strdup(x->ski);
-			if (auths[authsz].ski == NULL)
-				err(EXIT_FAILURE, NULL);
-			auths[authsz].cert = x509;
-			authsz++;
 			cert_buffer(&b, &bsz, &bmax, x);
 			cert_free(x);
 			break;
 		case RTYPE_MFT:
 			assert(!entp->has_dgst);
-			mft = mft_parse(NULL, entp->uri);
-			if (mft == NULL)
+			if ((mft = mft_parse(&x509, entp->uri)) == NULL)
 				goto out;
+			c = x509_authorise_signed
+				(x509, entp->uri, &auths, &authsz, 0);
+			X509_free(x509);
+			if (!c) {
+				mft_free(mft);
+				goto out;
+			}
 			mft_buffer(&b, &bsz, &bmax, mft);
 			mft_free(mft);
 			break;
 		case RTYPE_ROA:
 			assert(entp->has_dgst);
-			roa = roa_parse(NULL, entp->uri, entp->dgst);
+			roa = roa_parse(&x509, entp->uri, entp->dgst);
 			if (roa == NULL)
 				goto out;
+			c = x509_authorise_signed
+				(x509, entp->uri, &auths, &authsz, 0);
+			X509_free(x509);
+			if (!c) {
+				roa_free(roa);
+				goto out;
+			}
 			roa_buffer(&b, &bsz, &bmax, roa);
 			roa_free(roa);
 			break;
@@ -767,7 +722,7 @@ out:
 
 	for (i = 0; i < authsz; i++) {
 		free(auths[i].ski);
-		X509_free(auths[i].cert);
+		EVP_PKEY_free(auths[i].cert);
 	}
 
 	free(auths);

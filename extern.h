@@ -75,7 +75,6 @@ struct	cert {
 	char		*rep; /* CA repository */
 	char		*mft; /* manifest (rsync:// uri) */
 	char		*ski; /* subject key identifier */
-	char		*aki; /* authority key identifier (or NULL) */
 };
 
 /*
@@ -124,6 +123,11 @@ struct	roa {
 	size_t		 ipsz;
 };
 
+struct	auth {
+	char		*ski;
+	EVP_PKEY	*cert;
+};
+
 /*
  * Resource types.
  */
@@ -151,21 +155,25 @@ void		 cert_buffer(char **, size_t *, size_t *, const struct cert *);
 void		 cert_free(struct cert *);
 struct cert	*cert_parse(X509 **, const char *, const unsigned char *);
 struct cert	*cert_read(int);
-int		 cert_vrfy_pkey(X509 *, const char *, const unsigned char *, size_t);
-int		 cert_vrfy_cert(X509 *, const char *, X509 *);
 
 void		 mft_buffer(char **, size_t *, size_t *, const struct mft *);
 void		 mft_free(struct mft *);
-struct mft 	*mft_parse(X509 *, const char *);
+struct mft 	*mft_parse(X509 **, const char *);
 struct mft 	*mft_read(int);
 
 void		 roa_buffer(char **, size_t *, size_t *, const struct roa *);
 void		 roa_free(struct roa *);
-struct roa 	*roa_parse(X509 *, const char *, const unsigned char *);
+struct roa 	*roa_parse(X509 **, const char *, const unsigned char *);
 struct roa	*roa_read(int);
 
+int		 x509_authorise_signed(X509 *, const char *,
+			struct auth **, size_t *, int);
+int		 x509_authorise_selfsigned(X509 *, const char *,
+			struct auth **, size_t *,
+			const unsigned char *, size_t);
+
 const ASN1_OCTET_STRING
- 		*cms_parse_validate(X509 *, const char *,
+ 		*cms_parse_validate(X509 **, const char *,
 			const char *, const unsigned char *);
 
 int		 ip_addr_afi_parse(const ASN1_OCTET_STRING *, uint16_t *);
@@ -178,6 +186,7 @@ void	 	 ip_addr_read(int, struct ip_addr *);
 int	 	 rsync_uri_parse(const char **, size_t *,
 			const char **, size_t *, const char **, size_t *,
 			enum rtype *, const char *);
+
 void		 logx(int, const char *, ...)
 			__attribute__((format(printf, 2, 3)));
 void		 cryptowarnx(const char *, ...)
@@ -185,6 +194,7 @@ void		 cryptowarnx(const char *, ...)
 void		 cryptoerrx(const char *, ...)
 			__attribute__((format(printf, 1, 2)))
 			__attribute__((noreturn));
+
 void		 socket_blocking(int);
 void		 socket_nonblocking(int);
 void		 simple_buffer(char **, size_t *, size_t *, const void *, size_t);
