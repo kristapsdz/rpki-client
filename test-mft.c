@@ -40,7 +40,7 @@ mft_print(const struct mft *p)
 int
 main(int argc, char *argv[])
 {
-	int		 c, verb = 0;
+	int		 c, verb = 0, force = 0;
 	size_t		 i;
 	struct mft	*p;
 	X509		*xp = NULL;
@@ -48,8 +48,11 @@ main(int argc, char *argv[])
 	SSL_library_init();
 	SSL_load_error_strings();
 
-	while (-1 != (c = getopt(argc, argv, "v"))) 
+	while (-1 != (c = getopt(argc, argv, "fv"))) 
 		switch (c) {
+		case 'f':
+			force = 1;
+			break;
 		case 'v':
 			verb++;
 			break;
@@ -61,7 +64,7 @@ main(int argc, char *argv[])
 	argc -= optind;
 
 	for (i = 0; i < (size_t)argc; i++) {
-		if ((p = mft_parse(&xp, argv[i])) == NULL)
+		if ((p = mft_parse(&xp, argv[i], force)) == NULL)
 			break;
 		if (verb)
 			mft_print(p);

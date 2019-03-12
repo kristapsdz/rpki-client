@@ -90,7 +90,7 @@ TAILQ_HEAD(entryq, entry);
 /*
  * Mark that our subprocesses will never return.
  */
-static void	 proc_parser(int) __attribute__((noreturn));
+static void	 proc_parser(int, int) __attribute__((noreturn));
 static void	 proc_rsync(int, int) __attribute__((noreturn));
 
 /*
@@ -466,6 +466,7 @@ queue_add_from_cert(int proc, int rsync, int verb, struct entryq *q,
  * It then responds with the identifier of the repo that it updated.
  * It only exits cleanly when fd is closed.
  * FIXME: this should use buffered output to prevent deadlocks.
+ * FIXME: we can easily do the rsyncs in parallel.
  */
 static void
 proc_rsync(int fd, int noop)
@@ -560,7 +561,7 @@ out:
  * The process will exit cleanly only when fd is closed.
  */
 static void
-proc_parser(int fd)
+proc_parser(int fd, int force)
 {
 	struct tal	*tal;
 	struct cert	*cert;
@@ -689,7 +690,7 @@ proc_parser(int fd)
 			break;
 		case RTYPE_MFT:
 			assert(!entp->has_dgst);
-			if ((mft = mft_parse(&x509, entp->uri)) == NULL)
+			if ((mft = mft_parse(&x509, entp->uri, force)) == NULL)
 				goto out;
 			c = x509_auth_signed
 				(x509, entp->uri, &auths, &authsz, NULL);
@@ -796,7 +797,8 @@ int
 main(int argc, char *argv[])
 {
 	int		  rc = 0, c, verb = 0, proc, st, rsync,
-			  fl = SOCK_STREAM | SOCK_CLOEXEC, noop = 0;
+			  fl = SOCK_STREAM | SOCK_CLOEXEC, noop = 0,
+			  force = 0;
 	size_t		  i, j, eid = 1;
 	pid_t		  procpid, rsyncpid;
 	int		  fd[2];
@@ -806,8 +808,11 @@ main(int argc, char *argv[])
 	struct repotab	  rt;
 	struct stats	  stats;
 
-	while ((c = getopt(argc, argv, "nv")) != -1) 
+	while ((c = getopt(argc, argv, "fnv")) != -1) 
 		switch (c) {
+		case 'f':
+			force = 1;
+			break;
 		case 'n':
 			noop = 1;
 			break;
@@ -846,7 +851,7 @@ main(int argc, char *argv[])
 		close(fd[1]);
 		if (pledge("stdio rpath", NULL) == -1)
 			err(EXIT_FAILURE, "pledge");
-		proc_parser(fd[0]);
+		proc_parser(fd[0], force);
 		/* NOTREACHED */
 	} 
 
@@ -1015,6 +1020,6 @@ main(int argc, char *argv[])
 	return rc ? EXIT_SUCCESS : EXIT_FAILURE;
 
 usage:
-	fprintf(stderr, "usage: %s [-nv] tal ...\n", getprogname());
+	fprintf(stderr, "usage: %s [-fnv] tal ...\n", getprogname());
 	return EXIT_FAILURE;
 }
