@@ -90,20 +90,71 @@ append_as(struct parse *p, const struct cert_as *as)
 {
 	struct cert	*res = p->res;
 	size_t		 i;
+	struct cert_as	*oas;
 
-	/*
-	 * Check to see that we have a most a single INHERIT element;
-	 * otherwise by definition we'll be a superset of our parent.
-	 */
+	/* We can have only one inheritence statement. */
 
-	for (i = 0; i < res->asz; i++)
-		if (CERT_AS_INHERIT == res->as[i].type) {
-			warnx("%s: RFC 3779 section 3.2.3.3: "
-				"inherit: cannot have inheritence "
-				"and multiple ASidentifiers",
-				p->fn);
-			return 0;
+	if (res->asz &&
+	    (as->type == CERT_AS_INHERIT ||
+	     res->as[0].type == CERT_AS_INHERIT)) {
+		warnx("%s: RFC 3779 section 3.3: cannot have "
+			"inheritence and multiple ASnum or "
+			"multiple inheritence", p->fn);
+		return 0;
+	}
+
+	for (i = 0; i < res->asz; i++) {
+		oas = &res->as[i];
+		switch (oas->type) {
+		case CERT_AS_ID:
+			switch (as->type) {
+			case CERT_AS_ID:
+				if (as->id != oas->id)
+					break;
+				warnx("%s: RFC 3779 section 3.3: "
+					"cannot have overlapping "
+					"ASnum", p->fn);
+				return 0;
+			case CERT_AS_RANGE:
+				if (as->range.min > oas->id ||
+				    as->range.max < oas->id)
+					break;
+				warnx("%s: RFC 3779 section 3.3: "
+					"cannot have overlapping "
+					"ASnum", p->fn);
+				return 0;
+			default:
+				abort();
+			}
+			break;
+		case CERT_AS_RANGE:
+			switch (as->type) {
+			case CERT_AS_ID:
+				if (oas->range.min > as->id ||
+				    oas->range.max < as->id)
+					break;
+				warnx("%s: RFC 3779 section 3.3: "
+					"cannot have overlapping "
+					"ASnum", p->fn);
+				return 0;
+			case CERT_AS_RANGE:
+				if ((as->range.min > oas->range.min ||
+				     as->range.max < oas->range.min) &&
+				    (as->range.min > oas->range.max ||
+				     as->range.max < oas->range.max))
+					break;
+				warnx("%s: RFC 3779 section 3.3: "
+					"cannot have overlapping "
+					"ASnum", p->fn);
+				return 0;
+			default:
+				abort();
+			}
+			break;
+		default:
+			abort();
 		}
+	}
 
 	res->as = reallocarray(res->as, 
 		res->asz + 1, sizeof(struct cert_as));
