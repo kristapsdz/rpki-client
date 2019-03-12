@@ -32,7 +32,6 @@
 /*
  * Wrapper around ASN1_get_object() that preserves the current start
  * state and returns a more meaningful value.
- * FIXME: also appears in cert.c.
  * Return zero on failure, non-zero on success.
  */
 static int
@@ -51,6 +50,137 @@ ASN1_frame(const char *fn, size_t sz,
 	return ASN1_object_size((ret & 0x01) ? 2 : 0, *cntsz, *tag);
 }
 
+/*
+ * Check the AS identifiers, if any, on a self-signed "root"
+ * certificate.
+ * Returns zero on failure, non-zero on success.
+ */
+static int
+x509_auth_as_selfsigned(const struct cert *cert, const char *fn)
+{
+
+	/* The identifier cannot inherit from nothing. */
+
+	if (cert->asz == 0 || cert->as[0].type != CERT_AS_INHERIT)
+		return 1;
+
+	warnx("%s: self-signed AS identifier cannot inherit", fn);
+	return 0;
+}
+
+/*
+ * Check to make sure that the AS identifiers specified in a certificate
+ * are valid in view of the parent identifiers.
+ * We can only narrow or inherit, not expand.
+ * Return zero on failure, non-zero on success.
+ */
+static int
+x509_auth_as_signed(const struct cert *cert, const char *fn,
+	size_t parent, const struct auth *auths, size_t authsz)
+{
+	const struct cert	*pcert;
+	const struct cert_as	*as, *pas;
+	size_t			 i, j;
+	int			 found;
+
+	assert(parent < authsz);
+	pcert = auths[parent].cert;
+
+	/* 
+	 * Allow us to narrow to nothingness the possible identifiers or
+	 * to inherit fully.
+	 */
+
+	if (cert->asz == 0)
+		return 1;
+	if (cert->asz && cert->as[0].type == CERT_AS_INHERIT)
+		return 1;
+
+	assert(cert->asz);
+
+	if (pcert->asz == 0) {
+		warnx("%s: expanding parent AS identifiers", fn);
+		return 0;
+	}
+
+	assert(cert->asz && pcert->asz);
+
+	/*
+	 * We want to examine the first parent that has non-inheritable
+	 * entries, so climb from here.
+	 */
+
+	if (pcert->as[0].type == CERT_AS_INHERIT) {
+		assert(auths[parent].parent != auths[parent].id);
+		return x509_auth_as_signed(cert, fn,
+			auths[parent].parent, auths, authsz);
+	}
+
+	/*
+	 * Now our parent is either an identifier or a range, so we can
+	 * make sure that all of our identifiers fall into the
+	 * parent's ranges or singular identifiers.
+	 */
+
+	for (i = 0; i < cert->asz; i++) {
+		found = 0;
+		as = &cert->as[i];
+		switch (as->type) {
+		case CERT_AS_ID:
+			for (j = 0; !found && j < pcert->asz; j++) {
+				pas = &pcert->as[j];
+				switch (pas->type) {
+				case CERT_AS_ID:
+					if (as->id == pas->id)
+						found = 1;
+					break;
+				case CERT_AS_RANGE:
+					if (as->id >= pas->range.min &&
+					    as->id <= pas->range.max)
+						found = 1;
+					break;
+				default:
+					abort();
+				}
+			}
+			break;
+		case CERT_AS_RANGE:
+			for (j = 0; !found && j < pcert->asz; j++) {
+				pas = &pcert->as[j];
+				switch (pas->type) {
+				case CERT_AS_ID:
+					/*
+					 * A range must have at least
+					 * two elements, and sequential
+					 * identifiers must be collapsed
+					 * into a range, so this will
+					 * never happen.
+					 */
+					break;
+				case CERT_AS_RANGE:
+					if (as->range.min >= 
+					     pas->range.min &&
+					    as->range.max <= 
+					     pas->range.max)
+						found = 1;
+					break;
+				default:
+					abort();
+				}
+			}
+			break;
+		default:
+			abort();
+		}
+		if (found == 0) {
+			warnx("%s: AS identifiers don't fall "
+				"into parent allocations", fn);
+			return 0;
+		}
+	}
+
+	return 1;
+}
 
  /*
  * Parse X509v3 authority key identifier, RFC 6487 sec. 4.8.3.
@@ -337,7 +467,10 @@ x509_auth_selfsigned(X509 *x, const char *fn,
 			goto out;
 		}
 
-	/* Append our own public key to the key cache. */
+	/* Verify and append our own public key to the key cache. */
+
+	if (!x509_auth_as_selfsigned(cert, fn))
+		goto out;
 
 	*auths = reallocarray(*auths,
 		*authsz + 1, sizeof(struct auth));
@@ -446,9 +579,11 @@ x509_auth_signed(X509 *x, const char *fn,
 		goto out;
 	}
 
-	/* Conditionally append our own public key to the key cache. */
+	/* Verify and append our own public key to the key cache. */
 
 	if (cert != NULL) {
+		if (!x509_auth_as_signed(cert, fn, j, *auths, *authsz))
+			goto out;
 		*auths = reallocarray(*auths,
 			*authsz + 1, sizeof(struct auth));
 		if (*auths == NULL)
