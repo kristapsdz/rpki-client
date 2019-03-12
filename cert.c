@@ -103,6 +103,11 @@ append_as(struct parse *p, const struct cert_as *as)
 		return 0;
 	}
 
+	/* 
+	 * FIXME: prohibit sequential identifiers and ranges, and make
+	 * sure that there's space between identifiers and ranges.
+	 */
+
 	for (i = 0; i < res->asz; i++) {
 		oas = &res->as[i];
 		switch (oas->type) {
@@ -1072,6 +1077,20 @@ cert_parse(X509 **xp, const char *fn, const unsigned char *dgst)
 		}
 		if (c == 0)
 			goto out;
+	}
+
+	/* Make sure we have the correct extensions. */
+
+	if (p.res->asz == 0 && p.res->ipsz == 0) {
+		warnx("%s: RFC 6487 section 4.8.10, 4.8.11: must "
+			"have at least an IP or AS section", p.fn);
+		goto out;
+	}
+
+	if (p.res->rep == NULL && p.res->mft == NULL) {
+		warnx("%s: RFC 6487 section 4.8.8: must encode at "
+			"least a CA repository or manifest", p.fn);
+		goto out;
 	}
 
 	rc = 1;
