@@ -223,7 +223,8 @@ out:
  * Returns <0 on failure, 0 on stale, >0 on success.
  */
 static int
-mft_parse_econtent(const ASN1_OCTET_STRING *os, struct parse *p)
+mft_parse_econtent(const ASN1_OCTET_STRING *os,
+	struct parse *p, int force)
 {
 	const ASN1_SEQUENCE_ANY *seq;
 	const unsigned char     *d = os->data;
@@ -304,15 +305,14 @@ mft_parse_econtent(const ASN1_OCTET_STRING *os, struct parse *p)
 		warnx("%s: before date interval (clock drift?)", p->fn);
 		goto out;
 	} else if (now >= next) {
-		warnx("%s: after date interval: stale", p->fn);
-		ctime_r(&this, buf);
-		buf[strlen(buf) - 1] = '\0';
-		warnx("%s: stale start: %s", p->fn, buf);
 		ctime_r(&next, buf);
 		buf[strlen(buf) - 1] = '\0';
-		warnx("%s: stale next: %s", p->fn, buf);
-		rc = 0;
-		goto out;
+		if (!force) {
+			warnx("%s: stale: expired %s", p->fn, buf);
+			rc = 0;
+			goto out;
+		}
+		warnx("%s: stale: expired %s (ignoring)", p->fn, buf);
 	}
 
 	/* File list algorithm. */
@@ -356,7 +356,7 @@ out:
  * The MFT content is otherwise returned.
  */
 struct mft *
-mft_parse(X509 **x509, const char *fn)
+mft_parse(X509 **x509, const char *fn, int force)
 {
 	struct parse		 p;
 	const ASN1_OCTET_STRING *os;
@@ -381,7 +381,7 @@ mft_parse(X509 **x509, const char *fn)
 	 * references as well as marking it as stale.
 	 */
 
-	if ((rc = mft_parse_econtent(os, &p)) == 0) {
+	if ((rc = mft_parse_econtent(os, &p, force)) == 0) {
 		p.res->stale = 1;
 		if (p.res->files != NULL)
 			for (i = 0; i < p.res->filesz; i++)
