@@ -88,84 +88,14 @@ append_ip(struct parse *p, const struct cert_ip *ip)
 static int
 append_as(struct parse *p, const struct cert_as *as)
 {
-	struct cert	*res = p->res;
-	size_t		 i;
-	struct cert_as	*oas;
 
-	/* We can have only one inheritence statement. */
-
-	if (res->asz &&
-	    (as->type == CERT_AS_INHERIT ||
-	     res->as[0].type == CERT_AS_INHERIT)) {
-		warnx("%s: RFC 3779 section 3.3: cannot have "
-			"inheritence and multiple ASnum or "
-			"multiple inheritence", p->fn);
+	if (!as_check_overlap(as, p->fn, p->res->as, p->res->asz))
 		return 0;
-	}
-
-	/* 
-	 * FIXME: prohibit sequential identifiers and ranges, and make
-	 * sure that there's space between identifiers and ranges.
-	 */
-
-	for (i = 0; i < res->asz; i++) {
-		oas = &res->as[i];
-		switch (oas->type) {
-		case CERT_AS_ID:
-			switch (as->type) {
-			case CERT_AS_ID:
-				if (as->id != oas->id)
-					break;
-				warnx("%s: RFC 3779 section 3.3: "
-					"cannot have overlapping "
-					"ASnum", p->fn);
-				return 0;
-			case CERT_AS_RANGE:
-				if (as->range.min > oas->id ||
-				    as->range.max < oas->id)
-					break;
-				warnx("%s: RFC 3779 section 3.3: "
-					"cannot have overlapping "
-					"ASnum", p->fn);
-				return 0;
-			default:
-				abort();
-			}
-			break;
-		case CERT_AS_RANGE:
-			switch (as->type) {
-			case CERT_AS_ID:
-				if (oas->range.min > as->id ||
-				    oas->range.max < as->id)
-					break;
-				warnx("%s: RFC 3779 section 3.3: "
-					"cannot have overlapping "
-					"ASnum", p->fn);
-				return 0;
-			case CERT_AS_RANGE:
-				if ((as->range.min > oas->range.min ||
-				     as->range.max < oas->range.min) &&
-				    (as->range.min > oas->range.max ||
-				     as->range.max < oas->range.max))
-					break;
-				warnx("%s: RFC 3779 section 3.3: "
-					"cannot have overlapping "
-					"ASnum", p->fn);
-				return 0;
-			default:
-				abort();
-			}
-			break;
-		default:
-			abort();
-		}
-	}
-
-	res->as = reallocarray(res->as, 
-		res->asz + 1, sizeof(struct cert_as));
-	if (res->as == NULL)
+	p->res->as = reallocarray(p->res->as, 
+		p->res->asz + 1, sizeof(struct cert_as));
+	if (p->res->as == NULL)
 		err(EXIT_FAILURE, NULL);
-	res->as[res->asz++] = *as;
+	p->res->as[p->res->asz++] = *as;
 	return 1;
 }
 
