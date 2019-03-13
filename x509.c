@@ -58,43 +58,22 @@ ASN1_frame(const char *fn, size_t sz,
  * AS number of the terminal issuer?
  */
 static ssize_t
-x509_auth_as(uint32_t asid, size_t parent,
-	const struct auth *auths, size_t authsz)
+x509_auth_as(uint32_t asid, size_t idx,
+	const struct auth *as, size_t asz)
 {
-	const struct cert	*pcert;
-	const struct cert_as	*pas;
-	size_t			 i;
 
-	assert(parent < authsz);
-	pcert = auths[parent].cert;
+	assert(idx < asz);
 
 	/* Does this certificate cover our AS number? */
 
-	for (i = 0; i < pcert->asz; i++) {
-		pas = &pcert->as[i];
-		switch (pas->type) {
-		case CERT_AS_ID:
-			if (asid == pas->id)
-				return parent;
-			break;
-		case CERT_AS_RANGE:
-			if (asid >= pas->range.min &&
-			    asid <= pas->range.max)
-				return parent;
-			break;
-		case CERT_AS_INHERIT:
-			break;
-		default:
-			abort();
-		}
-	}
+	if (as_check_covered(asid, as[idx].cert->as, as[idx].cert->asz))
+		return idx;
 
 	/* If it doesn't, walk up the chain. */
 
-	if (auths[parent].parent == auths[parent].id)
+	if (as[idx].parent == as[idx].id)
 		return -1;
-	return x509_auth_as(asid,
-		auths[parent].parent, auths, authsz);
+	return x509_auth_as(asid, as[idx].parent, as, asz);
 }
 
 /*
