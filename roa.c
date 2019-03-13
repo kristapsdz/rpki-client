@@ -72,11 +72,8 @@ roa_parse_addr(const ASN1_OCTET_STRING *os,
 			"want ASN.1 bit string, have %s (NID %d)", 
 			p->fn, ASN1_tag2str(t->type), t->type);
 		goto out;
-	} else if (!ip_addr_parse(t->value.bit_string, afi, &addr)) {
-		warnx("%s: RFC 6482 section 3.3: "
-			"address: invalid", p->fn);
+	} else if (!ip_addr_parse(t->value.bit_string, afi, p->fn, &addr))
 		goto out;
-	}
 
 	/* 
 	 * RFC 6482, section 3.3 doesn't ever actually state that the
