@@ -154,7 +154,7 @@ struct	auth {
 	struct cert	*cert; /* owner information */
 	size_t		 id; /* self-index */
 	size_t		 parent; /* index of parent pair (or self) */
-	char		*fn; /* XXX: debugging */
+	char		*fn; /* FIXME: debugging */
 };
 
 /*
@@ -217,6 +217,11 @@ void		 ip_addr_print(const struct ip_addr *, uint16_t, char *, size_t);
 void		 ip_addr_range_print(const struct ip_addr *, uint16_t, char *, size_t, int);
 void		 ip_addr_buffer(char **, size_t *, size_t *, const struct ip_addr *);
 void	 	 ip_addr_read(int, struct ip_addr *);
+
+/* Work with RFC 3779 AS numbers, ranges. */
+
+int		 as_check_overlap(const struct cert_as *, const char *,
+			const struct cert_as *, size_t);
 
 /* Rsync-specific. */
 

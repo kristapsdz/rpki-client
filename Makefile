@@ -1,4 +1,5 @@
-OBJS	 = cms.o \
+OBJS	 = as.o \
+	   cms.o \
 	   io.o \
 	   ip.o \
 	   log.o \
