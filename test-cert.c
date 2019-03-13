@@ -64,7 +64,7 @@ cert_print(const struct cert *p)
 			fprintf(stderr, "%5zu: IP: inherit\n", i + 1);
 			break;
 		case CERT_IP_ADDR:
-			ip_addr_print(&p->ips[i].range.min, 
+			ip_addr_print(&p->ips[i].ip, 
 				p->ips[i].afi, buf1, sizeof(buf1));
 			fprintf(stderr, "%5zu: IP: %s\n", i + 1, buf1);
 			break;

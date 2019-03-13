@@ -37,13 +37,13 @@ struct	cert_as_range {
 struct	cert_as {
 	enum cert_as_type type; /* type of AS specification */
 	union {
-		uint32_t id; /* singleton */
+		uint32_t id; /* singular identifier */
 		struct cert_as_range range; /* range */
 	};
 };
 
 /*
- * An IP address as parsed from a RFC 3779 document.
+ * An IP address as parsed from RFC 3779, section 2.2.3.8.
  * This may either be IPv4 or IPv6.
  */
 struct	ip_addr {
@@ -56,7 +56,7 @@ struct	ip_addr {
  * An IP address (IPv4 or IPv6) range starting at the minimum and making
  * its way to the maximum.
  */
-struct	cert_ip_rng {
+struct	ip_addr_range {
 	struct ip_addr min; /* minimum ip */
 	struct ip_addr max; /* maximum ip */
 };
@@ -68,14 +68,18 @@ enum	cert_ip_type {
 };
 
 /*
- * An IP address range defined by RFC 3779.
+ * A single IP address family (AFI, address or range) as defined in RFC
+ * 3779, 2.2.3.2.
+ * The RFC specifies multiple address or ranges per AFI; this structure
+ * encodes both the AFI and a single address or range.
  */
 struct	cert_ip {
-	uint16_t	   afi; /* AFI value (1 or 2) */
-	uint8_t		   safi; /* SAFI value (if has_safi) */
-	int		   has_safi; /* whether safi is set */
+	uint16_t	   afi; /* AFI value (1, IPv4; or 2, IPv6) */
 	enum cert_ip_type  type; /* type of IP entry */
-	struct cert_ip_rng range; /* range */
+	union {
+		struct ip_addr ip; /* singular address */
+		struct ip_addr_range range; /* range */
+	};
 };
 
 /*
@@ -130,7 +134,7 @@ struct	mft {
 struct	roa_ip {
 	uint16_t	 afi; /* AFI value (1 or 2) */
 	size_t		 maxlength; /* max length or zero */
-	struct ip_addr	 addr;
+	struct ip_addr	 addr; /* the address prefix itself */
 };
 
 /*
@@ -212,11 +216,14 @@ const ASN1_OCTET_STRING
 /* Work with RFC 3779 IP addresses, prefixes, ranges. */
 
 int		 ip_addr_afi_parse(const ASN1_OCTET_STRING *, uint16_t *);
-int		 ip_addr_parse(const ASN1_BIT_STRING *, uint16_t, struct ip_addr *);
+int		 ip_addr_parse(const ASN1_BIT_STRING *,
+			uint16_t, const char *, struct ip_addr *);
 void		 ip_addr_print(const struct ip_addr *, uint16_t, char *, size_t);
 void		 ip_addr_range_print(const struct ip_addr *, uint16_t, char *, size_t, int);
 void		 ip_addr_buffer(char **, size_t *, size_t *, const struct ip_addr *);
+void		 ip_addr_range_buffer(char **, size_t *, size_t *, const struct ip_addr_range *);
 void	 	 ip_addr_read(int, struct ip_addr *);
+void		 ip_addr_range_read(int, struct ip_addr_range *);
 
 /* Work with RFC 3779 AS numbers, ranges. */
 

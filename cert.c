@@ -100,40 +100,6 @@ append_as(struct parse *p, const struct cert_as *as)
 }
 
 /*
- * Parse an IP address, IPv4 or IPv6.
- * Confirms to RFC 3779 2.2.3.8.
- * Return zero on failure, non-zero on success.
- */
-static int
-sbgp_ipaddr(struct parse *p, const struct cert_ip *ip,
-	struct ip_addr *addr, const ASN1_BIT_STRING *bs)
-{
-	long			 unused = 0;
-	const unsigned char	*d;
-	size_t			 dsz;
-
-	d = bs->data;
-	dsz = bs->length;
-
-	/* Weird OpenSSL-ism to get unused bit count. */
-
-	if ((ASN1_STRING_FLAG_BITS_LEFT & bs->flags))
-		unused = ~ASN1_STRING_FLAG_BITS_LEFT & bs->flags;
-
-	if ((ip->afi == 1 && dsz > 4) ||
-	    (ip->afi == 2 && dsz > 16)) {
-		warnx("%s: IPv%s address too long: %zu", 
-			p->fn, 1 == ip->afi ? "4" : "6", dsz);
-		return 0;
-	} 
-
-	addr->unused = unused;
-	addr->sz = dsz;
-	memcpy(addr->addr, d, dsz);
-	return 1;
-}
-
-/*
  * Construct a RFC 3779 2.2.3.8 range by its bit string.
  * Return zero on failure, non-zero on success.
  */
@@ -141,12 +107,9 @@ static int
 sbgp_addr(struct parse *p, 
 	struct cert_ip *ip, const ASN1_BIT_STRING *bs)
 {
-	struct cert_ip_rng *rng = &ip->range;
 
-	if (!sbgp_ipaddr(p, ip, &rng->min, bs) ||
-	    !sbgp_ipaddr(p, ip, &rng->max, bs))
+	if (!ip_addr_parse(bs, ip->afi, p->fn, &ip->ip))
 		return 0;
-
 	append_ip(p, ip);
 	return 1;
 }
@@ -620,7 +583,6 @@ static int
 sbgp_range(struct parse *p, struct cert_ip *ip, 
 	const unsigned char *d, size_t dsz)
 {
-	struct cert_ip_rng  	*rng = &ip->range;
 	ASN1_SEQUENCE_ANY	*seq;
 	const ASN1_TYPE		*t;
 	int			 rc = 0;
@@ -647,7 +609,8 @@ sbgp_range(struct parse *p, struct cert_ip *ip,
 			"want ASN.1 bit string, have %s (NID %d)", 
 			p->fn, ASN1_tag2str(t->type), t->type);
 		goto out;
-	} else if (!sbgp_ipaddr(p, ip, &rng->min, t->value.bit_string))
+	} else if (!ip_addr_parse(t->value.bit_string,
+			ip->afi, p->fn, &ip->range.min))
 		goto out;
 
 	t = sk_ASN1_TYPE_value(seq, 1);
@@ -656,7 +619,8 @@ sbgp_range(struct parse *p, struct cert_ip *ip,
 			"want ASN.1 bit string, have %s (NID %d)", 
 			p->fn, ASN1_tag2str(t->type), t->type);
 		goto out;
-	} else if (!sbgp_ipaddr(p, ip, &rng->max, t->value.bit_string))
+	} else if (!ip_addr_parse(t->value.bit_string,
+			ip->afi, p->fn, &ip->range.max))
 		goto out;
 
 	append_ip(p, ip);
@@ -755,7 +719,6 @@ sbgp_ipaddrfam(struct parse *p, const unsigned char *d, size_t dsz)
 		goto out;
 	} 
 
-	ip.has_safi = 0;
 	if (!ip_addr_afi_parse(t->value.octet_string, &ip.afi)) {
 		warnx("%s: bad address family", p->fn);
 		goto out;
@@ -1054,10 +1017,10 @@ cert_ip_buffer(char **b, size_t *bsz,
 {
 
 	io_simple_buffer(b, bsz, bmax, &p->afi, sizeof(uint16_t));
-	io_simple_buffer(b, bsz, bmax, &p->safi, sizeof(uint8_t));
-	io_simple_buffer(b, bsz, bmax, &p->has_safi, sizeof(int));
-	ip_addr_buffer(b, bsz, bmax, &p->range.min);
-	ip_addr_buffer(b, bsz, bmax, &p->range.max);
+	if (p->type == CERT_IP_RANGE)
+		ip_addr_range_buffer(b, bsz, bmax, &p->range);
+	else
+		ip_addr_buffer(b, bsz, bmax, &p->ip);
 }
 
 static void
@@ -1099,10 +1062,10 @@ cert_ip_read(int fd, struct cert_ip *p)
 {
 
 	io_simple_read(fd, &p->afi, sizeof(uint16_t));
-	io_simple_read(fd, &p->safi, sizeof(uint8_t));
-	io_simple_read(fd, &p->has_safi, sizeof(int));
-	ip_addr_read(fd, &p->range.min);
-	ip_addr_read(fd, &p->range.max);
+	if (p->type == CERT_IP_RANGE)
+		ip_addr_range_read(fd, &p->range);
+	else
+		ip_addr_read(fd, &p->ip);
 }
 
 static void

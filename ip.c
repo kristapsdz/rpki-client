@@ -61,7 +61,7 @@ ip_addr_afi_parse(const ASN1_OCTET_STRING *p, uint16_t *afi)
  */
 int
 ip_addr_parse(const ASN1_BIT_STRING *p,
-	uint16_t afi, struct ip_addr *addr)
+	uint16_t afi, const char *fn, struct ip_addr *addr)
 {
 	long	 unused = 0;
 
@@ -73,8 +73,11 @@ ip_addr_parse(const ASN1_BIT_STRING *p,
 	/* Limit possible sizes of addresses. */
 
 	if ((afi == 1 && p->length > 4) ||
-	    (afi == 2 && p->length > 16))
+	    (afi == 2 && p->length > 16)) {
+		warnx("%s: RFC 3779, section 2.2.3.8: "
+			"IP address too long", fn);
 		return 0;
+	}
 
 	addr->unused = unused;
 	addr->sz = p->length;
@@ -199,6 +202,19 @@ ip_addr_buffer(char **b, size_t *bsz,
 }
 
 /*
+ * Serialise an ip_addr_range for sending over the wire.
+ * Matched with ip_addr_range_read().
+ */
+void
+ip_addr_range_buffer(char **b, size_t *bsz,
+	size_t *bmax, const struct ip_addr_range *p)
+{
+
+	ip_addr_buffer(b, bsz, bmax, &p->min);
+	ip_addr_buffer(b, bsz, bmax, &p->max);
+}
+
+/*
  * Read an ip_addr from the wire.
  * Matched with ip_addr_buffer().
  */
@@ -210,4 +226,16 @@ ip_addr_read(int fd, struct ip_addr *p)
 	assert(p->sz <= 16);
 	io_simple_read(fd, p->addr, p->sz);
 	io_simple_read(fd, &p->unused, sizeof(long));
+}
+
+/*
+ * Read an ip_addr_range from the wire.
+ * Matched with ip_addr_range_buffer().
+ */
+void
+ip_addr_range_read(int fd, struct ip_addr_range *p)
+{
+
+	ip_addr_read(fd, &p->min);
+	ip_addr_read(fd, &p->max);
 }
