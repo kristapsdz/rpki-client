@@ -154,6 +154,7 @@ struct	auth {
 	struct cert	*cert; /* owner information */
 	size_t		 id; /* self-index */
 	size_t		 parent; /* index of parent pair (or self) */
+	char		*fn; /* XXX: debugging */
 };
 
 /*
@@ -192,9 +193,13 @@ struct roa	*roa_read(int);
 
 /* Authentication of X509 objects. */
 
-int		 x509_auth_signed(X509 *, const char *,
+int		 x509_auth_signed_cert(X509 *, const char *,
 			struct auth **, size_t *, struct cert *);
-int		 x509_auth_selfsigned(X509 *, const char *,
+int		 x509_auth_signed_mft(X509 *, const char *,
+			struct auth **, size_t *, struct mft *);
+int		 x509_auth_signed_roa(X509 *, const char *,
+			struct auth **, size_t *, struct roa *);
+int		 x509_auth_selfsigned_cert(X509 *, const char *,
 			struct auth **, size_t *, const unsigned char *,
 			size_t, struct cert *);
 
