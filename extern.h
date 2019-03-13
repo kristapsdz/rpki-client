@@ -222,6 +222,7 @@ void	 	 ip_addr_read(int, struct ip_addr *);
 
 int		 as_check_overlap(const struct cert_as *, const char *,
 			const struct cert_as *, size_t);
+int		 as_check_covered(uint32_t, const struct cert_as *, size_t);
 
 /* Rsync-specific. */
 
