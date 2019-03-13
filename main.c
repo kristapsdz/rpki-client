@@ -676,10 +676,10 @@ proc_parser(int fd, int force)
 				goto out;
 			assert(x509 != NULL);
 			c = entp->has_pkey ?
-				x509_auth_selfsigned(x509, 
+				x509_auth_selfsigned_cert(x509, 
 					entp->uri, &auths, &authsz,
 					entp->pkey, entp->pkeysz, cert) :
-				x509_auth_signed(x509,
+				x509_auth_signed_cert(x509,
 					entp->uri, &auths, &authsz, cert);
 			X509_free(x509);
 			if (!c) {
@@ -692,8 +692,8 @@ proc_parser(int fd, int force)
 			assert(!entp->has_dgst);
 			if ((mft = mft_parse(&x509, entp->uri, force)) == NULL)
 				goto out;
-			c = x509_auth_signed
-				(x509, entp->uri, &auths, &authsz, NULL);
+			c = x509_auth_signed_mft
+				(x509, entp->uri, &auths, &authsz, mft);
 			X509_free(x509);
 			if (!c) {
 				mft_free(mft);
@@ -707,8 +707,8 @@ proc_parser(int fd, int force)
 			roa = roa_parse(&x509, entp->uri, entp->dgst);
 			if (roa == NULL)
 				goto out;
-			c = x509_auth_signed
-				(x509, entp->uri, &auths, &authsz, NULL);
+			c = x509_auth_signed_roa
+				(x509, entp->uri, &auths, &authsz, roa);
 			X509_free(x509);
 			if (!c) {
 				roa_free(roa);
@@ -733,6 +733,7 @@ out:
 	}
 
 	for (i = 0; i < authsz; i++) {
+		free(auths[i].fn);
 		free(auths[i].ski);
 		EVP_PKEY_free(auths[i].pkey);
 		cert_free(auths[i].cert);

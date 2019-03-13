@@ -51,6 +51,53 @@ ASN1_frame(const char *fn, size_t sz,
 }
 
 /*
+ * Walk up the chain of certificates trying to match our AS number to
+ * one of the allocations in that chain.
+ * Returns the index of the certificate in auths or -1 on error.
+ * FIXME: this doesn't make sense to me: shouldn't we only look at the
+ * AS number of the terminal issuer?
+ */
+static ssize_t
+x509_auth_as(uint32_t asid, size_t parent,
+	const struct auth *auths, size_t authsz)
+{
+	const struct cert	*pcert;
+	const struct cert_as	*pas;
+	size_t			 i;
+
+	assert(parent < authsz);
+	pcert = auths[parent].cert;
+
+	/* Does this certificate cover our AS number? */
+
+	for (i = 0; i < pcert->asz; i++) {
+		pas = &pcert->as[i];
+		switch (pas->type) {
+		case CERT_AS_ID:
+			if (asid == pas->id)
+				return parent;
+			break;
+		case CERT_AS_RANGE:
+			if (asid >= pas->range.min &&
+			    asid <= pas->range.max)
+				return parent;
+			break;
+		case CERT_AS_INHERIT:
+			break;
+		default:
+			abort();
+		}
+	}
+
+	/* If it doesn't, walk up the chain. */
+
+	if (auths[parent].parent == auths[parent].id)
+		return -1;
+	return x509_auth_as(asid,
+		auths[parent].parent, auths, authsz);
+}
+
+/*
  * Check the AS identifiers, if any, on a self-signed "root"
  * certificate.
  * Returns zero on failure, non-zero on success.
@@ -389,7 +436,7 @@ out:
  * Returns zero on failure, non-zero on success.
  */
 int
-x509_auth_selfsigned(X509 *x, const char *fn,
+x509_auth_selfsigned_cert(X509 *x, const char *fn,
 	struct auth **auths, size_t *authsz,
 	const unsigned char *pkey, size_t pkeysz, struct cert *cert)
 {
@@ -481,6 +528,9 @@ x509_auth_selfsigned(X509 *x, const char *fn,
 	(*auths)[*authsz].ski = ski;
 	(*auths)[*authsz].pkey = opk;
 	(*auths)[*authsz].cert = cert;
+	(*auths)[*authsz].fn = strdup(fn);
+	if ((*auths)[*authsz].fn == NULL)
+		err(EXIT_FAILURE, NULL);
 	(*authsz)++;
 
 	opk = NULL;
@@ -502,11 +552,12 @@ out:
  * SKI, public key, and parsed data.
  * Returns zero on failure, non-zero on success.
  */
-int
+static ssize_t
 x509_auth_signed(X509 *x, const char *fn,
 	struct auth **auths, size_t *authsz, struct cert *cert)
 {
-	int	 	 i, extsz, rc = 0;
+	int	 	 i, extsz;
+	ssize_t		 rc = -1;
 	size_t		 j;
 	char		*ski = NULL, *aki = NULL;
 	X509_EXTENSION	*ext;
@@ -517,7 +568,7 @@ x509_auth_signed(X509 *x, const char *fn,
 
 	if ((pk = X509_get_pubkey(x)) == NULL) {
 		cryptowarnx("%s: no public key", fn);
-		return 0;
+		return -1;
 	} else if ((extsz = X509_get_ext_count(x)) < 0)
 		cryptoerrx("X509_get_ext_count");
 
@@ -593,15 +644,51 @@ x509_auth_signed(X509 *x, const char *fn,
 		(*auths)[*authsz].ski = ski;
 		(*auths)[*authsz].pkey = pk;
 		(*auths)[*authsz].cert = cert;
+		(*auths)[*authsz].fn = strdup(fn);
+		if ((*auths)[*authsz].fn == NULL)
+			err(EXIT_FAILURE, NULL);
 		(*authsz)++;
 		ski = NULL;
 		pk = NULL;
 	}
 
-	rc = 1;
+	rc = j;
 out:
 	free(ski);
 	free(aki);
 	EVP_PKEY_free(pk);
+	return rc;
+}
+
+int
+x509_auth_signed_cert(X509 *x, const char *fn,
+	struct auth **auths, size_t *authsz, struct cert *cert)
+{
+
+	return x509_auth_signed(x, fn, auths, authsz, cert) >= 0;
+}
+
+int
+x509_auth_signed_mft(X509 *x, const char *fn,
+	struct auth **auths, size_t *authsz, struct mft *mft)
+{
+
+	return x509_auth_signed(x, fn, auths, authsz, NULL) >= 0;
+}
+
+int
+x509_auth_signed_roa(X509 *x, const char *fn,
+	struct auth **auths, size_t *authsz, struct roa *roa)
+{
+	ssize_t	c;
+
+	if ((c = x509_auth_signed(x, fn, auths, authsz, NULL)) < 0)
+		return 0;
+
+	if (x509_auth_as(roa->asid, c, *auths, *authsz) < 0) {
+		warnx("%s: AS identifier not covered: %" PRIu32, fn, roa->asid);
+		return 0;
+	}
+
 	return 1;
 }
