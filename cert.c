@@ -483,7 +483,7 @@ sbgp_assysnum(struct parse *p, X509_EXTENSION *ext)
 		goto out;
 	} 
 
-	/* Start with RFC 3770, section 3.2 top-level. */
+	/* Start with RFC 3779, section 3.2 top-level. */
 
 	d = sv;
 	if ((seq = d2i_ASN1_SEQUENCE_ANY(NULL, &d, dsz)) == NULL) {
@@ -605,7 +605,7 @@ sbgp_range(struct parse *p, struct cert_ip *ip,
 
 	t = sk_ASN1_TYPE_value(seq, 0);
 	if (t->type != V_ASN1_BIT_STRING) {
-		warnx("%s: RFC 3779 section 2.2.3.9: IPAddress: "
+		warnx("%s: RFC 3779 section 2.2.3.9: IPAddressRange: "
 			"want ASN.1 bit string, have %s (NID %d)", 
 			p->fn, ASN1_tag2str(t->type), t->type);
 		goto out;
@@ -615,7 +615,7 @@ sbgp_range(struct parse *p, struct cert_ip *ip,
 
 	t = sk_ASN1_TYPE_value(seq, 1);
 	if (t->type != V_ASN1_BIT_STRING) {
-		warnx("%s: RFC 3779 section 2.2.3.9: IPAddress: "
+		warnx("%s: RFC 3779 section 2.2.3.9: IPAddressRange: "
 			"want ASN.1 bit string, have %s (NID %d)", 
 			p->fn, ASN1_tag2str(t->type), t->type);
 		goto out;
@@ -724,7 +724,7 @@ sbgp_ipaddrfam(struct parse *p, const unsigned char *d, size_t dsz)
 		goto out;
 	}
 
-	/* Next, either sequence or null, RFC 3770 sec. 2.2.3.4. */
+	/* Next, either sequence or null, RFC 3779 sec. 2.2.3.4. */
 
 	t = sk_ASN1_TYPE_value(seq, 1);
 	switch (t->type) {
