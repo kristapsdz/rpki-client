@@ -23,3 +23,4 @@ The following are unclear to me.
   specification is not clear on what happens with empty AS extensions in
   a chain of certificates.  Do we consider that inheritence?  If so,
   what's the point of having an inheritence clause?
+
