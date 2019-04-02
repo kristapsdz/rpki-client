@@ -140,15 +140,19 @@ io_simple_read(int fd, void *res, size_t sz)
 {
 	ssize_t	 ssz;
 
+again:
 	if (sz == 0)
 		return;
-
 	if ((ssz = read(fd, res, sz)) < 0)
 		err(EXIT_FAILURE, "read");
 	else if (ssz == 0)
 		errx(EXIT_FAILURE, "read: unexpected end of file");
-	else if ((size_t)ssz < sz)
-		errx(EXIT_FAILURE, "read: short read");
+	else if ((size_t)ssz == sz)
+		return;
+	warnx("read: short read: %zu remain", sz - (size_t)ssz);
+	sz -= ssz;
+	res += ssz;
+	goto again;
 }
 
 /*
