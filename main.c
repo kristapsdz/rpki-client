@@ -103,6 +103,26 @@ TAILQ_HEAD(entryq, entry);
  */
 static void	 proc_parser(int, int) __attribute__((noreturn));
 static void	 proc_rsync(int, int) __attribute__((noreturn));
+static void	 logx(const char *fmt, ...) 
+			__attribute__((format(printf, 1, 2)));
+
+static int	 verbose;
+
+/*
+ * Log a message to stderr if and only if "verbose" is non-zero.
+ * This uses the err(3) functionality.
+ */
+static void
+logx(const char *fmt, ...)
+{
+	va_list	 ap;
+
+	if (verbose && fmt != NULL) {
+		va_start(ap, fmt);
+		vwarnx(fmt, ap);
+		va_end(ap);
+	}
+}
 
 /*
  * Resolve the media type of a resource by looking at its suffice.
@@ -154,7 +174,7 @@ entry_read_req(int fd, struct entry *ent)
  * Look up a repository, queueing it for discovery if not found.
  */
 static const struct repo *
-repo_lookup(int fd, int verb, struct repotab *rt, const char *uri)
+repo_lookup(int fd, struct repotab *rt, const char *uri)
 {
 	const char	*host, *mod;
 	size_t		 hostsz, modsz, i;
@@ -193,7 +213,7 @@ repo_lookup(int fd, int verb, struct repotab *rt, const char *uri)
 
 	i = rt->reposz - 1;
 
-	logx(verb, "%s/%s: loading", rp->host, rp->module);
+	logx("%s/%s: loading", rp->host, rp->module);
 	io_simple_write(fd, &i, sizeof(size_t));
 	io_str_write(fd, rp->host);
 	io_str_write(fd, rp->module);
@@ -270,8 +290,7 @@ entry_write_req(int fd, const struct entry *ent)
  * repo, then flush those into the parser process.
  */
 static void
-entryq_flush(int fd, int verb,
-	struct entryq *q, const struct repo *repo)
+entryq_flush(int fd, struct entryq *q, const struct repo *repo)
 {
 	struct entry	*p;
 
@@ -286,10 +305,9 @@ entryq_flush(int fd, int verb,
  * Add the heap-allocated file to the queue for processing.
  */
 static void
-entryq_add(int fd, int verb, struct entryq *q,
-	char *file, enum rtype type, const struct repo *rp,
-	const unsigned char *dgst, const unsigned char *pkey,
-	size_t pkeysz, size_t *eid)
+entryq_add(int fd, struct entryq *q, char *file, enum rtype type, 
+	const struct repo *rp, const unsigned char *dgst, 
+	const unsigned char *pkey, size_t pkeysz, size_t *eid)
 {
 	struct entry	*p;
 
@@ -326,7 +344,7 @@ entryq_add(int fd, int verb, struct entryq *q,
  * These are always relative to the directory in which "mft" sits.
  */
 static void
-queue_add_from_mft(int fd, int verb, struct entryq *q,
+queue_add_from_mft(int fd, struct entryq *q,
 	const char *mft, const struct mftfile *file, size_t *eid)
 {
 	size_t	 	 sz = strlen(file->file);
@@ -365,7 +383,7 @@ queue_add_from_mft(int fd, int verb, struct entryq *q,
 	 * that the repository has already been loaded.
 	 */
 
-	entryq_add(fd, verb, q, nfile, type,
+	entryq_add(fd, q, nfile, type,
 		NULL, file->hash, NULL, 0, eid);
 }
 
@@ -373,13 +391,13 @@ queue_add_from_mft(int fd, int verb, struct entryq *q,
  * Loops over queue_add_from_mft() for all files.
  */
 static void
-queue_add_from_mft_set(int fd, int verb, struct entryq *q,
+queue_add_from_mft_set(int fd, struct entryq *q,
 	const struct mft *mft, size_t *eid)
 {
 	size_t	 i;
 
 	for (i = 0; i < mft->filesz; i++)
-		queue_add_from_mft(fd, verb, q,
+		queue_add_from_mft(fd, q,
 			mft->file, &mft->files[i], eid);
 }
 
@@ -387,8 +405,7 @@ queue_add_from_mft_set(int fd, int verb, struct entryq *q,
  * Add a local TAL file (RFC 7730) to the queue of files to fetch.
  */
 static void
-queue_add_tal(int fd, int verb,
-	struct entryq *q, const char *file, size_t *eid)
+queue_add_tal(int fd, struct entryq *q, const char *file, size_t *eid)
 {
 	char		*nfile;
 
@@ -397,15 +414,15 @@ queue_add_tal(int fd, int verb,
 
 	/* Not in a repository, so directly add to queue. */
 
-	entryq_add(fd, verb, q, nfile,
-		RTYPE_TAL, NULL, NULL, NULL, 0, eid);
+	entryq_add(fd, q, nfile, RTYPE_TAL, 
+		NULL, NULL, NULL, 0, eid);
 }
 
 /*
  * Add rsync URIs (CER) from a TAL file, RFC 7730.
  */
 static void
-queue_add_from_tal(int proc, int rsync, int verb, struct entryq *q,
+queue_add_from_tal(int proc, int rsync, struct entryq *q,
 	const struct tal *tal, const char *uri, struct repotab *rt,
 	size_t *eid)
 {
@@ -415,14 +432,14 @@ queue_add_from_tal(int proc, int rsync, int verb, struct entryq *q,
 	/* Look up the repository. */
 
 	assert(rtype_resolve(uri) == RTYPE_CER);
-	repo = repo_lookup(rsync, verb, rt, uri);
+	repo = repo_lookup(rsync, rt, uri);
 	uri += 8 + strlen(repo->host) + 1 + strlen(repo->module) + 1;
 
 	if (asprintf(&nfile, "%s/%s/%s/%s",
 	    BASE_DIR, repo->host, repo->module, uri) < 0)
 		err(EXIT_FAILURE, NULL);
 
-	entryq_add(proc, verb, q, nfile, RTYPE_CER,
+	entryq_add(proc, q, nfile, RTYPE_CER,
 		repo, NULL, tal->pkey, tal->pkeysz, eid);
 }
 
@@ -430,22 +447,21 @@ queue_add_from_tal(int proc, int rsync, int verb, struct entryq *q,
  * Loops over queue_add_from_tal() for all files.
  */
 static void
-queue_add_from_tal_set(int proc, int rsync, int verb,
-	struct entryq *q, const struct tal *tal, struct repotab *rt,
-	size_t *eid)
+queue_add_from_tal_set(int proc, int rsync, struct entryq *q, 
+	const struct tal *tal, struct repotab *rt, size_t *eid)
 {
 	size_t	 i;
 
 	for (i = 0; i < tal->urisz; i++)
 		queue_add_from_tal(proc, rsync,
-			verb, q, tal, tal->uri[i], rt, eid);
+			q, tal, tal->uri[i], rt, eid);
 }
 
 /*
  * Add a manifest (MFT) found in an X509 certificate, RFC 6487.
  */
 static void
-queue_add_from_cert(int proc, int rsync, int verb, struct entryq *q,
+queue_add_from_cert(int proc, int rsync, struct entryq *q,
 	const char *uri, struct repotab *rt, size_t *eid)
 {
 	char		  *nfile;
@@ -459,15 +475,14 @@ queue_add_from_cert(int proc, int rsync, int verb, struct entryq *q,
 
 	/* Look up the repository. */
 
-	repo = repo_lookup(rsync, verb, rt, uri);
+	repo = repo_lookup(rsync, rt, uri);
 	uri += 8 + strlen(repo->host) + 1 + strlen(repo->module) + 1;
 
 	if (asprintf(&nfile, "%s/%s/%s/%s",
 	    BASE_DIR, repo->host, repo->module, uri) < 0)
 		err(EXIT_FAILURE, NULL);
 
-	entryq_add(proc, verb, q, nfile,
-		type, repo, NULL, NULL, 0, eid);
+	entryq_add(proc, q, nfile, type, repo, NULL, NULL, 0, eid);
 }
 
 static void
@@ -829,7 +844,7 @@ out:
  * For ROAs, we want to extract the valid/invalid info.
  */
 static void
-entry_process(int proc, int rsync, int verb, struct stats *st,
+entry_process(int proc, int rsync, struct stats *st,
 	struct entryq *q, const struct entry *ent, struct repotab *rt,
 	size_t *eid)
 {
@@ -842,23 +857,21 @@ entry_process(int proc, int rsync, int verb, struct stats *st,
 	case RTYPE_TAL:
 		st->tals++;
 		tal = tal_read(proc);
-		queue_add_from_tal_set(proc,
-			rsync, verb, q, tal, rt, eid);
+		queue_add_from_tal_set(proc, rsync, q, tal, rt, eid);
 		break;
 	case RTYPE_CER:
 		st->certs++;
 		cert = cert_read(proc);
 		if (cert->mft == NULL)
 			break;
-		queue_add_from_cert(proc, rsync,
-			verb, q, cert->mft, rt, eid);
+		queue_add_from_cert(proc, rsync, q, cert->mft, rt, eid);
 		break;
 	case RTYPE_MFT:
 		st->mfts++;
 		mft = mft_read(proc);
 		if (mft->stale)
 			st->mfts_stale++;
-		queue_add_from_mft_set(proc, verb, q, mft, eid);
+		queue_add_from_mft_set(proc, q, mft, eid);
 		break;
 	case RTYPE_ROA:
 		st->roas++;
@@ -877,7 +890,7 @@ entry_process(int proc, int rsync, int verb, struct stats *st,
 int
 main(int argc, char *argv[])
 {
-	int		  rc = 0, c, verb = 0, proc, st, rsync,
+	int		  rc = 0, c, proc, st, rsync,
 			  fl = SOCK_STREAM | SOCK_CLOEXEC, noop = 0,
 			  force = 0;
 	size_t		  i, j, eid = 1;
@@ -898,7 +911,7 @@ main(int argc, char *argv[])
 			noop = 1;
 			break;
 		case 'v':
-			verb++;
+			verbose++;
 			break;
 		default:
 			goto usage;
@@ -985,7 +998,7 @@ main(int argc, char *argv[])
 	 */
 
 	for (i = 0; i < (size_t)argc; i++)
-		queue_add_tal(proc, verb, &q, argv[i], &eid);
+		queue_add_tal(proc, &q, argv[i], &eid);
 
 	pfd[0].fd = rsync;
 	pfd[1].fd = proc;
@@ -1010,11 +1023,11 @@ main(int argc, char *argv[])
 			for (i = j = 0; i < rt.reposz; i++)
 				if (!rt.repos[i].loaded)
 					j++;
-			logx(verb, "timeout: %zu pending repos", j);
+			logx("timeout: %zu pending repos", j);
 			j = 0;
 			TAILQ_FOREACH(ent, &q, entries)
 				j++;
-			logx(verb, "timeout: %zu pending entries", j);
+			logx("timeout: %zu pending entries", j);
 			continue;
 		}
 
@@ -1042,10 +1055,10 @@ main(int argc, char *argv[])
 			assert(i < rt.reposz);
 			assert(!rt.repos[i].loaded);
 			rt.repos[i].loaded = 1;
-			logx(verb, "%s/%s/%s: loaded", BASE_DIR,
+			logx("%s/%s/%s: loaded", BASE_DIR,
 				rt.repos[i].host, rt.repos[i].module);
 			stats.repos++;
-			entryq_flush(proc, verb, &q, &rt.repos[i]);
+			entryq_flush(proc, &q, &rt.repos[i]);
 		}
 
 		/* 
@@ -1055,16 +1068,16 @@ main(int argc, char *argv[])
 
 		if ((pfd[1].revents & POLLIN)) {
 			ent = entryq_next(proc, &q);
-			entry_process(proc, rsync, verb,
+			entry_process(proc, rsync,
 				&stats, &q, ent, &rt, &eid);
-			if (verb > 1)
+			if (verbose > 1)
 				fprintf(stderr, "%s\n", ent->uri);
 			entry_free(ent);
 		}
 	}
 
 	assert(TAILQ_EMPTY(&q));
-	logx(verb, "all files parsed: exiting");
+	logx("all files parsed: exiting");
 	rc = 1;
 
 	/*
@@ -1089,11 +1102,11 @@ main(int argc, char *argv[])
 		rc = 0;
 	}
 
-	logx(verb, "Route announcements: %zu", stats.roas);
-	logx(verb, "Certificates: %zu", stats.certs);
-	logx(verb, "Trust anchor locators: %zu", stats.tals);
-	logx(verb, "Manifests: %zu (%zu stale)", stats.mfts, stats.mfts_stale);
-	logx(verb, "Repositories: %zu", stats.repos);
+	logx("Route announcements: %zu", stats.roas);
+	logx("Certificates: %zu", stats.certs);
+	logx("Trust anchor locators: %zu", stats.tals);
+	logx("Manifests: %zu (%zu stale)", stats.mfts, stats.mfts_stale);
+	logx("Repositories: %zu", stats.repos);
 
 	/* Memory cleanup. */
 
