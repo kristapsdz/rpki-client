@@ -145,6 +145,7 @@ struct	roa {
 	uint32_t	 asid; /* asID of ROA */
 	struct roa_ip	*ips; /* IP prefixes */
 	size_t		 ipsz; /* number of IP prefixes */
+	int		 invalid; /* did not validate */
 };
 
 /*
@@ -201,7 +202,7 @@ int		 x509_auth_signed_cert(X509 *, const char *,
 			struct auth **, size_t *, struct cert *);
 int		 x509_auth_signed_mft(X509 *, const char *,
 			struct auth **, size_t *, struct mft *);
-int		 x509_auth_signed_roa(X509 *, const char *,
+void		 x509_auth_signed_roa(X509 *, const char *,
 			struct auth **, size_t *, struct roa *);
 int		 x509_auth_selfsigned_cert(X509 *, const char *,
 			struct auth **, size_t *, const unsigned char *,

@@ -655,19 +655,21 @@ x509_auth_signed_mft(X509 *x, const char *fn,
 	return x509_auth_signed(x, fn, auths, authsz, NULL) >= 0;
 }
 
-int
+void
 x509_auth_signed_roa(X509 *x, const char *fn,
 	struct auth **auths, size_t *authsz, struct roa *roa)
 {
 	ssize_t	c;
 
+	roa->invalid = 1;
+
 	if ((c = x509_auth_signed(x, fn, auths, authsz, NULL)) < 0)
-		return 0;
+		return;
 
 	if (x509_auth_as(roa->asid, c, *auths, *authsz) < 0) {
-		warnx("%s: AS identifier not covered: %" PRIu32, fn, roa->asid);
-		return 0;
+		warnx("%s: uncovered AS identifier: %" PRIu32, fn, roa->asid);
+		return;
 	}
 
-	return 1;
+	roa->invalid = 0;
 }
