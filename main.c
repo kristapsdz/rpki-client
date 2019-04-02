@@ -23,6 +23,7 @@
 #include <fcntl.h>
 #include <fts.h>
 #include <poll.h>
+#include <signal.h>
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
@@ -36,7 +37,7 @@
 /*
  * Base directory for where we'll look for all media.
  */
-#define	BASE_DIR "/tmp/rpki-client"
+#define	BASE_DIR "/var/cache/rpki-client"
 
 /*
  * Statistics collected during run-time.
@@ -58,6 +59,16 @@ struct	repo {
 	char	*module; /* module name */
 	int	 loaded; /* whether loaded or not */
 	size_t	 id; /* identifier (array index) */
+};
+
+/*
+ * A running rsync process.
+ * We can have multiple of these simultaneously and need to keep track
+ * of which process maps to which request.
+ */
+struct	rsyncproc {
+	size_t	 id; /* identity of request */
+	pid_t	 pid; /* pid of process or 0 if unassociated */
 };
 
 /*
@@ -459,26 +470,81 @@ queue_add_from_cert(int proc, int rsync, int verb, struct entryq *q,
 		type, repo, NULL, NULL, 0, eid);
 }
 
+static void
+proc_child(int signal)
+{
+
+	/* Nothing: just discard. */
+}
+
 /*
  * Process used for synchronising repositories.
  * This simply waits to be told which repository to synchronise, then
  * does so.
  * It then responds with the identifier of the repo that it updated.
  * It only exits cleanly when fd is closed.
- * FIXME: this should use buffered output to prevent deadlocks.
- * FIXME: we can easily do the rsyncs in parallel.
+ * FIXME: this should use buffered output to prevent deadlocks, but it's
+ * very unlikely that we're going to fill our buffer, so whatever.
  */
 static void
 proc_rsync(int fd, int noop)
 {
-	size_t	 id, i;
-	ssize_t	 ssz;
-	char	*host = NULL, *mod = NULL, *uri = NULL, *dst = NULL;
-	pid_t	 pid;
-	char	*args[32];
-	int	 st, rc = 0;
+	size_t		  id, i, idsz = 0;
+	ssize_t		  ssz;
+	char		 *host = NULL, *mod = NULL, *uri = NULL, *dst = NULL;
+	pid_t		  pid;
+	char		 *args[32];
+	int		  st, rc = 0;
+	struct pollfd	  pfd;
+	sigset_t	  mask, oldmask;
+	struct rsyncproc *ids = NULL;
+
+	pfd.fd = fd;
+	pfd.events = POLLIN;
+
+	if (sigemptyset(&mask) == -1)
+		err(EXIT_FAILURE, NULL);
+	if (signal(SIGCHLD, proc_child) == SIG_ERR)
+		err(EXIT_FAILURE, NULL);
+	if (sigaddset(&mask, SIGCHLD) == -1)
+		err(EXIT_FAILURE, NULL);
+	if (sigprocmask(SIG_BLOCK, &mask, &oldmask) == -1)
+		err(EXIT_FAILURE, NULL);
 
 	for (;;) {
+		if (ppoll(&pfd, 1, NULL, &oldmask) == -1) {
+			if (errno != EINTR)
+				err(EXIT_FAILURE, "ppoll");
+
+			/*
+			 * If we've received an EINTR, it means that one
+			 * of our children has exited and we can reap it
+			 * and look up its identifier.
+			 * Then we respond to the parent.
+			 */
+
+			if ((pid = waitpid(WAIT_ANY, &st, 0)) == -1)
+				err(EXIT_FAILURE, "waitpid");
+
+			if (!WIFEXITED(st)) {
+				warnx("rsync did not exit");
+				goto out;
+			} else if (WEXITSTATUS(st) != EXIT_SUCCESS) {
+				warnx("rsync failed");
+				goto out;
+			}
+
+			for (i = 0; i < idsz; i++)
+				if (ids[i].pid == pid)
+					break;
+
+			assert(i < idsz);
+			io_simple_write(fd, &ids[i].id, sizeof(size_t));
+			ids[i].pid = 0;
+			ids[i].id = 0;
+			continue;
+		}
+
 		/* 
 		 * Read til the parent exits.
 		 * That will mean that we can safely exit.
@@ -496,6 +562,8 @@ proc_rsync(int fd, int noop)
 
 		if (noop) {
 			io_simple_write(fd, &id, sizeof(size_t));
+			free(host);
+			free(mod);
 			continue;
 		}
 
@@ -525,32 +593,44 @@ proc_rsync(int fd, int noop)
 			err(EXIT_FAILURE, "openrsync: execvp");
 		}
 
-		if (waitpid(pid, &st, 0) == -1)
-			err(EXIT_FAILURE, "waitpid");
+		/* Augment the list of running processes. */
 
-		if (!WIFEXITED(st)) {
-			warnx("openrsync did not exit");
-			goto out;
-		} else if (WEXITSTATUS(st) != EXIT_SUCCESS) {
-			warnx("openrsync failed");
-			goto out;
+		for (i = 0; i < idsz; i++) 
+			if (ids[i].pid == 0) {
+				ids[i].id = id;
+				ids[i].pid = pid;
+				break;
+			}
+
+		if (i == idsz) {
+			ids = reallocarray(ids, idsz + 1, 
+				sizeof(struct rsyncproc));
+			if (ids == NULL)
+				err(EXIT_FAILURE, NULL);
+			ids[idsz].id = id;
+			ids[idsz].pid = pid;
+			idsz++;
 		}
+
+		/* Clean up temporary values. */
 
 		free(mod);
 		free(dst);
 		free(host);
 		free(uri);
-		mod = dst = host = uri = NULL;
-		io_simple_write(fd, &id, sizeof(size_t));
 	}
-
 	rc = 1;
 out:
-	free(host);
-	free(mod);
-	free(uri);
-	free(dst);
+
+	/* No need for these to be hanging around. */
+
+	for (i = 0; i < idsz; i++)
+		if (ids[i].pid > 0)
+			kill(ids[i].pid, SIGTERM);
+
+	free(ids);
 	exit(rc ? EXIT_SUCCESS : EXIT_FAILURE);
+	/* NOTREACHED */
 }
 
 /*
@@ -875,6 +955,9 @@ main(int argc, char *argv[])
 		close(fd[1]);
 		if (pledge("stdio proc exec", NULL) == -1)
 			err(EXIT_FAILURE, "pledge");
+
+		/* If -n, we don't exec. */
+
 		if (noop && pledge("stdio", NULL) == -1)
 			err(EXIT_FAILURE, "pledge");
 		proc_rsync(fd[0], noop);
@@ -883,6 +966,8 @@ main(int argc, char *argv[])
 
 	close(fd[0]);
 	rsync = fd[1];
+
+	assert(rsync != proc);
 
 	/*
 	 * The main process drives the top-down scan to leaf ROAs using
