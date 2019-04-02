@@ -1017,6 +1017,7 @@ cert_ip_buffer(char **b, size_t *bsz,
 {
 
 	io_simple_buffer(b, bsz, bmax, &p->afi, sizeof(uint16_t));
+	io_simple_buffer(b, bsz, bmax, &p->type, sizeof(enum cert_ip_type));
 	if (p->type == CERT_IP_RANGE)
 		ip_addr_range_buffer(b, bsz, bmax, &p->range);
 	else
@@ -1062,6 +1063,7 @@ cert_ip_read(int fd, struct cert_ip *p)
 {
 
 	io_simple_read(fd, &p->afi, sizeof(uint16_t));
+	io_simple_read(fd, &p->type, sizeof(enum cert_ip_type));
 	if (p->type == CERT_IP_RANGE)
 		ip_addr_range_read(fd, &p->range);
 	else
