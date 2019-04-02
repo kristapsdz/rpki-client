@@ -239,8 +239,6 @@ int	 	 rsync_uri_parse(const char **, size_t *,
 
 /* Logging (though really used for OpenSSL errors). */
 
-void		 logx(int, const char *, ...)
-			__attribute__((format(printf, 2, 3)));
 void		 cryptowarnx(const char *, ...)
 			__attribute__((format(printf, 1, 2)));
 void		 cryptoerrx(const char *, ...)
