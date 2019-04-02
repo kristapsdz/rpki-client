@@ -374,6 +374,7 @@ roa_buffer(char **b, size_t *bsz, size_t *bmax, const struct roa *p)
 {
 	size_t	 i;
 
+	io_simple_buffer(b, bsz, bmax, &p->invalid, sizeof(int));
 	io_simple_buffer(b, bsz, bmax, &p->asid, sizeof(uint32_t));
 	io_simple_buffer(b, bsz, bmax, &p->ipsz, sizeof(size_t));
 
@@ -405,6 +406,7 @@ roa_read(int fd)
 	if ((p = calloc(1, sizeof(struct roa))) == NULL)
 		err(EXIT_FAILURE, NULL);
 
+	io_simple_read(fd, &p->invalid, sizeof(int));
 	io_simple_read(fd, &p->asid, sizeof(uint32_t));
 	io_simple_read(fd, &p->ipsz, sizeof(size_t));
 

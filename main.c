@@ -48,6 +48,7 @@ struct	stats {
 	size_t	 mfts_stale; /* stale manifests */
 	size_t	 certs; /* certificates */
 	size_t	 roas; /* route announcements */
+	size_t	 roas_invalid; /* invalid routes */
 	size_t	 repos; /* repositories */
 };
 
@@ -802,13 +803,16 @@ proc_parser(int fd, int force)
 			roa = roa_parse(&x509, entp->uri, entp->dgst);
 			if (roa == NULL)
 				goto out;
-			c = x509_auth_signed_roa
-				(x509, entp->uri, &auths, &authsz, roa);
+			
+			/*
+			 * If the ROA isn't valid, we accept it anyway
+			 * and depend upon the code around roa_read() to
+			 * check the "invalid" field itself.
+			 */
+
+			x509_auth_signed_roa(x509, 
+				entp->uri, &auths, &authsz, roa);
 			X509_free(x509);
-			if (!c) {
-				roa_free(roa);
-				goto out;
-			}
 			roa_buffer(&b, &bsz, &bmax, roa);
 			roa_free(roa);
 			break;
@@ -876,6 +880,11 @@ entry_process(int proc, int rsync, struct stats *st,
 	case RTYPE_ROA:
 		st->roas++;
 		roa = roa_read(proc);
+		if (roa->invalid)
+			st->roas_invalid++;
+		/*
+		 * TODO: write the ROA content to stdout.
+		 */
 		break;
 	default:
 		abort();
@@ -1102,7 +1111,7 @@ main(int argc, char *argv[])
 		rc = 0;
 	}
 
-	logx("Route announcements: %zu", stats.roas);
+	logx("Routes: %zu (%zu invalid)", stats.roas, stats.roas_invalid);
 	logx("Certificates: %zu", stats.certs);
 	logx("Trust anchor locators: %zu", stats.tals);
 	logx("Manifests: %zu (%zu stale)", stats.mfts, stats.mfts_stale);
