@@ -68,17 +68,21 @@ ASN1_frame(struct parse *p, size_t sz,
 
 /*
  * Append an IP address structure to our list of results.
+ * Return zero on failure (IP overlap) non-zero on success.
  */
-static void
+static int
 append_ip(struct parse *p, const struct cert_ip *ip)
 {
 	struct cert	*res = p->res;
 
+	if (!ip_addr_check_overlap(ip, p->fn, p->res->ips, p->res->ipsz))
+		return 0;
 	res->ips = reallocarray(res->ips, 
 		res->ipsz + 1, sizeof(struct cert_ip));
 	if (res->ips == NULL)
 		err(EXIT_FAILURE, NULL);
 	res->ips[res->ipsz++] = *ip;
+	return 1;
 }
 
 /*
@@ -111,8 +115,7 @@ sbgp_addr(struct parse *p,
 
 	if (!ip_addr_parse(bs, ip->afi, p->fn, &ip->ip))
 		return 0;
-	append_ip(p, ip);
-	return 1;
+	return append_ip(p, ip);
 }
 
 /*
@@ -815,8 +818,7 @@ sbgp_range(struct parse *p, struct cert_ip *ip,
 			ip->afi, p->fn, &ip->range.max))
 		goto out;
 
-	append_ip(p, ip);
-	rc = 1;
+	rc = append_ip(p, ip);
 out:
 	sk_ASN1_TYPE_free(seq);
 	return rc;
@@ -928,7 +930,8 @@ sbgp_ipaddrfam(struct parse *p, const unsigned char *d, size_t dsz)
 		break;
 	case V_ASN1_NULL:
 		ip.type = CERT_IP_INHERIT;
-		append_ip(p, &ip);
+		if (!append_ip(p, &ip))
+			goto out;
 		break;
 	default:
 		warnx("%s: RFC 3779 section 2.2.3.2: IPAddressChoice: "
