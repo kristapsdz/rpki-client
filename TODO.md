@@ -24,3 +24,8 @@ The following are unclear to me.
   a chain of certificates.  Do we consider that inheritence?  If so,
   what's the point of having an inheritence clause?
 
+- I get that ASid 0 has special meaning for ROAs (see RFC 6483 sec 4),
+  but it doesn't make sense that some top-level certificates (e.g.,
+  Afrinic) have a range inclusive of zero, since it's reserved.  In this
+  system, I let the range through but don't let a specific ASid of 0 in
+  certificates---only ROAs.
