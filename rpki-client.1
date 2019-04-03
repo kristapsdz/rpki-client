@@ -61,6 +61,13 @@ Twice, prints each filename as it's parsed.
 .It Ar tal
 A trust anchor locator (TAL) file.
 .El
+.Pp
+.Nm
+produces a list of
+.Li roa-set
+statements as specified by
+.Xr bgpd.conf 5
+on standard output.
 .\" The following requests should be uncommented and used where appropriate.
 .\" .Sh CONTEXT
 .\" For section 9 functions only.
@@ -77,7 +84,8 @@ A trust anchor locator (TAL) file.
 .\" .Sh ERRORS
 .\" For sections 2, 3, 4, and 9 errno settings only.
 .Sh SEE ALSO
-.Xr rsync 1
+.Xr openrsync 1
+.Xr bgpd.conf 5
 .Sh STANDARDS
 The following standards are used or referenced in
 .Nm :
