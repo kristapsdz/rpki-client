@@ -147,7 +147,7 @@ struct	roa_ip {
  * This consists of the concerned ASID and its IP prefixes.
  */
 struct	roa {
-	uint32_t	 asid; /* asID of ROA */
+	uint32_t	 asid; /* asID of ROA (if 0, RFC 6483 sec 4) */
 	struct roa_ip	*ips; /* IP prefixes */
 	size_t		 ipsz; /* number of IP prefixes */
 	int		 invalid; /* did not validate */
