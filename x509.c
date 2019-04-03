@@ -432,6 +432,14 @@ x509_auth_selfsigned_cert(X509 *x, const char *fn,
 	pk = d2i_PUBKEY(NULL, &pkey, pkeysz);
 	assert(pk != NULL);
 
+	/* Must not have a CRL. */
+
+	if (cert->crl != NULL) {
+		warnx("%s: RFC 6487: self-signed certificate "
+			"must not have a CRL distribution point", fn);
+		goto out;
+	}
+
 	/* Public keys should match and verify. */
 
 	if ((opk = X509_get_pubkey(x)) == NULL) {
@@ -643,6 +651,14 @@ int
 x509_auth_signed_cert(X509 *x, const char *fn,
 	struct auth **auths, size_t *authsz, struct cert *cert)
 {
+
+	/* Must have a CRL. */
+
+	if (cert->crl == NULL) {
+		warnx("%s: RFC 6487: signed certificate "
+			"must have a CRL distribution point", fn);
+		return 0;
+	}
 
 	return x509_auth_signed(x, fn, auths, authsz, cert) >= 0;
 }
