@@ -22,7 +22,7 @@
 .Nd produce valid route announcements
 .Sh SYNOPSIS
 .Nm
-.Op Fl fnv
+.Op Fl fnrv
 .Op Fl e Ar rsync_prog
 .Ar tal ...
 .Sh DESCRIPTION
@@ -52,6 +52,9 @@ Accept out-of-date manifests.
 This will still report if a manifest has expired.
 .It Fl n
 Assume that all requested repositories exist: don't update.
+.It Fl r
+Don't parse certificate revocation files.
+This additional step can take a long time.
 .It Fl v
 Specified once, prints information about status.
 Twice, prints each filename as it's parsed.

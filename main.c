@@ -103,7 +103,8 @@ TAILQ_HEAD(entryq, entry);
 /*
  * Mark that our subprocesses will never return.
  */
-static void	 proc_parser(int, int) __attribute__((noreturn));
+static void	 proc_parser(int, int, int)
+			__attribute__((noreturn));
 static void	 proc_rsync(const char *, int, int)
 			__attribute__((noreturn));
 static void	 logx(const char *fmt, ...) 
@@ -661,7 +662,7 @@ out:
  * The process will exit cleanly only when fd is closed.
  */
 static void
-proc_parser(int fd, int force)
+proc_parser(int fd, int force, int norev)
 {
 	struct tal	*tal;
 	struct cert	*cert;
@@ -804,6 +805,8 @@ proc_parser(int fd, int force)
 			mft_free(mft);
 			break;
 		case RTYPE_CRL:
+			if (norev)
+				break;
 			crl = crl_parse(entp->uri, 
 				entp->has_dgst ? entp->dgst : NULL);
 			if (crl == NULL)
@@ -861,7 +864,7 @@ out:
  * For ROAs, we want to extract the valid/invalid info.
  */
 static void
-entry_process(int proc, int rsync, struct stats *st,
+entry_process(int norev, int proc, int rsync, struct stats *st,
 	struct entryq *q, const struct entry *ent, struct repotab *rt,
 	size_t *eid)
 {
@@ -895,6 +898,8 @@ entry_process(int proc, int rsync, struct stats *st,
 		queue_add_from_mft_set(proc, q, mft, eid);
 		break;
 	case RTYPE_CRL:
+		if (norev)
+			break;
 		st->crls++;
 		crl = crl_read(proc);
 		break;
@@ -923,7 +928,7 @@ main(int argc, char *argv[])
 {
 	int		 rc = 0, c, proc, st, rsync,
 			 fl = SOCK_STREAM | SOCK_CLOEXEC, noop = 0,
-			 force = 0;
+			 force = 0, norev = 0;
 	size_t		 i, j, eid = 1;
 	pid_t		 procpid, rsyncpid;
 	int		 fd[2];
@@ -934,7 +939,7 @@ main(int argc, char *argv[])
 	struct stats	 stats;
 	const char	*rsync_prog = "openrsync";
 
-	while ((c = getopt(argc, argv, "e:fnv")) != -1) 
+	while ((c = getopt(argc, argv, "e:fnrv")) != -1) 
 		switch (c) {
 		case 'e':
 			rsync_prog = optarg;
@@ -944,6 +949,9 @@ main(int argc, char *argv[])
 			break;
 		case 'n':
 			noop = 1;
+			break;
+		case 'r':
+			norev = 1;
 			break;
 		case 'v':
 			verbose++;
@@ -980,7 +988,7 @@ main(int argc, char *argv[])
 		close(fd[1]);
 		if (pledge("stdio rpath", NULL) == -1)
 			err(EXIT_FAILURE, "pledge");
-		proc_parser(fd[0], force);
+		proc_parser(fd[0], force, norev);
 		/* NOTREACHED */
 	} 
 
@@ -1103,7 +1111,7 @@ main(int argc, char *argv[])
 
 		if ((pfd[1].revents & POLLIN)) {
 			ent = entryq_next(proc, &q);
-			entry_process(proc, rsync,
+			entry_process(norev, proc, rsync,
 				&stats, &q, ent, &rt, &eid);
 			if (verbose > 1)
 				fprintf(stderr, "%s\n", ent->uri);
@@ -1155,6 +1163,7 @@ main(int argc, char *argv[])
 	return rc ? EXIT_SUCCESS : EXIT_FAILURE;
 
 usage:
-	fprintf(stderr, "usage: %s [-fnv] tal ...\n", getprogname());
+	fprintf(stderr, "usage: %s [-fnrv] "
+		"[-e rsync_prog] tal ...\n", getprogname());
 	return EXIT_FAILURE;
 }
