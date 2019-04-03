@@ -128,6 +128,8 @@ rsync_uri_parse(const char **hostp, size_t *hostsz,
 			*rtypep = RTYPE_MFT;
 		else if (strcasecmp(path + sz - 4, ".cer") == 0)
 			*rtypep = RTYPE_CER;
+		else if (strcasecmp(path + sz - 4, ".crl") == 0)
+			*rtypep = RTYPE_CRL;
 		else if (strcasecmp(path + sz - 4, ".tal") == 0)
 			*rtypep = RTYPE_TAL;
 	}
