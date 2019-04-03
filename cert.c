@@ -483,6 +483,7 @@ sbgp_asrange(struct parse *p, const unsigned char *d, size_t dsz)
 	ASN1_SEQUENCE_ANY	*seq;
 	const ASN1_TYPE		*t;
 	int			 rc = 0;
+	long			 value;
 
 	if ((seq = d2i_ASN1_SEQUENCE_ANY(NULL, &d, dsz)) == NULL) {
 		cryptowarnx("%s: RFC 3779 section 3.2.3.8: "
@@ -504,8 +505,12 @@ sbgp_asrange(struct parse *p, const unsigned char *d, size_t dsz)
 			"want ASN.1 integer, have %s (NID %d)", 
 			p->fn, ASN1_tag2str(t->type), t->type);
 		goto out;
-	} 
-	as.range.min = ASN1_INTEGER_get(t->value.integer);
+	} else if ((value = ASN1_INTEGER_get(t->value.integer)) < 0) {
+		warnx("%s: RFC 3770 section 3.2.3.8 (via RFC 1930): "
+			"AS identifiers may not be negative", p->fn);
+		return 0;
+	}
+	as.range.min = value;
 	
 	t = sk_ASN1_TYPE_value(seq, 1);
 	if (t->type != V_ASN1_INTEGER) {
@@ -513,8 +518,12 @@ sbgp_asrange(struct parse *p, const unsigned char *d, size_t dsz)
 			"want ASN.1 integer, have %s (NID %d)", 
 			p->fn, ASN1_tag2str(t->type), t->type);
 		goto out;
+	} else if ((value = ASN1_INTEGER_get(t->value.integer)) < 0) {
+		warnx("%s: RFC 3770 section 3.2.3.8 (via RFC 1930): "
+			"AS identifiers may not be negative", p->fn);
+		return 0;
 	}
-	as.range.max = ASN1_INTEGER_get(t->value.integer);
+	as.range.max = value;
 
 	if (as.range.max == as.range.min) {
 		warnx("%s: RFC 3379 section 3.2.3.8: ASRange: "
@@ -540,11 +549,22 @@ static int
 sbgp_asid(struct parse *p, const ASN1_INTEGER *i)
 {
 	struct cert_as	 as;
+	long	 	 value;
+
+	if ((value = ASN1_INTEGER_get(i)) < 0) {
+		warnx("%s: RFC 3770 section 3.2.3.10 (via RFC 1930): "
+			"AS identifiers may not be negative", p->fn);
+		return 0;
+	} else if (value == 0) {
+		warnx("%s: RFC 3770 section 3.2.3.10 (via RFC 1930): "
+			"AS identifiers zero is reserved", p->fn);
+		return 0;
+	}
 
 	memset(&as, 0, sizeof(struct cert_as));
 
 	as.type = CERT_AS_ID;
-	as.id = ASN1_INTEGER_get(i);
+	as.id = value;
 	return append_as(p, &as);
 }
 
