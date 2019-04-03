@@ -463,7 +463,7 @@ queue_add_from_tal_set(int proc, int rsync, struct entryq *q,
 }
 
 /*
- * Add a manifest (MFT) found in an X509 certificate, RFC 6487.
+ * Add a manifest (MFT) or CRL found in an X509 certificate, RFC 6487.
  */
 static void
 queue_add_from_cert(int proc, int rsync, struct entryq *q,
@@ -475,7 +475,7 @@ queue_add_from_cert(int proc, int rsync, struct entryq *q,
 
 	if ((type = rtype_resolve(uri)) == RTYPE_EOF)
 		errx(EXIT_FAILURE, "%s: unknown file type", uri);
-	if (type != RTYPE_MFT)
+	if (type != RTYPE_MFT && type != RTYPE_CRL)
 		errx(EXIT_FAILURE, "%s: invalid file type", uri);
 
 	/* Look up the repository. */
@@ -804,8 +804,8 @@ proc_parser(int fd, int force)
 			mft_free(mft);
 			break;
 		case RTYPE_CRL:
-			assert(entp->has_dgst);
-			crl = crl_parse(entp->uri, entp->dgst);
+			crl = crl_parse(entp->uri, 
+				entp->has_dgst ? entp->dgst : NULL);
 			if (crl == NULL)
 				goto out;
 			crl_buffer(&b, &bsz, &bmax, crl);
@@ -880,9 +880,12 @@ entry_process(int proc, int rsync, struct stats *st,
 	case RTYPE_CER:
 		st->certs++;
 		cert = cert_read(proc);
-		if (cert->mft == NULL)
-			break;
-		queue_add_from_cert(proc, rsync, q, cert->mft, rt, eid);
+		if (cert->mft != NULL)
+			queue_add_from_cert(proc, rsync, 
+				q, cert->mft, rt, eid);
+		if (cert->crl != NULL)
+			queue_add_from_cert(proc, rsync, 
+				q, cert->crl, rt, eid);
 		break;
 	case RTYPE_MFT:
 		st->mfts++;
