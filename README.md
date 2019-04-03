@@ -36,9 +36,6 @@ It was funded by [NetNod](https://www.netnod.se),
 
 First, you'll need a recent [OpenSSL](https://www.openssl.org/) library
 on your OpenBSD system.
-You'll also need the **openrsync** executable installed.
-(You can obviously use plain **rsync**, but you'll need to change the
-binary names in *main.c*.)
 At this point, just run the following.
 
 ```
@@ -55,11 +52,17 @@ You'll also need TAL ("trust anchor locator") files.
 There are some in the *tal* directory of this system, but you can
 download them on your own.
 
-To run **rpki-client**, just point it at your TAL files:
+To run **rpki-client**, just point it at your TAL files.
+You'll also need the **openrsync** (or **rsync**, which may be specified
+with the **-e** argument) executable installed.
 
 ```
-% ./rpki-client -v ./tals/*.tal
+% ./rpki-client -rv ./tals/*.tal
 ```
+
+Note the **-r** flag.
+At the time, this is strongly recommended since CRL parsing takes ten
+times longer.
 
 # Architecture
 
@@ -79,6 +82,7 @@ The second subordinate process parses and validates data files.
 It is given filenames by the master process, parses them in-order, and
 returns the results.
 The returned results are guaranteed to be valid.
+This process performs the bulk of the work.
 
-The master process is responsible, in orchestrating this pipeline, with
-determining which files have been downloaded.
+The master process is responsible for orchestrating this pipeline.
+It also outputs valid routes.
