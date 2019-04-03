@@ -56,6 +56,23 @@ ip_addr_afi_parse(const ASN1_OCTET_STRING *p, uint16_t *afi)
 }
 
 /*
+ * Given a newly-parsed IP address or range "ip", make sure that "ip"
+ * does not overlap with any addresses or ranges in the "ips" array.
+ * This is defined by RFC 3779 section 2.2.3.6.
+ * FIXME: check for increasing values as noted in the same section.
+ * Returns zero on failure, non-zero on success.
+ */
+int
+ip_addr_check_overlap(const struct cert_ip *ip, const char *fn,
+	const struct cert_ip *ips, size_t ipsz)
+{
+
+	/* TODO */
+
+	return 1;
+}
+
+/*
  * Parse an IP address, RFC 3779, 2.2.3.8.
  * Return zero on failure, non-zero on success.
  */
