@@ -101,6 +101,7 @@ out:
 	BIO_free_all(bio);
 	if (rc == 0)
 		crl_free(p.res);
+	X509_CRL_free(x);
 	return (rc == 0) ? NULL : p.res;
 }
 
