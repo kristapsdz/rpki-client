@@ -1,5 +1,6 @@
 OBJS	 = as.o \
 	   cms.o \
+	   crl.o \
 	   io.o \
 	   ip.o \
 	   log.o \
