@@ -1222,6 +1222,7 @@ void
 cert_buffer(char **b, size_t *bsz, size_t *bmax, const struct cert *p)
 {
 	size_t	 i;
+	int	 has_crl;
 
 	io_simple_buffer(b, bsz, bmax, &p->ipsz, sizeof(size_t));
 	for (i = 0; i < p->ipsz; i++)
@@ -1233,6 +1234,11 @@ cert_buffer(char **b, size_t *bsz, size_t *bmax, const struct cert *p)
 
 	io_str_buffer(b, bsz, bmax, p->rep);
 	io_str_buffer(b, bsz, bmax, p->mft);
+
+	has_crl = (p->crl != NULL);
+	io_simple_buffer(b, bsz, bmax, &has_crl, sizeof(int));
+	if (has_crl)
+		io_str_buffer(b, bsz, bmax, p->crl);
 }
 
 static void
@@ -1268,6 +1274,7 @@ cert_read(int fd)
 {
 	struct cert	*p;
 	size_t		 i;
+	int		 has_crl;
 
 	if ((p = calloc(1, sizeof(struct cert))) == NULL)
 		err(EXIT_FAILURE, NULL);
@@ -1288,6 +1295,10 @@ cert_read(int fd)
 
 	io_str_read(fd, &p->rep);
 	io_str_read(fd, &p->mft);
+	io_simple_read(fd, &has_crl, sizeof(int));
+	if (has_crl)
+		io_str_read(fd, &p->crl);
+
 	return p;
 }
 
