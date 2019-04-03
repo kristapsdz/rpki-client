@@ -675,15 +675,48 @@ void
 x509_auth_signed_roa(X509 *x, const char *fn,
 	struct auth **auths, size_t *authsz, struct roa *roa)
 {
-	ssize_t	c;
+	ssize_t		 c;
+	size_t		 asz, i, level;
+	struct cert_as	*as;
 
 	roa->invalid = 1;
 
 	if ((c = x509_auth_signed(x, fn, auths, authsz, NULL)) < 0)
 		return;
 
-	if (x509_auth_as(roa->asid, c, *auths, *authsz) < 0) {
-		warnx("%s: uncovered AS identifier: %" PRIu32, fn, roa->asid);
+	/*
+	 * According to RFC 6483 section 4, AS 0 in an ROA means that
+	 * the prefix is specifically disallowed from being routed.
+	 */
+
+	if (roa->asid > 0 &&
+	    x509_auth_as(roa->asid, c, *auths, *authsz) < 0) {
+		warnx("%s: uncovered AS "
+			"identifier: %" PRIu32, fn, roa->asid);
+		
+		/* Trace coverage. */
+
+		for (level = 0; ; level++, c = (*auths)[c].parent) {
+			as = (*auths)[c].cert->as;
+			asz = (*auths)[c].cert->asz;
+			for (i = 0; i < asz; i++) 
+				switch (as[i].type) {
+				case CERT_AS_ID:
+					warnx(" ...parent[%zu]: %" 
+						PRIu32, level, as[i].id);
+					break;
+				case CERT_AS_RANGE:
+					warnx(" ...parent[%zu]: %" 
+						PRIu32 "--%" PRIu32, 
+						level, as[i].range.min, 
+						as[i].range.max);
+					break;
+				default:
+					break;
+				}
+			if ((*auths)[c].parent == (size_t)c)
+				break;
+		}
 		return;
 	}
 
