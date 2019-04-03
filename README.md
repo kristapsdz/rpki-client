@@ -18,6 +18,9 @@ At this time, **rpki-client** does not work with the native
 In this document, I briefly describe the deployment, architecture, and
 functionality of the **rpki-client** system.
 
+See the [TODO](TODO.md) file for open questions regarding RPKI operation
+in general.
+
 ## Project background
 
 **rpki-client** is written as part of the
