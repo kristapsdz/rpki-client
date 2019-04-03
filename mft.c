@@ -134,6 +134,7 @@ mft_parse_filehash(struct parse *p, const ASN1_OCTET_STRING *os)
 	}
 
 	if (strcasecmp(fn + sz - 4, ".roa") &&
+	    strcasecmp(fn + sz - 4, ".crl") &&
 	    strcasecmp(fn + sz - 4, ".cer")) {
 		free(fn);
 		fn = NULL;

@@ -341,7 +341,7 @@ entryq_add(int fd, struct entryq *q, char *file, enum rtype type,
 }
 
 /*
- * Add a file (CER, ROA) from an MFT file, RFC 6486.
+ * Add a file (CER, ROA, CRL) from an MFT file, RFC 6486.
  * These are always relative to the directory in which "mft" sits.
  */
 static void
@@ -361,6 +361,8 @@ queue_add_from_mft(int fd, struct entryq *q,
 		type = RTYPE_CER;
 	else if (strcasecmp(file->file + sz - 4, ".roa") == 0)
 		type = RTYPE_ROA;
+	else if (strcasecmp(file->file + sz - 4, ".crl") == 0)
+		type = RTYPE_CRL;
 
 	assert(type != RTYPE_EOF);
 
@@ -663,6 +665,7 @@ proc_parser(int fd, int force)
 	struct cert	*cert;
 	struct mft	*mft;
 	struct roa	*roa;
+	struct crl	*crl;
 	struct entry	*entp;
 	struct entryq	 q;
 	int		 rc = 0, c;
@@ -798,6 +801,14 @@ proc_parser(int fd, int force)
 			mft_buffer(&b, &bsz, &bmax, mft);
 			mft_free(mft);
 			break;
+		case RTYPE_CRL:
+			assert(entp->has_dgst);
+			crl = crl_parse(entp->uri, entp->dgst);
+			if (crl == NULL)
+				goto out;
+			crl_buffer(&b, &bsz, &bmax, crl);
+			crl_free(crl);
+			break;
 		case RTYPE_ROA:
 			assert(entp->has_dgst);
 			roa = roa_parse(&x509, entp->uri, entp->dgst);
@@ -856,6 +867,7 @@ entry_process(int proc, int rsync, struct stats *st,
 	struct cert	*cert = NULL;
 	struct mft	*mft = NULL;
 	struct roa	*roa = NULL;
+	struct crl	*crl = NULL;
 
 	switch (ent->type) {
 	case RTYPE_TAL:
@@ -877,6 +889,9 @@ entry_process(int proc, int rsync, struct stats *st,
 			st->mfts_stale++;
 		queue_add_from_mft_set(proc, q, mft, eid);
 		break;
+	case RTYPE_CRL:
+		crl = crl_read(proc);
+		break;
 	case RTYPE_ROA:
 		st->roas++;
 		roa = roa_read(proc);
@@ -894,6 +909,7 @@ entry_process(int proc, int rsync, struct stats *st,
 	mft_free(mft);
 	roa_free(roa);
 	cert_free(cert);
+	crl_free(crl);
 }
 
 int

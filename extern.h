@@ -97,6 +97,10 @@ struct	cert {
 	char		*mft; /* manifest (rsync:// uri) */
 };
 
+struct	crl {
+	int		 dummy;
+};
+
 /*
  * The TAL file conforms to RFC 7730.
  * It is the top-level structure of RPKI and defines where we can find
@@ -164,14 +168,15 @@ struct	auth {
 
 /*
  * Resource types specified by the RPKI profiles.
- * There are others (e.g., gbr, crl) that we don't consider.
+ * There are others (e.g., gbr) that we don't consider.
  */
 enum	rtype {
 	RTYPE_EOF = 0,
 	RTYPE_TAL,
 	RTYPE_MFT,
 	RTYPE_ROA,
-	RTYPE_CER
+	RTYPE_CER,
+	RTYPE_CRL
 };
 
 /* Routines for RPKI entities. */
@@ -195,6 +200,11 @@ void		 roa_buffer(char **, size_t *, size_t *, const struct roa *);
 void		 roa_free(struct roa *);
 struct roa 	*roa_parse(X509 **, const char *, const unsigned char *);
 struct roa	*roa_read(int);
+
+void		 crl_buffer(char **, size_t *, size_t *, const struct crl *);
+void		 crl_free(struct crl *);
+struct crl 	*crl_parse(const char *, const unsigned char *);
+struct crl	*crl_read(int);
 
 /* Authentication of X509 objects. */
 
