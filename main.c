@@ -22,6 +22,7 @@
 #include <err.h>
 #include <fcntl.h>
 #include <fts.h>
+#include <inttypes.h>
 #include <poll.h>
 #include <signal.h>
 #include <stdio.h>
@@ -873,6 +874,8 @@ entry_process(int norev, int proc, int rsync, struct stats *st,
 	struct mft	*mft = NULL;
 	struct roa	*roa = NULL;
 	struct crl	*crl = NULL;
+	char		 buf[128];
+	size_t		 i;
 
 	switch (ent->type) {
 	case RTYPE_TAL:
@@ -906,11 +909,18 @@ entry_process(int norev, int proc, int rsync, struct stats *st,
 	case RTYPE_ROA:
 		st->roas++;
 		roa = roa_read(proc);
-		if (roa->invalid)
+		if (roa->invalid) {
 			st->roas_invalid++;
-		/*
-		 * TODO: write the ROA content to stdout.
-		 */
+			break;
+		}
+		for (i = 0; i < roa->ipsz; i++) {
+			ip_addr_print(&roa->ips[i].addr, 
+				roa->ips[i].afi, buf, sizeof(buf));
+			printf("%s ", buf);
+			if (roa->ips[i].maxlength)
+				printf("maxlength %zu ", roa->ips[i].maxlength);
+			printf("source-as %" PRIu32 "\n", roa->asid);
+		}
 		break;
 	default:
 		abort();
