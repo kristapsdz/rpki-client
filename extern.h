@@ -238,6 +238,8 @@ void	 	 ip_addr_read(int, struct ip_addr *);
 void		 ip_addr_range_read(int, struct ip_addr_range *);
 int		 ip_addr_check_overlap(const struct cert_ip *,
 			const char *, const struct cert_ip *, size_t);
+int		 ip_addr_check_covered(const struct roa_ip *,
+			const struct cert_ip *, size_t);
 
 /* Work with RFC 3779 AS numbers, ranges. */
 

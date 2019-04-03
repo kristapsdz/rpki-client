@@ -54,8 +54,6 @@ ASN1_frame(const char *fn, size_t sz,
  * Walk up the chain of certificates trying to match our AS number to
  * one of the allocations in that chain.
  * Returns the index of the certificate in auths or -1 on error.
- * FIXME: this doesn't make sense to me: shouldn't we only look at the
- * AS number of the terminal issuer?
  */
 static ssize_t
 x509_auth_as(uint32_t asid, size_t idx,
@@ -74,6 +72,31 @@ x509_auth_as(uint32_t asid, size_t idx,
 	if (as[idx].parent == as[idx].id)
 		return -1;
 	return x509_auth_as(asid, as[idx].parent, as, asz);
+}
+
+/*
+ * Walk up the chain of certificates (really just the last one, but in
+ * the case of inheritence, the ones before) making sure that our IP
+ * prefix is covered in the first non-inheriting specification.
+ * Returns the index of the certificate in auths or -1 on error.
+ */
+static ssize_t
+x509_auth_ip_addr(const struct roa_ip *ip, size_t idx,
+	const struct auth *as, size_t asz)
+{
+
+	assert(idx < asz);
+
+	/* Does this certificate cover our IP prefix? */
+
+	if (ip_addr_check_covered(ip, as[idx].cert->ips, as[idx].cert->ipsz))
+		return idx;
+
+	/* If it doesn't, walk up the chain. */
+
+	if (as[idx].parent == as[idx].id)
+		return -1;
+	return x509_auth_ip_addr(ip, as[idx].parent, as, asz);
 }
 
 /*
@@ -506,6 +529,8 @@ x509_auth_selfsigned_cert(X509 *x, const char *fn,
 	if (!x509_auth_as_selfsigned(cert, fn))
 		goto out;
 
+	/* FIXME: same as x509_auth_as_selfsigned() but for the IPs. */
+
 	*auths = reallocarray(*auths,
 		*authsz + 1, sizeof(struct auth));
 	if (*auths == NULL)
@@ -617,6 +642,13 @@ x509_auth_signed(X509 *x, const char *fn,
 		goto out;
 	}
 
+	/* 
+	 * FIXME: make sure that the AS inherits (I actually don't think
+	 * this is a thing, and that inheriting certificates can do
+	 * whatever they want with the AS numbers) but for sure make
+	 * sure that our IP ranges are fully covered by the parent.
+	 */
+
 	/* Verify and append our own public key to the key cache. */
 
 	if (cert != NULL) {
@@ -671,6 +703,13 @@ x509_auth_signed_mft(X509 *x, const char *fn,
 	return x509_auth_signed(x, fn, auths, authsz, NULL) >= 0;
 }
 
+/*
+ * Check our ROA.
+ * Beyond the usual, this means checking that the AS number is covered
+ * by one of the parent certificates and the IP prefix is also
+ * contained.
+ * Sets the "invalid" field if any of these fail.
+ */
 void
 x509_auth_signed_roa(X509 *x, const char *fn,
 	struct auth **auths, size_t *authsz, struct roa *roa)
@@ -719,6 +758,12 @@ x509_auth_signed_roa(X509 *x, const char *fn,
 		}
 		return;
 	}
+
+	for (i = 0; i < roa->ipsz; i++) 
+		if (x509_auth_ip_addr(&roa->ips[i], c, *auths, *authsz) < 0) {
+			warnx("%s: uncovered IP address", fn);
+			return;
+		}
 
 	roa->invalid = 0;
 }

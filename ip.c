@@ -56,6 +56,21 @@ ip_addr_afi_parse(const ASN1_OCTET_STRING *p, uint16_t *afi)
 }
 
 /*
+ * See if a given IP prefix is covered by the IP prefixes or ranges
+ * specified in the "ips" array.
+ * Return zero if there is no cover, non-zero if there is.
+ */
+int
+ip_addr_check_covered(const struct roa_ip *ip,
+	const struct cert_ip *ips, size_t ipsz)
+{
+
+	/* TODO */
+
+	return 1;
+}
+
+/*
  * Given a newly-parsed IP address or range "ip", make sure that "ip"
  * does not overlap with any addresses or ranges in the "ips" array.
  * This is defined by RFC 3779 section 2.2.3.6.
