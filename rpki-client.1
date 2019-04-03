@@ -19,21 +19,34 @@
 .Os
 .Sh NAME
 .Nm rpki-client
-.Nd verifies route announcements
+.Nd produce valid route announcements
 .Sh SYNOPSIS
 .Nm
 .Op Fl fnv
+.Op Fl e Ar rsync_prog
 .Ar tal ...
 .Sh DESCRIPTION
 The
 .Nm
-utility verifies all route announcements starting with trust anchor
+utility produces all route announcements starting with trust anchor
 locators.
 It uses
-.Xr rsync 1
-to fetch certificates, manifests, and route announcements themselves.
+.Xr openrsync 1
+to fetch certificates, manifests, revocation lists, and route
+announcements themselves.
 Its arguments are as follows:
 .Bl -tag -width Ds
+.It Fl e Ar rsync_prog
+Use
+.Ar rsync_prog
+instead of
+.Xr openrsync 1
+to fetch repositories.
+It must accept the
+.Fl rlt
+and
+.Fl -delete
+flags and connect with rsync-protocol locations.
 .It Fl f
 Accept out-of-date manifests.
 This will still report if a manifest has expired.
