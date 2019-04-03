@@ -50,6 +50,7 @@ struct	stats {
 	size_t	 roas; /* route announcements */
 	size_t	 roas_invalid; /* invalid routes */
 	size_t	 repos; /* repositories */
+	size_t	 crls; /* revocation lists */
 };
 
 /*
@@ -103,7 +104,8 @@ TAILQ_HEAD(entryq, entry);
  * Mark that our subprocesses will never return.
  */
 static void	 proc_parser(int, int) __attribute__((noreturn));
-static void	 proc_rsync(int, int) __attribute__((noreturn));
+static void	 proc_rsync(const char *, int, int)
+			__attribute__((noreturn));
 static void	 logx(const char *fmt, ...) 
 			__attribute__((format(printf, 1, 2)));
 
@@ -505,7 +507,7 @@ proc_child(int signal)
  * very unlikely that we're going to fill our buffer, so whatever.
  */
 static void
-proc_rsync(int fd, int noop)
+proc_rsync(const char *prog, int fd, int noop)
 {
 	size_t		  id, i, idsz = 0;
 	ssize_t		  ssz;
@@ -599,7 +601,7 @@ proc_rsync(int fd, int noop)
 
 		if (pid == 0) {
 			i = 0;
-			args[i++] = "openrsync";
+			args[i++] = (char *)prog;
 			args[i++] = "-r";
 			args[i++] = "-l";
 			args[i++] = "-t";
@@ -608,7 +610,7 @@ proc_rsync(int fd, int noop)
 			args[i++] = dst;
 			args[i] = NULL;
 			execvp(args[0], args);
-			err(EXIT_FAILURE, "openrsync: execvp");
+			err(EXIT_FAILURE, "%s: execvp", prog);
 		}
 
 		/* Augment the list of running processes. */
@@ -890,6 +892,7 @@ entry_process(int proc, int rsync, struct stats *st,
 		queue_add_from_mft_set(proc, q, mft, eid);
 		break;
 	case RTYPE_CRL:
+		st->crls++;
 		crl = crl_read(proc);
 		break;
 	case RTYPE_ROA:
@@ -915,20 +918,24 @@ entry_process(int proc, int rsync, struct stats *st,
 int
 main(int argc, char *argv[])
 {
-	int		  rc = 0, c, proc, st, rsync,
-			  fl = SOCK_STREAM | SOCK_CLOEXEC, noop = 0,
-			  force = 0;
-	size_t		  i, j, eid = 1;
-	pid_t		  procpid, rsyncpid;
-	int		  fd[2];
-	struct entryq	  q;
-	struct entry	 *ent;
-	struct pollfd	  pfd[2];
-	struct repotab	  rt;
-	struct stats	  stats;
+	int		 rc = 0, c, proc, st, rsync,
+			 fl = SOCK_STREAM | SOCK_CLOEXEC, noop = 0,
+			 force = 0;
+	size_t		 i, j, eid = 1;
+	pid_t		 procpid, rsyncpid;
+	int		 fd[2];
+	struct entryq	 q;
+	struct entry	*ent;
+	struct pollfd	 pfd[2];
+	struct repotab	 rt;
+	struct stats	 stats;
+	const char	*rsync_prog = "openrsync";
 
-	while ((c = getopt(argc, argv, "fnv")) != -1) 
+	while ((c = getopt(argc, argv, "e:fnv")) != -1) 
 		switch (c) {
+		case 'e':
+			rsync_prog = optarg;
+			break;
 		case 'f':
 			force = 1;
 			break;
@@ -998,7 +1005,7 @@ main(int argc, char *argv[])
 
 		if (noop && pledge("stdio", NULL) == -1)
 			err(EXIT_FAILURE, "pledge");
-		proc_rsync(fd[0], noop);
+		proc_rsync(rsync_prog, fd[0], noop);
 		/* NOTREACHED */
 	}
 
@@ -1131,6 +1138,7 @@ main(int argc, char *argv[])
 	logx("Certificates: %zu", stats.certs);
 	logx("Trust anchor locators: %zu", stats.tals);
 	logx("Manifests: %zu (%zu stale)", stats.mfts, stats.mfts_stale);
+	logx("Certificate revocation lists: %zu", stats.crls);
 	logx("Repositories: %zu", stats.repos);
 
 	/* Memory cleanup. */
