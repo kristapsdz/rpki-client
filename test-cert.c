@@ -35,12 +35,14 @@ cert_print(const struct cert *p)
 	size_t		 i;
 	char		 buf1[128], buf2[128];
 
-	assert(NULL != p);
+	assert(p != NULL);
 
-	if (NULL != p->rep)
+	if (p->rep != NULL)
 		fprintf(stderr, "CA repository: %s\n", p->rep);
-	if (NULL != p->mft)
+	if (p->mft != NULL)
 		fprintf(stderr, "Manifest: %s\n", p->mft);
+	if (p->crl != NULL)
+		fprintf(stderr, "Revocation list: %s\n", p->crl);
 
 	for (i = 0; i < p->asz; i++)
 		switch (p->as[i].type) {
@@ -89,7 +91,7 @@ main(int argc, char *argv[])
 	SSL_library_init();
 	SSL_load_error_strings();
 
-	while (-1 != (c = getopt(argc, argv, "v"))) 
+	while ((c = getopt(argc, argv, "v")) != -1) 
 		switch (c) {
 		case 'v':
 			verb++;
