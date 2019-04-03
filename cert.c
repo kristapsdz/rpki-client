@@ -26,6 +26,7 @@
 #include <unistd.h>
 
 #include <openssl/ssl.h>
+#include <openssl/x509v3.h>
 
 #include "extern.h"
 
@@ -198,6 +199,100 @@ out:
 }
 
 /*
+ * Parse the very specific subset of information in the CRL distribution
+ * point extension.
+ * See RFC 6487, sectoin 4.8.6 for details.
+ * Returns zero on failure, non-zero on success.
+ */
+static int
+sbgp_crl_bits(struct parse *p, const unsigned char *d, size_t dsz)
+{
+	DIST_POINT		*pnt = NULL;
+	const ASN1_SEQUENCE_ANY	*seq;
+	const ASN1_TYPE		*t;
+	int			 rc = 0;
+	char			*buf = NULL;
+	GENERAL_NAMES		*nms;
+	GENERAL_NAME		*nm;
+
+	/* 
+	 * I think this can be parsed as a DIST_POINTS array, but that
+	 * doesn't really get us much, so do it this way.
+	 */
+
+	if ((seq = d2i_ASN1_SEQUENCE_ANY(NULL, &d, dsz)) == NULL) {
+		cryptowarnx("%s: RFC 6487 section 4.8.6: CRL: "
+			"failed ASN.1 sequence parse", p->fn);
+		goto out;
+	} else if (sk_ASN1_TYPE_num(seq) != 1) {
+		warnx("%s: RFC 6487 section 4.8.6: CRL: "
+			"want 1 element, have %d", p->fn, 
+			sk_ASN1_TYPE_num(seq));
+		goto out;
+	}
+
+	t = sk_ASN1_TYPE_value(seq, 0);
+	if (t->type != V_ASN1_SEQUENCE) {
+		warnx("%s: RFC 6487 section 4.8.6: CRL: want ASN.1 "
+			"sequence, have %s (NID %d)", p->fn, 
+			ASN1_tag2str(t->type), t->type);
+		goto out;
+	}
+
+	/* 
+	 * Now actually drill down into the point itself.
+	 * It is fully specified by section 4.8.6.
+	 */
+
+	d = t->value.asn1_string->data;
+	dsz = t->value.asn1_string->length;
+
+	if ((pnt = d2i_DIST_POINT(NULL, &d, dsz)) == NULL) {
+		cryptowarnx("%s: RFC 6487 section 4.8.6: CRL: "
+			"failed dist points parse", p->fn);
+		goto out;
+	} else if (pnt->distpoint == NULL) {
+		warnx("%s: RFC 6487 section 4.8.6: CRL: no "
+			"distribution point name", p->fn);
+		goto out;
+	} else if (pnt->distpoint->type != 0) {
+		warnx("%s: RFC 6487 section 4.8.6: CRL: "
+			"expected GEN_OTHERNAME, have %d", 
+			p->fn, pnt->distpoint->type);
+		goto out;
+	}
+
+	nms = pnt->distpoint->name.fullname;
+	if (sk_GENERAL_NAME_num(nms) != 1) {
+		warnx("%s: RFC 6487 section 4.8.6: CRL: "
+			"want 1 full name, have %d", p->fn, 
+			sk_GENERAL_NAME_num(nms));
+		goto out;
+	}
+
+	nm = sk_GENERAL_NAME_value(nms, 0);
+	if (nm->type != GEN_URI) {
+		warnx("%s: RFC 6487 section 4.8.6: CRL: "
+			"want URI type, have %d", p->fn, nm->type);
+		goto out;
+	}
+
+	assert(p->res->crl == NULL);
+	p->res->crl = strndup
+		(nm->d.uniformResourceIdentifier->data,
+		 nm->d.uniformResourceIdentifier->length);
+	if (p->res->crl == NULL)
+		err(EXIT_FAILURE, NULL);
+
+	rc = 1;
+out:
+	free(buf);
+	sk_ASN1_TYPE_free(seq);
+	DIST_POINT_free(pnt);
+	return rc;
+}
+
+/*
  * Multiple locations as defined in RFC 6487, 4.8.8.1.
  * Returns zero on failure, non-zero on success.
  */
@@ -231,6 +326,83 @@ sbgp_sia_bits(struct parse *p, const unsigned char *d, size_t dsz)
 	rc = 1;
 out:
 	sk_ASN1_TYPE_free(seq);
+	return rc;
+}
+
+/*
+ * Parse "CRL Distribution Points" extension, RFC 6487 4.8.6.
+ * Returns zero on failure, non-zero on success.
+ */
+static int
+sbgp_crl(struct parse *p, X509_EXTENSION *ext)
+{
+	unsigned char		*sv = NULL;
+	const unsigned char 	*d;
+	size_t		 	 dsz;
+	ASN1_SEQUENCE_ANY	*seq = NULL;
+	const ASN1_TYPE		*t;
+	int			 rc = 0;
+
+	if (p->res->crl != NULL) {
+		warnx("%s: RFC 6487 section 4.8.6: CRL: "
+			"multiple specifications", p->fn);
+		goto out;
+	} else if ((dsz = i2d_X509_EXTENSION(ext, &sv)) < 0) {
+		cryptowarnx("%s: RFC 6487 section 4.8.6: CRL: "
+			"failed extension parse", p->fn);
+		goto out;
+	} 
+	d = sv;
+
+	if ((seq = d2i_ASN1_SEQUENCE_ANY(NULL, &d, dsz)) == NULL) {
+		cryptowarnx("%s: RFC 6487 section 4.8.6: CRL: "
+			"failed ASN.1 sequence parse", p->fn);
+		goto out;
+	} else if (sk_ASN1_TYPE_num(seq) != 2) {
+		warnx("%s: RFC 6487 section 4.8.6: SIA: "
+			"want 2 elements, have %d", p->fn, 
+			sk_ASN1_TYPE_num(seq));
+		goto out;
+	}
+
+	t = sk_ASN1_TYPE_value(seq, 0);
+	if (t->type != V_ASN1_OBJECT) {
+		warnx("%s: RFC 6487 section 4.8.6: CRL: "
+			"want ASN.1 object, have %s (NID %d)", 
+			p->fn, ASN1_tag2str(t->type), t->type);
+		goto out;
+	}
+	if (OBJ_obj2nid(t->value.object) !=
+	    NID_crl_distribution_points) {
+		warnx("%s: RFC 6487 section 4.8.6: CRL: "
+			"incorrect OID, have %s (NID %d)", p->fn, 
+			ASN1_tag2str(OBJ_obj2nid(t->value.object)), 
+			OBJ_obj2nid(t->value.object));
+		goto out;
+	}
+
+	t = sk_ASN1_TYPE_value(seq, 1);
+	if (t->type != V_ASN1_OCTET_STRING) {
+		warnx("%s: RFC 6487 section 4.8.6: CRL: "
+			"want ASN.1 octet string, have %s (NID %d)", 
+			p->fn, ASN1_tag2str(t->type), t->type);
+		goto out;
+	}
+
+	/*
+	 * Now we've peeled back the envelope to get to the single
+	 * entity of the extension, which is our distribution point.
+	 */
+
+	d = t->value.octet_string->data;
+	dsz = t->value.octet_string->length;
+	if (!sbgp_crl_bits(p, d, dsz))
+		goto out;
+
+	rc = 1;
+out:
+	sk_ASN1_TYPE_free(seq);
+	free(sv);
 	return rc;
 }
 
@@ -959,13 +1131,17 @@ cert_parse(X509 **xp, const char *fn, const unsigned char *dgst)
 		case NID_sinfo_access:
 			c = sbgp_sia(&p, ext);
 			break;
+		case NID_crl_distribution_points:
+			c = sbgp_crl(&p, ext);
+			break;
 		default:
 			c = 1;
-			/*
-			OBJ_obj2txt(objn, sizeof(objn), obj, 0);
-			warnx("%s: ignoring %s (NID %d)", 
-				p.fn, objn, OBJ_obj2nid(obj));
-			*/
+			/* {
+				char objn[64];
+				OBJ_obj2txt(objn, sizeof(objn), obj, 0);
+				warnx("%s: ignoring %s (NID %d)", 
+					p.fn, objn, OBJ_obj2nid(obj));
+			} */
 			break;
 		}
 		if (c == 0)
@@ -1004,6 +1180,7 @@ cert_free(struct cert *p)
 	if (NULL == p)
 		return;
 
+	free(p->crl);
 	free(p->rep);
 	free(p->mft);
 	free(p->ips);
