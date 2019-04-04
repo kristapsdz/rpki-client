@@ -95,8 +95,43 @@ int
 ip_addr_check_overlap(const struct cert_ip *ip, const char *fn,
 	const struct cert_ip *ips, size_t ipsz)
 {
+	size_t	 i;
+	int	 inherit_v4 = 0, inherit_v6 = 0,
+		 has_v4 = 0, has_v6 = 0;
 
-	/* TODO */
+	/* 
+	 * FIXME: cache this by having a flag on the cert_ip, else we're
+	 * going to need to do a lot of scanning for big allocations.
+	 */
+
+	for (i = 0; i < ipsz; i++) 
+		if (ips[i].type == CERT_IP_INHERIT) {
+			if (ips[i].afi == AFI_IPV4)
+				inherit_v4 = 1;
+			else
+				inherit_v6 = 1;
+		} else {
+			if (ips[i].afi == AFI_IPV4)
+				has_v4 = 1;
+			else
+				has_v6 = 1;
+		}
+
+	/* Disallow multiple inheritence per type. */
+
+	if ((inherit_v4 && ip->afi == AFI_IPV4) ||
+	    (inherit_v6 && ip->afi == AFI_IPV6) ||
+	    (has_v4 && ip->afi == AFI_IPV4 && 
+	     ip->type == CERT_IP_INHERIT) ||
+	    (has_v6 && ip->afi == AFI_IPV6 && 
+	     ip->type == CERT_IP_INHERIT)) {
+		warnx("%s: RFC 3779 section 2.2.3.5: cannot have "
+			"multiple inheritence or inheritence and "
+			"addresses of the same class", fn);
+		return 0;
+	}
+
+	/* TODO: more. */
 
 	return 1;
 }
