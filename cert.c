@@ -26,7 +26,7 @@
 #include <unistd.h>
 
 #include <openssl/ssl.h>
-#include <openssl/x509v3.h>
+#include <openssl/x509v3.h> /* DIST_POINT */
 
 #include "extern.h"
 
@@ -804,9 +804,13 @@ sbgp_range(struct parse *p, struct cert_ip *ip,
 			"want ASN.1 bit string, have %s (NID %d)", 
 			p->fn, ASN1_tag2str(t->type), t->type);
 		goto out;
-	} else if (!ip_addr_parse(t->value.bit_string,
-			ip->afi, p->fn, &ip->range.min))
+	}
+	if (!ip_addr_parse(t->value.bit_string,
+	    ip->afi, p->fn, &ip->range.min)) {
+		warnx("%s: RFC 3779 section 2.2.3.9: IPAddressRange: "
+			"invalid IP address", p->fn);
 		goto out;
+	}
 
 	t = sk_ASN1_TYPE_value(seq, 1);
 	if (t->type != V_ASN1_BIT_STRING) {
@@ -814,9 +818,13 @@ sbgp_range(struct parse *p, struct cert_ip *ip,
 			"want ASN.1 bit string, have %s (NID %d)", 
 			p->fn, ASN1_tag2str(t->type), t->type);
 		goto out;
-	} else if (!ip_addr_parse(t->value.bit_string,
-			ip->afi, p->fn, &ip->range.max))
+	}
+	if (!ip_addr_parse(t->value.bit_string,
+	    ip->afi, p->fn, &ip->range.max)) {
+		warnx("%s: RFC 3779 section 2.2.3.9: IPAddressRange: "
+			"invalid IP address", p->fn);
 		goto out;
+	}
 
 	rc = append_ip(p, ip);
 out:
@@ -913,8 +921,9 @@ sbgp_ipaddrfam(struct parse *p, const unsigned char *d, size_t dsz)
 		goto out;
 	} 
 
-	if (!ip_addr_afi_parse(t->value.octet_string, &ip.afi)) {
-		warnx("%s: bad address family", p->fn);
+	if (!ip_addr_afi_parse(p->fn, t->value.octet_string, &ip.afi)) {
+		warnx("%s: RFC 3779 section 2.2.3.2: addressFamily: "
+			"invalid AFI", p->fn);
 		goto out;
 	}
 
@@ -1216,7 +1225,7 @@ cert_ip_buffer(char **b, size_t *bsz,
 	size_t *bmax, const struct cert_ip *p)
 {
 
-	io_simple_buffer(b, bsz, bmax, &p->afi, sizeof(uint16_t));
+	io_simple_buffer(b, bsz, bmax, &p->afi, sizeof(enum afi));
 	io_simple_buffer(b, bsz, bmax, &p->type, sizeof(enum cert_ip_type));
 	if (p->type == CERT_IP_RANGE)
 		ip_addr_range_buffer(b, bsz, bmax, &p->range);
@@ -1268,7 +1277,7 @@ static void
 cert_ip_read(int fd, struct cert_ip *p)
 {
 
-	io_simple_read(fd, &p->afi, sizeof(uint16_t));
+	io_simple_read(fd, &p->afi, sizeof(enum afi));
 	io_simple_read(fd, &p->type, sizeof(enum cert_ip_type));
 	if (p->type == CERT_IP_RANGE)
 		ip_addr_range_read(fd, &p->range);

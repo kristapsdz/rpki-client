@@ -45,6 +45,15 @@ struct	cert_as {
 };
 
 /*
+ * AFI values are assigned by IANA.
+ * In rpki-client, we only accept the IPV4 and IPV6 AFI values.
+ */
+enum	afi {
+	AFI_IPV4,
+	AFI_IPV6
+};
+
+/*
  * An IP address as parsed from RFC 3779, section 2.2.3.8.
  * This may either be IPv4 or IPv6.
  */
@@ -76,7 +85,7 @@ enum	cert_ip_type {
  * encodes both the AFI and a single address or range.
  */
 struct	cert_ip {
-	uint16_t	   afi; /* AFI value (1, IPv4; or 2, IPv6) */
+	enum afi	   afi; /* AFI value */
 	enum cert_ip_type  type; /* type of IP entry */
 	union {
 		struct ip_addr ip; /* singular address */
@@ -139,7 +148,7 @@ struct	mft {
 };
 
 struct	roa_ip {
-	uint16_t	 afi; /* AFI value (1 or 2) */
+	enum afi	 afi; /* AFI value */
 	size_t		 maxlength; /* max length or zero */
 	struct ip_addr	 addr; /* the address prefix itself */
 };
@@ -229,11 +238,11 @@ const ASN1_OCTET_STRING
 
 /* Work with RFC 3779 IP addresses, prefixes, ranges. */
 
-int		 ip_addr_afi_parse(const ASN1_OCTET_STRING *, uint16_t *);
+int		 ip_addr_afi_parse(const char *, const ASN1_OCTET_STRING *, enum afi *);
 int		 ip_addr_parse(const ASN1_BIT_STRING *,
-			uint16_t, const char *, struct ip_addr *);
-void		 ip_addr_print(const struct ip_addr *, uint16_t, char *, size_t);
-void		 ip_addr_range_print(const struct ip_addr *, uint16_t, char *, size_t, int);
+			enum afi, const char *, struct ip_addr *);
+void		 ip_addr_print(const struct ip_addr *, enum afi, char *, size_t);
+void		 ip_addr_range_print(const struct ip_addr *, enum afi, char *, size_t, int);
 void		 ip_addr_buffer(char **, size_t *, size_t *, const struct ip_addr *);
 void		 ip_addr_range_buffer(char **, size_t *, size_t *, const struct ip_addr_range *);
 void	 	 ip_addr_read(int, struct ip_addr *);
