@@ -86,3 +86,13 @@ This process performs the bulk of the work.
 
 The master process is responsible for orchestrating this pipeline.
 It also outputs valid routes.
+
+# Portability
+
+Just some notes here.
+Nothing structured yet.
+
+- `long` needs to be >32 bits to encompass all possible AS number
+  values as specified by RFC 6793.  Anything less will require special
+  conversion from the `ASN1_INTEGER` values, as the standard way of
+  extracting via a `long` will truncate.
