@@ -25,6 +25,7 @@ enum	cert_as_type {
 
 /*
  * An AS identifier range.
+ * The maximum AS identifier is an unsigned 32 bit integer (RFC 6793).
  */
 struct	cert_as_range {
 	uint32_t	 min; /* minimum non-zero */
@@ -33,6 +34,7 @@ struct	cert_as_range {
 
 /*
  * An autonomous system (AS) object.
+ * AS identifiers are unsigned 32 bit integers (RFC 6793).
  */
 struct	cert_as {
 	enum cert_as_type type; /* type of AS specification */
@@ -49,7 +51,7 @@ struct	cert_as {
 struct	ip_addr {
 	size_t		 sz; /* length of valid bytes */
 	unsigned char	 addr[16]; /* binary address prefix */
-	long		 unused; /* unused bits in last byte */
+	size_t		 unused; /* unused bits in last byte or zero */
 };
 
 /*

@@ -102,11 +102,17 @@ ip_addr_parse(const ASN1_BIT_STRING *p,
 	if ((ASN1_STRING_FLAG_BITS_LEFT & p->flags))
 		unused = ~ASN1_STRING_FLAG_BITS_LEFT & p->flags;
 
+	if (unused < 0) {
+		warnx("%s: RFC 3779 section 2.2.3.8: unused "
+			"bit count must be non-negative", fn);
+		return 0;
+	}
+
 	/* Limit possible sizes of addresses. */
 
 	if ((afi == 1 && p->length > 4) ||
 	    (afi == 2 && p->length > 16)) {
-		warnx("%s: RFC 3779, section 2.2.3.8: "
+		warnx("%s: RFC 3779 section 2.2.3.8: "
 			"IP address too long", fn);
 		return 0;
 	}
@@ -230,7 +236,7 @@ ip_addr_buffer(char **b, size_t *bsz,
 	io_simple_buffer(b, bsz, bmax, &p->sz, sizeof(size_t));
 	assert(p->sz <= 16);
 	io_simple_buffer(b, bsz, bmax, p->addr, p->sz);
-	io_simple_buffer(b, bsz, bmax, &p->unused, sizeof(long));
+	io_simple_buffer(b, bsz, bmax, &p->unused, sizeof(size_t));
 }
 
 /*
@@ -257,7 +263,7 @@ ip_addr_read(int fd, struct ip_addr *p)
 	io_simple_read(fd, &p->sz, sizeof(size_t));
 	assert(p->sz <= 16);
 	io_simple_read(fd, p->addr, p->sz);
-	io_simple_read(fd, &p->unused, sizeof(long));
+	io_simple_read(fd, &p->unused, sizeof(size_t));
 }
 
 /*
