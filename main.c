@@ -949,6 +949,11 @@ main(int argc, char *argv[])
 	struct stats	 stats;
 	const char	*rsync_prog = "openrsync";
 
+	/* Main pledge. */
+
+	if (pledge("stdio rpath proc exec", NULL) == -1)
+		err(EXIT_FAILURE, "pledge");
+
 	while ((c = getopt(argc, argv, "e:fnrv")) != -1) 
 		switch (c) {
 		case 'e':
