@@ -27,12 +27,15 @@
 #include "extern.h"
 
 static void
-test(const char *res, uint16_t afi, size_t sz, size_t unused, ...)
+test(const char *res, uint16_t afiv, size_t sz, size_t unused, ...)
 {
 	va_list		 ap;
 	struct ip_addr	 addr;
 	char		 buf[64];
 	size_t		 i;
+	enum afi	 afi;
+
+	afi = (afiv == 1) ? AFI_IPV4 : AFI_IPV6;
 
 	memset(&addr, 0, sizeof(struct ip_addr));
 

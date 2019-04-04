@@ -28,30 +28,44 @@
 #include "extern.h"
 
 /*
- * Parse an IP address family, RFC 3779, 2.2.3.3.
+ * Parse an IP address family.
+ * This is defined in different places in the ROA/X509 standards, but
+ * it's the same thing.
+ * We prohibit all but IPv4 and IPv6, without SAFI.
  * Return zero on failure, non-zero on success.
  */
 int
-ip_addr_afi_parse(const ASN1_OCTET_STRING *p, uint16_t *afi)
+ip_addr_afi_parse(const char *fn,
+	const ASN1_OCTET_STRING *p, enum afi *afi)
 {
 	char	 buf[2];
+	short	 v;
 
-	if (p->length == 0 || p->length > 3)
+	if (p->length == 0 || p->length > 3) {
+		warnx("%s: invalid field length, "
+			"want 1--3, have %d", fn, p->length);
 		return 0;
+	}
 
 	memcpy(buf, p->data, sizeof(uint16_t));
-	*afi = ntohs(*(uint16_t *)buf);
+	v = ntohs(*(uint16_t *)buf);
 
 	/* Only accept IPv4 and IPv6 AFIs. */
 
-	if (*afi != 1 && *afi != 2)
+	if (v != 1 && v != 2) {
+		warnx("%s: only AFI for IPV4 (1) and "
+			"IPV6 (2) allowed: have %hd", fn, v);
 		return 0;
+	}
 
 	/* Disallow the optional SAFI. */
 
-	if (p->length == 3)
+	if (p->length == 3) {
+		warnx("%s: SAFI not allowed", fn);
 		return 0;
+	}
 
+	*afi = (v == 1) ? AFI_IPV4 : AFI_IPV6;
 	return 1;
 }
 
@@ -93,7 +107,7 @@ ip_addr_check_overlap(const struct cert_ip *ip, const char *fn,
  */
 int
 ip_addr_parse(const ASN1_BIT_STRING *p,
-	uint16_t afi, const char *fn, struct ip_addr *addr)
+	enum afi afi, const char *fn, struct ip_addr *addr)
 {
 	long	 unused = 0;
 
@@ -110,8 +124,8 @@ ip_addr_parse(const ASN1_BIT_STRING *p,
 
 	/* Limit possible sizes of addresses. */
 
-	if ((afi == 1 && p->length > 4) ||
-	    (afi == 2 && p->length > 16)) {
+	if ((afi == AFI_IPV4 && p->length > 4) ||
+	    (afi == AFI_IPV6 && p->length > 16)) {
 		warnx("%s: RFC 3779 section 2.2.3.8: "
 			"IP address too long", fn);
 		return 0;
@@ -199,10 +213,10 @@ ip6_addr2str(const struct ip_addr *addr,
  */
 void
 ip_addr_print(const struct ip_addr *addr,
-	uint16_t afi, char *buf, size_t bufsz)
+	enum afi afi, char *buf, size_t bufsz)
 {
 
-	if (afi == 1)
+	if (afi == AFI_IPV4)
 		ip4_addr2str(addr, buf, bufsz, 0);
 	else
 		ip6_addr2str(addr, buf, bufsz, 0);
@@ -215,10 +229,10 @@ ip_addr_print(const struct ip_addr *addr,
  */
 void
 ip_addr_range_print(const struct ip_addr *addr,
-	uint16_t afi, char *buf, size_t bufsz, int min)
+	enum afi afi, char *buf, size_t bufsz, int min)
 {
 
-	if (afi == 1)
+	if (afi == AFI_IPV4)
 		ip4_addr2str(addr, buf, bufsz, min ? 0 : 1);
 	else
 		ip6_addr2str(addr, buf, bufsz, min ? 0 : 1);

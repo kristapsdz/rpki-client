@@ -39,7 +39,7 @@ struct	parse {
  */
 static int
 roa_parse_addr(const ASN1_OCTET_STRING *os,
-	uint16_t afi, struct parse *p)
+	enum afi afi, struct parse *p)
 {
 	const ASN1_SEQUENCE_ANY *seq;
 	const unsigned char     *d = os->data;
@@ -72,8 +72,12 @@ roa_parse_addr(const ASN1_OCTET_STRING *os,
 			"want ASN.1 bit string, have %s (NID %d)", 
 			p->fn, ASN1_tag2str(t->type), t->type);
 		goto out;
-	} else if (!ip_addr_parse(t->value.bit_string, afi, p->fn, &addr))
+	}
+	if (!ip_addr_parse(t->value.bit_string, afi, p->fn, &addr)) {
+		warnx("%s: RFC 6482 section 3.3: address: "
+			"invalid IP address", p->fn);
 		goto out;
+	}
 
 	/* 
 	 * RFC 6482, section 3.3 doesn't ever actually state that the
@@ -127,7 +131,7 @@ roa_parse_ipfam(const ASN1_OCTET_STRING *os, struct parse *p)
 	size_t		         dsz = os->length;
 	int			 i, rc = 0;
 	const ASN1_TYPE		*t;
-	uint16_t		 afi;
+	enum afi		 afi;
 
 	if ((seq = d2i_ASN1_SEQUENCE_ANY(NULL, &d, dsz)) == NULL) {
 		cryptowarnx("%s: RFC 6482 section 3.3: "
@@ -149,7 +153,8 @@ roa_parse_ipfam(const ASN1_OCTET_STRING *os, struct parse *p)
 			"octet string, have %s (NID %d)", 
 			p->fn, ASN1_tag2str(t->type), t->type);
 		goto out;
-	} else if (!ip_addr_afi_parse(t->value.octet_string, &afi)) {
+	}
+	if (!ip_addr_afi_parse(p->fn, t->value.octet_string, &afi)) {
 		warnx("%s: RFC 6482 section 3.3: "
 			"addressFamily: invalid", p->fn);
 		goto out;
@@ -380,15 +385,10 @@ roa_buffer(char **b, size_t *bsz, size_t *bmax, const struct roa *p)
 
 	for (i = 0; i < p->ipsz; i++) {
 		io_simple_buffer(b, bsz, bmax,
-			&p->ips[i].afi, sizeof(uint16_t));
+			&p->ips[i].afi, sizeof(enum afi));
 		io_simple_buffer(b, bsz, bmax,
 			&p->ips[i].maxlength, sizeof(size_t));
-		io_simple_buffer(b, bsz, bmax,
-			&p->ips[i].addr.sz, sizeof(size_t));
-		io_simple_buffer(b, bsz, bmax,
-			p->ips[i].addr.addr, p->ips[i].addr.sz);
-		io_simple_buffer(b, bsz, bmax,
-			&p->ips[i].addr.unused, sizeof(size_t));
+		ip_addr_buffer(b, bsz, bmax, &p->ips[i].addr);
 	}
 }
 
@@ -414,13 +414,10 @@ roa_read(int fd)
 		err(EXIT_FAILURE, NULL);
 
 	for (i = 0; i < p->ipsz; i++) {
-		io_simple_read(fd, &p->ips[i].afi, sizeof(uint16_t));
+		io_simple_read(fd, &p->ips[i].afi, sizeof(enum afi));
 		io_simple_read(fd, &p->ips[i].maxlength, sizeof(size_t));
-		io_simple_read(fd, &p->ips[i].addr.sz, sizeof(size_t));
-		io_simple_read(fd, p->ips[i].addr.addr, p->ips[i].addr.sz);
-		io_simple_read(fd, &p->ips[i].addr.unused, sizeof(size_t));
+		ip_addr_read(fd, &p->ips[i].addr);
 	}
 
 	return p;
 }
-
