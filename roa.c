@@ -388,7 +388,7 @@ roa_buffer(char **b, size_t *bsz, size_t *bmax, const struct roa *p)
 		io_simple_buffer(b, bsz, bmax,
 			p->ips[i].addr.addr, p->ips[i].addr.sz);
 		io_simple_buffer(b, bsz, bmax,
-			&p->ips[i].addr.unused, sizeof(long));
+			&p->ips[i].addr.unused, sizeof(size_t));
 	}
 }
 
@@ -418,7 +418,7 @@ roa_read(int fd)
 		io_simple_read(fd, &p->ips[i].maxlength, sizeof(size_t));
 		io_simple_read(fd, &p->ips[i].addr.sz, sizeof(size_t));
 		io_simple_read(fd, p->ips[i].addr.addr, p->ips[i].addr.sz);
-		io_simple_read(fd, &p->ips[i].addr.unused, sizeof(long));
+		io_simple_read(fd, &p->ips[i].addr.unused, sizeof(size_t));
 	}
 
 	return p;
