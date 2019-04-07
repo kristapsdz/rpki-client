@@ -63,8 +63,9 @@ There are some in the *tal* directory of this system, but you can
 download them on your own.
 
 To run **rpki-client**, just point it at your TAL files.
-You'll also need the **openrsync** (or **rsync**, which may be specified
-with the **-e** argument) executable installed.
+You'll also need the [openrsync(1)](https://man.openbsd.org/openrsync.1)
+(or **rsync**, which may be specified with the **-e** argument)
+executable installed.
 
 ```
 % ./rpki-client -rv ./tals/*.tal
@@ -88,12 +89,14 @@ The second and third processes do not directly share any data and are
 The first subordinate process is responsible for obtaining certificates,
 route announcements, manifests, and so on.
 It waits for the master process to give it a repository and destination,
-then executes **openrsync** and waits for termination.
-It executes child **openrsync** processes asynchronously for maximum
-efficiency.
+then executes [openrsync(1)](https://man.openbsd.org/openrsync.1) and
+waits for termination.
+It executes child [openrsync(1)](https://man.openbsd.org/openrsync.1)
+processes asynchronously for maximum efficiency.
 
-Although **rpki-client** can use **rsync** instead of **openrsync**,
-this is not recommended for security reasons: **openrsync** has been
+Although **rpki-client** can use **rsync** instead of
+[openrsync(1)](https://man.openbsd.org/openrsync.1),
+this is not recommended for security reasons: the latter has been
 carefully audited to run within OpenBSD's security framework, as has
 **rpki-client**.
 
