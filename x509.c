@@ -89,7 +89,8 @@ x509_auth_ip_addr(const struct roa_ip *ip, size_t idx,
 
 	/* Does this certificate cover our IP prefix? */
 
-	if (ip_addr_check_covered(ip, as[idx].cert->ips, as[idx].cert->ipsz))
+	if (ip_addr_check_covered
+	    (ip, as[idx].cert->ips, as[idx].cert->ipsz))
 		return idx;
 
 	/* If it doesn't, walk up the chain. */

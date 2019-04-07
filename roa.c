@@ -99,6 +99,7 @@ roa_parse_addr(const ASN1_OCTET_STRING *os,
 				p->fn, ASN1_INTEGER_get(maxlength));
 			goto out;
 		}
+		/* FIXME: maximum check. */
 	}
 
 	p->res->ips = reallocarray(p->res->ips,
@@ -112,6 +113,7 @@ roa_parse_addr(const ASN1_OCTET_STRING *os,
 	res->afi = afi;
 	res->maxlength = (maxlength == NULL) ?
 		0: ASN1_INTEGER_get(maxlength);
+	ip_roa_compose_ranges(res);
 
 	rc = 1;
 out:
