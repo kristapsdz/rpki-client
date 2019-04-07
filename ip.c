@@ -86,7 +86,6 @@ ip_addr_check_covered(const struct roa_ip *ip,
 	return 1;
 }
 
-
 /*
  * Given a newly-parsed IP address or range "ip", make sure that "ip"
  * does not overlap with any addresses or ranges in the "ips" array.
@@ -98,7 +97,7 @@ int
 ip_addr_check_overlap(const struct cert_ip *ip, const char *fn,
 	const struct cert_ip *ips, size_t ipsz)
 {
-	size_t	 i;
+	size_t	 i, sz = AFI_IPV4 == ip->afi ? 4 : 16;
 	int	 inherit_v4 = 0, inherit_v6 = 0,
 		 has_v4 = 0, has_v6 = 0;
 
@@ -131,6 +130,19 @@ ip_addr_check_overlap(const struct cert_ip *ip, const char *fn,
 		warnx("%s: RFC 3779 section 2.2.3.5: cannot have "
 			"multiple inheritence or inheritence and "
 			"addresses of the same class", fn);
+		return 0;
+	}
+
+	/* Check our ranges. */
+
+	for (i = 0; i < ipsz; i++) {
+		if (ips[i].afi != ip->afi)
+			continue;
+		if (memcmp(ips[i].max, ip->min, sz) <= 0 &&
+	  	    memcmp(ip->max, ips[i].min, sz) <= 0)
+			continue;
+		warnx("%s: RFC 3779 section 2.2.3.5: "
+			"cannot have overlapping IP addresses", fn);
 		return 0;
 	}
 
