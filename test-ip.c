@@ -14,6 +14,9 @@
  * ACTION OF CONTRACT, NEGLIGENCE OR OTHER TORTIOUS ACTION, ARISING OUT OF
  * OR IN CONNECTION WITH THE USE OR PERFORMANCE OF THIS SOFTWARE.
  */
+#include <arpa/inet.h>
+#include <sys/socket.h>
+
 #include <assert.h>
 #include <err.h>
 #include <stdio.h>
@@ -34,6 +37,8 @@ test(const char *res, uint16_t afiv, size_t sz, size_t unused, ...)
 	char		 buf[64];
 	size_t		 i;
 	enum afi	 afi;
+	struct cert_ip	 ip;
+	int		 rc;
 
 	afi = (afiv == 1) ? AFI_IPV4 : AFI_IPV6;
 
@@ -53,6 +58,18 @@ test(const char *res, uint16_t afiv, size_t sz, size_t unused, ...)
 		warnx("pass: %s", buf);
 	else 
 		warnx("check: %s", buf);
+
+	ip.afi = afi;
+	ip.type = CERT_IP_ADDR;
+	ip.ip = addr;
+	rc = ip_addr_compose_ranges(&ip);
+
+	inet_ntop((afiv == 1) ? AF_INET : AF_INET6, ip.min, buf, sizeof(buf));
+	warnx("minimum: %s", buf);
+	inet_ntop((afiv == 1) ? AF_INET : AF_INET6, ip.max, buf, sizeof(buf));
+	warnx("maximum: %s", buf);
+	if (!rc)
+		errx(EXIT_FAILURE, "fail: minimum > maximum");
 }
 
 int
@@ -95,6 +112,13 @@ main(int argc, char *argv[])
 
 	test("10.64.0/20",
 	     1, 0x04, 0x04, 0x0a, 0x40, 0x00);
+
+	test(NULL,
+	     1, 0x02, 0x04, 0x80);
+	test(NULL,
+	     1, 0x03, 0x06, 0x81, 0x40);
+	test(NULL,
+	     1, 0x02, 0x04, 0x80);
 
 	ERR_free_strings();
 	return EXIT_SUCCESS;

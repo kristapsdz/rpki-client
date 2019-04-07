@@ -72,6 +72,8 @@ ip_addr_afi_parse(const char *fn,
 /*
  * See if a given IP prefix is covered by the IP prefixes or ranges
  * specified in the "ips" array.
+ * This means that the IP prefix must be strictly within the ranges or
+ * singletons given in the array.
  * Return zero if there is no cover, non-zero if there is.
  */
 int
@@ -83,6 +85,7 @@ ip_addr_check_covered(const struct roa_ip *ip,
 
 	return 1;
 }
+
 
 /*
  * Given a newly-parsed IP address or range "ip", make sure that "ip"
@@ -131,8 +134,6 @@ ip_addr_check_overlap(const struct cert_ip *ip, const char *fn,
 		return 0;
 	}
 
-	/* TODO: more. */
-
 	return 1;
 }
 
@@ -154,6 +155,10 @@ ip_addr_parse(const ASN1_BIT_STRING *p,
 	if (unused < 0) {
 		warnx("%s: RFC 3779 section 2.2.3.8: unused "
 			"bit count must be non-negative", fn);
+		return 0;
+	} else if (unused > 8) {
+		warnx("%s: RFC 3779 section 2.2.3.8: unused "
+			"bit count must mask an unsigned char", fn);
 		return 0;
 	}
 
@@ -325,4 +330,40 @@ ip_addr_range_read(int fd, struct ip_addr_range *p)
 
 	ip_addr_read(fd, &p->min);
 	ip_addr_read(fd, &p->max);
+}
+
+/*
+ * Given the addresses (range or IP) in cert_ip, fill in the "min" and
+ * "max" fields with the minimum and maximum possible IP addresses given
+ * those ranges (or singleton prefixed range).
+ * This does nothing if CERT_IP_INHERIT.
+ * Returns zero on failure (misordered ranges), non-zero on success.
+ */
+int
+ip_addr_compose_ranges(struct cert_ip *p)
+{
+	size_t	 sz = AFI_IPV4 == p->afi ? 4 : 16;
+
+	switch (p->type) {
+	case CERT_IP_ADDR:
+		memset(p->min, 0x00, sizeof(p->min));
+		memcpy(p->min, p->ip.addr, p->ip.sz);
+		assert(p->ip.unused <= 8);
+		memset(p->max, 0xff, sizeof(p->max));
+		memcpy(p->max, p->ip.addr, p->ip.sz);
+		p->max[p->ip.sz - 1] |= (1 << p->ip.unused) - 1;
+		break;
+	case CERT_IP_RANGE:
+		memset(p->min, 0x00, sizeof(p->min));
+		memcpy(p->min, p->range.min.addr, p->range.min.sz);
+		assert(p->range.max.unused <= 8);
+		memset(p->max, 0xff, sizeof(p->max));
+		memcpy(p->max, p->range.max.addr, p->range.max.sz);
+		p->max[p->ip.sz - 1] |= (1 << p->range.max.unused) - 1;
+		break;
+	default:
+		return 1;
+	}
+
+	return memcmp(p->min, p->max, sz) <= 0;
 }

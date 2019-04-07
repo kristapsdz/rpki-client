@@ -55,7 +55,8 @@ enum	afi {
 
 /*
  * An IP address as parsed from RFC 3779, section 2.2.3.8.
- * This may either be IPv4 or IPv6.
+ * This is either in a certificate or an ROA.
+ * It may either be IPv4 or IPv6.
  */
 struct	ip_addr {
 	size_t		 sz; /* length of valid bytes */
@@ -87,6 +88,8 @@ enum	cert_ip_type {
 struct	cert_ip {
 	enum afi	   afi; /* AFI value */
 	enum cert_ip_type  type; /* type of IP entry */
+	unsigned char	   min[16]; /* full range minimum */
+	unsigned char	   max[16]; /* full range maximum */
 	union {
 		struct ip_addr ip; /* singular address */
 		struct ip_addr_range range; /* range */
@@ -247,10 +250,12 @@ void		 ip_addr_buffer(char **, size_t *, size_t *, const struct ip_addr *);
 void		 ip_addr_range_buffer(char **, size_t *, size_t *, const struct ip_addr_range *);
 void	 	 ip_addr_read(int, struct ip_addr *);
 void		 ip_addr_range_read(int, struct ip_addr_range *);
+int		 ip_addr_cmp(const struct ip_addr *, const struct ip_addr *);
 int		 ip_addr_check_overlap(const struct cert_ip *,
 			const char *, const struct cert_ip *, size_t);
 int		 ip_addr_check_covered(const struct roa_ip *,
 			const struct cert_ip *, size_t);
+int		 ip_addr_compose_ranges(struct cert_ip *);
 
 /* Work with RFC 3779 AS numbers, ranges. */
 
