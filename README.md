@@ -64,8 +64,8 @@ download them on your own.
 
 To run **rpki-client**, just point it at your TAL files.
 You'll also need the [openrsync(1)](https://man.openbsd.org/openrsync.1)
-(or **rsync**, which may be specified with the **-e** argument)
-executable installed.
+(or [rsync](https://rsync.samba.org/), which may be specified with the
+**-e** argument) executable installed.
 
 ```
 % ./rpki-client -rv ./tals/*.tal
@@ -94,8 +94,8 @@ waits for termination.
 It executes child [openrsync(1)](https://man.openbsd.org/openrsync.1)
 processes asynchronously for maximum efficiency.
 
-Although **rpki-client** can use **rsync** instead of
-[openrsync(1)](https://man.openbsd.org/openrsync.1),
+Although **rpki-client** can use [rsync](https://rsync.samba.org/)
+instead of [openrsync(1)](https://man.openbsd.org/openrsync.1),
 this is not recommended for security reasons: the latter has been
 carefully audited to run within OpenBSD's security framework, as has
 **rpki-client**.
