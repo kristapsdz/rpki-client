@@ -75,7 +75,8 @@ append_ip(struct parse *p, const struct cert_ip *ip)
 {
 	struct cert	*res = p->res;
 
-	if (!ip_addr_check_overlap(ip, p->fn, p->res->ips, p->res->ipsz))
+	if (!ip_addr_check_overlap
+	    (ip, p->fn, p->res->ips, p->res->ipsz))
 		return 0;
 	res->ips = reallocarray(res->ips, 
 		res->ipsz + 1, sizeof(struct cert_ip));
@@ -113,8 +114,15 @@ sbgp_addr(struct parse *p,
 	struct cert_ip *ip, const ASN1_BIT_STRING *bs)
 {
 
-	if (!ip_addr_parse(bs, ip->afi, p->fn, &ip->ip))
+	if (!ip_addr_parse(bs, ip->afi, p->fn, &ip->ip)) {
+		warnx("%s: RFC 3779 section 2.2.3.8: IPAddress: "
+			"invalid IP address", p->fn);
 		return 0;
+	} else if (!ip_addr_compose_ranges(ip)) {
+		warnx("%s: RFC 3779 section 2.2.3.8: IPAddress: "
+			"IP address range reversed", p->fn);
+		return 0;
+	}
 	return append_ip(p, ip);
 }
 
@@ -824,6 +832,11 @@ sbgp_range(struct parse *p, struct cert_ip *ip,
 		warnx("%s: RFC 3779 section 2.2.3.9: IPAddressRange: "
 			"invalid IP address", p->fn);
 		goto out;
+	}
+	if (!ip_addr_compose_ranges(ip)) {
+		warnx("%s: RFC 3779 section 2.2.3.9: IPAddressRange: "
+			"IP address range reversed", p->fn);
+		return 0;
 	}
 
 	rc = append_ip(p, ip);
