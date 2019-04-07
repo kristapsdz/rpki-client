@@ -31,7 +31,6 @@
  * Given a newly-parsed AS number or range "a", make sure that "a" does
  * not overlap with any other numbers or ranges in the "as" array.
  * This is defined by RFC 3779 section 3.2.3.4.
- * FIXME: check for increasing values as noted in the same section.
  * Returns zero on failure, non-zero on success.
  */
 int
@@ -51,10 +50,7 @@ as_check_overlap(const struct cert_as *a, const char *fn,
 		return 0;
 	}
 
-	/* 
-	 * FIXME: prohibit sequential identifiers and ranges, and make
-	 * sure that there's space between identifiers and ranges.
-	 */
+	/* Now check for overlaps between singletons/ranges. */
 
 	for (i = 0; i < asz; i++)
 		switch (as[i].type) {
@@ -90,10 +86,8 @@ as_check_overlap(const struct cert_as *a, const char *fn,
 					"ASnum", fn);
 				return 0;
 			case CERT_AS_RANGE:
-				if ((a->range.min > as[i].range.min ||
-				     a->range.max < as[i].range.min) &&
-				    (a->range.min > as[i].range.max ||
-				     a->range.max < as[i].range.max))
+				if (a->range.max < as[i].range.min ||
+				    a->range.min > as[i].range.max)
 					break;
 				warnx("%s: RFC 3779 section 3.2.3.4: "
 					"cannot have overlapping "
