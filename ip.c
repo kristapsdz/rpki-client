@@ -75,7 +75,8 @@ ip_addr_afi_parse(const char *fn,
  * specified in the "ips" array.
  * This means that the IP prefix must be strictly within the ranges or
  * singletons given in the array.
- * Return zero if there is no cover, non-zero if there is.
+ * Return 0 if we're inheriting from the parent, >0 if we're covered,
+ * or <0 if we're not covered.
  */
 int
 ip_addr_check_covered(const struct roa_ip *ip,
@@ -86,12 +87,14 @@ ip_addr_check_covered(const struct roa_ip *ip,
 	for (i = 0; i < ipsz; i++) {
 		if (ips[i].afi != ip->afi)
 			continue;
-		if (memcmp(ips[i].min, ip->min, sz) >= 0 &&
-	  	    memcmp(ips[i].max, ip->max, sz) <= 0)
+		if (ips[i].type == CERT_IP_INHERIT)
+			return 0;
+		if (memcmp(ips[i].min, ip->min, sz) <= 0 &&
+	  	    memcmp(ips[i].max, ip->max, sz) >= 0)
 			return 1;
 	}
 
-	return 0;
+	return -1;
 }
 
 /*
@@ -391,7 +394,7 @@ ip_cert_compose_ranges(struct cert_ip *p)
 		assert(p->range.max.unused <= 8);
 		memset(p->max, 0xff, sizeof(p->max));
 		memcpy(p->max, p->range.max.addr, p->range.max.sz);
-		p->max[p->ip.sz - 1] |= (1 << p->range.max.unused) - 1;
+		p->max[p->range.max.sz - 1] |= (1 << p->range.max.unused) - 1;
 		break;
 	default:
 		return 1;

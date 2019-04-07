@@ -84,14 +84,18 @@ static ssize_t
 x509_auth_ip_addr(const struct roa_ip *ip, size_t idx,
 	const struct auth *as, size_t asz)
 {
+	int	 c;
 
 	assert(idx < asz);
 
 	/* Does this certificate cover our IP prefix? */
 
-	if (ip_addr_check_covered
-	    (ip, as[idx].cert->ips, as[idx].cert->ipsz))
+	c = ip_addr_check_covered(ip, 
+		as[idx].cert->ips, as[idx].cert->ipsz);
+	if (c > 0)
 		return idx;
+	else if (c < 0)
+		return -1;
 
 	/* If it doesn't, walk up the chain. */
 
