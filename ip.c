@@ -14,6 +14,7 @@
  * ACTION OF CONTRACT, NEGLIGENCE OR OTHER TORTIOUS ACTION, ARISING OUT OF
  * OR IN CONNECTION WITH THE USE OR PERFORMANCE OF THIS SOFTWARE.
  */
+#include <arpa/inet.h>
 #include <sys/socket.h>
 
 #include <assert.h>
@@ -106,7 +107,8 @@ ip_addr_check_overlap(const struct cert_ip *ip, const char *fn,
 {
 	size_t	 i, sz = AFI_IPV4 == ip->afi ? 4 : 16;
 	int	 inherit_v4 = 0, inherit_v6 = 0,
-		 has_v4 = 0, has_v6 = 0;
+		 has_v4 = 0, has_v6 = 0, socktype;
+	char	 buf[64];
 
 	/* 
 	 * FIXME: cache this by having a flag on the cert_ip, else we're
@@ -145,11 +147,22 @@ ip_addr_check_overlap(const struct cert_ip *ip, const char *fn,
 	for (i = 0; i < ipsz; i++) {
 		if (ips[i].afi != ip->afi)
 			continue;
-		if (memcmp(ips[i].max, ip->min, sz) <= 0 &&
-	  	    memcmp(ip->max, ips[i].min, sz) <= 0)
+		if (memcmp(ips[i].max, ip->min, sz) <= 0 ||
+	  	    memcmp(ips[i].min, ip->max, sz) >= 0)
 			continue;
+		socktype = (ips[i].afi == AFI_IPV4) ? AF_INET : AF_INET6, 
 		warnx("%s: RFC 3779 section 2.2.3.5: "
 			"cannot have overlapping IP addresses", fn);
+		ip_addr_print(&ip->ip, ip->afi, buf, sizeof(buf));
+		warnx("%s: certificate IP: %s", fn, buf);
+		inet_ntop(socktype, ip->min, buf, sizeof(buf));
+		warnx("%s: certificate IP minimum: %s", fn, buf);
+		inet_ntop(socktype, ip->max, buf, sizeof(buf));
+		warnx("%s: certificate IP maximum: %s", fn, buf);
+		inet_ntop(socktype, ips[i].min, buf, sizeof(buf));
+		warnx("%s: offending IP minimum: %s", fn, buf);
+		inet_ntop(socktype, ips[i].max, buf, sizeof(buf));
+		warnx("%s: offending IP maximum: %s", fn, buf);
 		return 0;
 	}
 
