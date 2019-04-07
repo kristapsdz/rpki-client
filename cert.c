@@ -118,7 +118,7 @@ sbgp_addr(struct parse *p,
 		warnx("%s: RFC 3779 section 2.2.3.8: IPAddress: "
 			"invalid IP address", p->fn);
 		return 0;
-	} else if (!ip_addr_compose_ranges(ip)) {
+	} else if (!ip_cert_compose_ranges(ip)) {
 		warnx("%s: RFC 3779 section 2.2.3.8: IPAddress: "
 			"IP address range reversed", p->fn);
 		return 0;
@@ -833,7 +833,7 @@ sbgp_range(struct parse *p, struct cert_ip *ip,
 			"invalid IP address", p->fn);
 		goto out;
 	}
-	if (!ip_addr_compose_ranges(ip)) {
+	if (!ip_cert_compose_ranges(ip)) {
 		warnx("%s: RFC 3779 section 2.2.3.9: IPAddressRange: "
 			"IP address range reversed", p->fn);
 		return 0;

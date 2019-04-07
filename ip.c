@@ -80,10 +80,17 @@ int
 ip_addr_check_covered(const struct roa_ip *ip,
 	const struct cert_ip *ips, size_t ipsz)
 {
+	size_t	 i, sz = AFI_IPV4 == ip->afi ? 4 : 16;
 
-	/* TODO */
+	for (i = 0; i < ipsz; i++) {
+		if (ips[i].afi != ip->afi)
+			continue;
+		if (memcmp(ips[i].min, ip->min, sz) >= 0 &&
+	  	    memcmp(ips[i].max, ip->max, sz) <= 0)
+			return 1;
+	}
 
-	return 1;
+	return 0;
 }
 
 /*
@@ -352,7 +359,7 @@ ip_addr_range_read(int fd, struct ip_addr_range *p)
  * Returns zero on failure (misordered ranges), non-zero on success.
  */
 int
-ip_addr_compose_ranges(struct cert_ip *p)
+ip_cert_compose_ranges(struct cert_ip *p)
 {
 	size_t	 sz = AFI_IPV4 == p->afi ? 4 : 16;
 
@@ -378,4 +385,16 @@ ip_addr_compose_ranges(struct cert_ip *p)
 	}
 
 	return memcmp(p->min, p->max, sz) <= 0;
+}
+
+void
+ip_roa_compose_ranges(struct roa_ip *p)
+{
+
+	memset(p->min, 0x00, sizeof(p->min));
+	memcpy(p->min, p->addr.addr, p->addr.sz);
+	assert(p->addr.unused <= 8);
+	memset(p->max, 0xff, sizeof(p->max));
+	memcpy(p->max, p->addr.addr, p->addr.sz);
+	p->max[p->addr.sz - 1] |= (1 << p->addr.unused) - 1;
 }

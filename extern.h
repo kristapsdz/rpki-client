@@ -150,9 +150,15 @@ struct	mft {
 	int		 stale; /* if a stale manifest */
 };
 
+/*
+ * An IP address prefix for a given ROA.
+ * This encodes the maximum length, AFI (v6/v4), and address.
+ */
 struct	roa_ip {
 	enum afi	 afi; /* AFI value */
 	size_t		 maxlength; /* max length or zero */
+	unsigned char	 min[16]; /* full range minimum */
+	unsigned char	 max[16]; /* full range maximum */
 	struct ip_addr	 addr; /* the address prefix itself */
 };
 
@@ -255,7 +261,8 @@ int		 ip_addr_check_overlap(const struct cert_ip *,
 			const char *, const struct cert_ip *, size_t);
 int		 ip_addr_check_covered(const struct roa_ip *,
 			const struct cert_ip *, size_t);
-int		 ip_addr_compose_ranges(struct cert_ip *);
+int		 ip_cert_compose_ranges(struct cert_ip *);
+void		 ip_roa_compose_ranges(struct roa_ip *);
 
 /* Work with RFC 3779 AS numbers, ranges. */
 

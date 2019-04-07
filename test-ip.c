@@ -62,7 +62,7 @@ test(const char *res, uint16_t afiv, size_t sz, size_t unused, ...)
 	ip.afi = afi;
 	ip.type = CERT_IP_ADDR;
 	ip.ip = addr;
-	rc = ip_addr_compose_ranges(&ip);
+	rc = ip_cert_compose_ranges(&ip);
 
 	inet_ntop((afiv == 1) ? AF_INET : AF_INET6, ip.min, buf, sizeof(buf));
 	warnx("minimum: %s", buf);
