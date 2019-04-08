@@ -153,6 +153,7 @@ struct	mft {
 /*
  * An IP address prefix for a given ROA.
  * This encodes the maximum length, AFI (v6/v4), and address.
+ * FIXME: are the min/max necessary or just used in one place?
  */
 struct	roa_ip {
 	enum afi	 afi; /* AFI value */
@@ -251,7 +252,6 @@ int		 ip_addr_afi_parse(const char *, const ASN1_OCTET_STRING *, enum afi *);
 int		 ip_addr_parse(const ASN1_BIT_STRING *,
 			enum afi, const char *, struct ip_addr *);
 void		 ip_addr_print(const struct ip_addr *, enum afi, char *, size_t);
-void		 ip_addr_range_print(const struct ip_addr *, enum afi, char *, size_t, int);
 void		 ip_addr_buffer(char **, size_t *, size_t *, const struct ip_addr *);
 void		 ip_addr_range_buffer(char **, size_t *, size_t *, const struct ip_addr_range *);
 void	 	 ip_addr_read(int, struct ip_addr *);

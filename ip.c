@@ -224,22 +224,22 @@ ip_addr_parse(const ASN1_BIT_STRING *p,
 }
 
 /*
- * Convert the IPv4 address into CIDR notation.
- * Buffer should be able to hold xxx.yyy.zzz.www (the longest prefix is
- * the same).
+ * Convert the IPv4 address into CIDR notation conforming to RFC 4632.
+ * Buffer should be able to hold xxx.yyy.zzz.www/nn.
  */
 static void
-ip4_addr2str(const struct ip_addr *addr,
-	char *b, size_t bsz, unsigned char fill)
+ip4_addr2str(const struct ip_addr *addr, char *b, size_t bsz)
 {
 	size_t	 pos = 0, i;
 
 	assert(bsz >= addr->sz * 4);
 
+	b[0] = '\0';
+
 	for (i = 0; i < addr->sz; i++)
 		pos += snprintf(b + pos, bsz - pos, "%u.", addr->addr[i]);
-	if (addr->sz == 0)
-		pos = strlcpy(b, (fill == 0) ? "0." : "255.", bsz);
+	for ( ; i < 4; i++)
+		pos = strlcat(b, "0.", bsz);
 
 	assert(pos > 1);
 	b[--pos] = '\0';
@@ -252,11 +252,11 @@ ip4_addr2str(const struct ip_addr *addr,
 }
 
 /*
- * Convert the IPv6 address into CIDR notation.
+ * Convert the IPv6 address into CIDR notation conforming to RFC 4291.
+ * Must hold 0000:0000:0000:0000:0000:0000:0000:0000/nn.
  */
 static void
-ip6_addr2str(const struct ip_addr *addr,
-	char *b, size_t bsz, unsigned char fill)
+ip6_addr2str(const struct ip_addr *addr, char *b, size_t bsz)
 {
 	size_t	 i, sz, pos = 0;
 	char	 buf[16];
@@ -282,7 +282,7 @@ ip6_addr2str(const struct ip_addr *addr,
 	}
 
 	if (sz == 0)
-		pos = strlcpy(b, (fill == 0) ? "0:" : "ffff:", bsz);
+		pos = strlcpy(b, "0:", bsz);
 
 	assert(pos > 1);
 	b[--pos] = '\0';
@@ -293,9 +293,9 @@ ip6_addr2str(const struct ip_addr *addr,
 }
 
 /*
- * Convert a ip_addr into a NUL-terminated CIDR notation string.
- * The size of the buffer must be at least 64.
- * The AFI must be 1 (IPv4) or 2 (IPv6).
+ * Convert a ip_addr into a NUL-terminated CIDR notation string
+ * conforming to RFC 4632 or 4291.
+ * The size of the buffer must be at least 64 (inclusive).
  */
 void
 ip_addr_print(const struct ip_addr *addr,
@@ -303,25 +303,9 @@ ip_addr_print(const struct ip_addr *addr,
 {
 
 	if (afi == AFI_IPV4)
-		ip4_addr2str(addr, buf, bufsz, 0);
+		ip4_addr2str(addr, buf, bufsz);
 	else
-		ip6_addr2str(addr, buf, bufsz, 0);
-}
-
-/*
- * Convert a ip_addr into a NUL-terminated CIDR notation string.
- * The size of the buffer must be at least 64.
- * The AFI must be 1 (IPv4) or 2 (IPv6).
- */
-void
-ip_addr_range_print(const struct ip_addr *addr,
-	enum afi afi, char *buf, size_t bufsz, int min)
-{
-
-	if (afi == AFI_IPV4)
-		ip4_addr2str(addr, buf, bufsz, min ? 0 : 1);
-	else
-		ip6_addr2str(addr, buf, bufsz, min ? 0 : 1);
+		ip6_addr2str(addr, buf, bufsz);
 }
 
 /*
@@ -414,6 +398,10 @@ ip_cert_compose_ranges(struct cert_ip *p)
 	return memcmp(p->min, p->max, sz) <= 0;
 }
 
+/*
+ * Given the ROA's acceptable prefix, compute the minimum and maximum
+ * address accepted by the prefix.
+ */
 void
 ip_roa_compose_ranges(struct roa_ip *p)
 {
