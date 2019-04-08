@@ -390,6 +390,10 @@ roa_buffer(char **b, size_t *bsz, size_t *bmax, const struct roa *p)
 			&p->ips[i].afi, sizeof(enum afi));
 		io_simple_buffer(b, bsz, bmax,
 			&p->ips[i].maxlength, sizeof(size_t));
+		io_simple_buffer(b, bsz, bmax,
+			p->ips[i].min, sizeof(p->ips[i].min));
+		io_simple_buffer(b, bsz, bmax,
+			p->ips[i].max, sizeof(p->ips[i].max));
 		ip_addr_buffer(b, bsz, bmax, &p->ips[i].addr);
 	}
 }
@@ -418,6 +422,8 @@ roa_read(int fd)
 	for (i = 0; i < p->ipsz; i++) {
 		io_simple_read(fd, &p->ips[i].afi, sizeof(enum afi));
 		io_simple_read(fd, &p->ips[i].maxlength, sizeof(size_t));
+		io_simple_read(fd, &p->ips[i].min, sizeof(p->ips[i].min));
+		io_simple_read(fd, &p->ips[i].max, sizeof(p->ips[i].max));
 		ip_addr_read(fd, &p->ips[i].addr);
 	}
 
