@@ -86,6 +86,7 @@ designing a new non-OpenSSL parser for CRL files entirely.
 The **rpki-client** run-time is split into at least three processes
 which pass data back and forth.
 "At least" since the system will dynamically spawn additional process.
+Most of the architecture is laid out in [main.c](main.c).
 
 The master process orchestrates all other process.
 It also formats and outputs valid route data.
@@ -156,25 +157,24 @@ TAL (trust anchor locator) file.
 The validation algorithm is a breadth-first (though whether depth or
 breadth first is irrelevant) tree walk.
 
-## TAL algorithm
+## TAL validation
 
 It begins by parsing a TAL file, [RFC
 7730](https://tools.ietf.org/html/rfc7730), which specifies a trust
 anchor certificate address and its public key.
+The parsing and validation of the TAL file occurs in [tal.c](tal.c).
 
 *Side note*: the TAL file may technically specify multiple top-level
 certificates; but in the case of **rpki-client**, only the first is
 processed.
 
-The parsing and validation of the TAL file occurs in [tal.c](tal.c).
-
-## Trust anchor algorithm
+## Trust anchor validation
 
 A trust anchor is an X509 ([RFC
 6487](https://tools.ietf.org/html/rfc6487) certificate given by the TAL
 file.
-Beyond the usual X509 parsing in [cert.c](cert.c), the trust anchor
-files also have a number of additional constraints imposed in
+Beyond the usual certificate parsing in [cert.c](cert.c), the trust
+anchor files also have a number of additional constraints imposed in
 [x509.c](x509.c):
 
 - the certificate must be self-signed (attached public key must also be
@@ -194,21 +194,82 @@ Furthermore:
 Each trust anchor (inheriting from the X509 validation) contains a
 reference to a manifest file that's used for further parsing.
 
-## Manifest algorithm
+## Manifest validation
 
 Manifests ([RFC 6486](https://tools.ietf.org/html/rfc6487)) contain
 links to more resources.
-They are parsed in [mft.c](mft.c), with additional checks implemented in
-[x509.c](x509.c).
+They are parsed in [mft.c](mft.c), with the CMS ([RFC
+6488](https://tools.ietf.org/html/rfc6488)) envelope parsed in
+[cms.c](cms.c), and additional checks implemented in [x509.c](x509.c).
 
-TODO...
+- self-signed CMS envelope
+- CMS envelope self-signed certificate is signed by the AKI's
+  certificate
+- manifest time window has not expired
+
+Manifests contain a list of files they manage that must be ROA, CRL, or
+X509 (`roa`, `crl`, or `cer` suffixes, respectively).
+Each file is associated with a hash.
+
+Stale manifests---those whose validity period has elapsed---are
+accepted (and noted), but will contain zero members.
+
+## Route origin validation
+
+ROA (route origin authorisation, [RFC
+6482](https://tools.ietf.org/html/rfc6482)) files are stipulated in
+manifests.
+These are the focus of RPKI: those that pass validation are emitted as
+valid routes.
+ROA files consist of data wrapped in a CMS envelope.
+They are parsed in [roa.c](roa.c), with the CMS ([RFC
+6488](https://tools.ietf.org/html/rfc6488)) envelope parsed in
+[cms.c](cms.c), and additional checks implemented in [x509.c](x509.c).
+
+- computed digest matches that given by the manifest
+- self-signed CMS envelope
+- CMS envelope self-signed certificate is signed by the AKI's
+  certificate
+- AS identifier must be within the range allocated by any certificate in
+  the chain to the trust anchor (see [TODO](TODO.md) for notes)
+- IP blocks must be within the ranges allocated by the nearest
+  non-inheriting certificate in the chain to the trust anchor
+
+An ROA may technically contain zero IP prefixes.
+If this is the case, it is merely skipped.
+
+## Certificate validation
+
+X509 certificates ([RFC 6487](https://tools.ietf.org/html/rfc6487) certificate
+are the mainstay of RPKI's validation.
+They are parsed in [cert.c](cert.c) with further validation being
+performed in [x509.c](x509.c).
+
+- computed digest matches that given by the manifest
+- the certificate must be signed by the AKI's certificate
+- the SKI must be unique in the set of all parsed certificates (trust
+  anchors and otherwise)
+- must specify a CRL resource
+
+...TODO.
+
+## Revocation list validation
+
+TODO.
 
 # Portability
 
-Just some notes here.
-Nothing structured yet.
+For the most part, **rpki-client** is trivially portable to any system
+supporting OpenSSL or libressl.
+However, the system depends heavily on OpenBSD's security mechanisms to
+safely and securely parse untrusted content.
+A port of the system without equivalent security measures is not
+complete and should not be trusted.
+
+Several other portability issues relate to OpenSSL:
 
 - `long` needs to be >32 bits to encompass all possible AS number
   values as specified by RFC 6793.  Anything less will require special
   conversion from the `ASN1_INTEGER` values, as the standard way of
   extracting via a `long` will truncate.
+- it's not clear how OpenSSL will handle the 32-bit time expiration
