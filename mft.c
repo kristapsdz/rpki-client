@@ -36,6 +36,8 @@ struct	parse {
 /*
  * Convert from the ASN.1 generalised time to a time_t.
  * Return the time.
+ * This is a stupid requirement due to using ASN1_GENERALIZEDTIME
+ * instead of the native ASN1_TIME functions for comparing time.
  */
 static time_t
 gentime2time(struct parse *p, const ASN1_GENERALIZEDTIME *tp)
@@ -279,6 +281,9 @@ mft_parse_econtent(const ASN1_OCTET_STRING *os,
 	 * Validate that the current date falls into this interval.
 	 * This is required by section 4.4, (3).
 	 * If we're after the given date, then the MFT is stale.
+	 * This is made super complicated because it usees OpenSSL's
+	 * ASN1_GENERALIZEDTIME instead of ASN1_TIME, which we could
+	 * compare against the current time trivially.
 	 */
 
 	t = sk_ASN1_TYPE_value(seq, i++);
