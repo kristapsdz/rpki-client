@@ -66,7 +66,7 @@ cms_parse_validate(X509 **xp, const char *fn,
 	}
 
 	if ((cms = d2i_CMS_bio(bio, NULL)) == NULL) {
-		cryptowarnx("%s: d2i_CMS_bio", fn);
+		cryptowarnx("%s: RFC 6488: failed CMS parse", fn);
 		goto out;
 	}
 
@@ -88,23 +88,9 @@ cms_parse_validate(X509 **xp, const char *fn,
 		assert(sz == SHA256_DIGEST_LENGTH);
 
 		if (memcmp(mdbuf, dgst, SHA256_DIGEST_LENGTH)) {
-			warnx("%s: bad message digest", fn);
+			warnx("%s: RFC 6488: bad message digest", fn);
 			goto out;
 		}
-	}
-
-	/* RFC 6488 section 2.1.3.1: check the object's eContentType. */
-
-	obj = CMS_get0_eContentType(cms);
-	if ((sz = OBJ_obj2txt(buf, sizeof(buf), obj, 1)) < 0)
-		cryptoerrx("OBJ_obj2txt");
-
-	if ((size_t)sz >= sizeof(buf)) {
-		warnx("%s: OID too long", fn);
-		goto out;
-	} else if (strcmp(buf, oid)) {
-		warnx("%s: bad content type: %s, want %s", fn, buf, oid);
-		goto out;
 	}
 
 	/*
@@ -114,7 +100,23 @@ cms_parse_validate(X509 **xp, const char *fn,
 
 	if (!CMS_verify(cms, NULL, NULL, 
 	    NULL, NULL, CMS_NO_SIGNER_CERT_VERIFY)) {
-		cryptowarnx("%s: CMS_verify", fn);
+		cryptowarnx("%s: RFC 6488: CMS not self-signed", fn);
+		goto out;
+	}
+
+	/* RFC 6488 section 2.1.3.1: check the object's eContentType. */
+
+	obj = CMS_get0_eContentType(cms);
+	if ((sz = OBJ_obj2txt(buf, sizeof(buf), obj, 1)) < 0)
+		cryptoerrx("OBJ_obj2txt");
+
+	if ((size_t)sz >= sizeof(buf)) {
+		warnx("%s: RFC 6488 section 2.1.3.1: "
+			"eContentType: OID too long", fn);
+		goto out;
+	} else if (strcmp(buf, oid)) {
+		warnx("%s: RFC 6488 section 2.1.3.1: eContentType: "
+			"unknown OID: %s, want %s", fn, buf, oid);
 		goto out;
 	}
 
@@ -126,7 +128,8 @@ cms_parse_validate(X509 **xp, const char *fn,
 
 	certs = CMS_get0_signers(cms);
 	if (certs == NULL || sk_X509_num(certs) != 1) {
-		warnx("%s: multiple signers", fn);
+		warnx("%s: RFC 6488 section 2.1.4: eContent: want "
+			"1 signer, have %d", fn, sk_X509_num(certs));
 		goto out;
 	}
 	*xp = X509_dup(sk_X509_value(certs, 0));
@@ -134,7 +137,8 @@ cms_parse_validate(X509 **xp, const char *fn,
 	/* Extract eContent and pass to output function. */
 
 	if ((os = CMS_get0_content(cms)) == NULL || *os == NULL) {
-		warnx("%s: empty content", fn);
+		warnx("%s: RFC 6488 section 2.1.4: "
+			"eContent: zero-length content", fn);
 		goto out;
 	}
 
