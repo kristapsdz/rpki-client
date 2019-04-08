@@ -1251,9 +1251,15 @@ cert_ip_buffer(char **b, size_t *bsz,
 
 	io_simple_buffer(b, bsz, bmax, &p->afi, sizeof(enum afi));
 	io_simple_buffer(b, bsz, bmax, &p->type, sizeof(enum cert_ip_type));
+
+	if (p->type != CERT_IP_INHERIT) {
+		io_simple_buffer(b, bsz, bmax, &p->min, sizeof(p->min));
+		io_simple_buffer(b, bsz, bmax, &p->max, sizeof(p->max));
+	}
+
 	if (p->type == CERT_IP_RANGE)
 		ip_addr_range_buffer(b, bsz, bmax, &p->range);
-	else
+	else if (p->type == CERT_IP_ADDR)
 		ip_addr_buffer(b, bsz, bmax, &p->ip);
 }
 
@@ -1303,9 +1309,15 @@ cert_ip_read(int fd, struct cert_ip *p)
 
 	io_simple_read(fd, &p->afi, sizeof(enum afi));
 	io_simple_read(fd, &p->type, sizeof(enum cert_ip_type));
+
+	if (p->type != CERT_IP_INHERIT) {
+		io_simple_read(fd, &p->min, sizeof(p->min));
+		io_simple_read(fd, &p->max, sizeof(p->max));
+	}
+
 	if (p->type == CERT_IP_RANGE)
 		ip_addr_range_read(fd, &p->range);
-	else
+	else if (p->type == CERT_IP_ADDR)
 		ip_addr_read(fd, &p->ip);
 }
 
