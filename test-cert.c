@@ -14,6 +14,7 @@
  * ACTION OF CONTRACT, NEGLIGENCE OR OTHER TORTIOUS ACTION, ARISING OUT OF
  * OR IN CONNECTION WITH THE USE OR PERFORMANCE OF THIS SOFTWARE.
  */
+#include <arpa/inet.h>
 #include <sys/socket.h>
 
 #include <assert.h>
@@ -32,8 +33,9 @@
 static void
 cert_print(const struct cert *p)
 {
-	size_t		 i;
-	char		 buf1[128], buf2[128];
+	size_t	 i;
+	char	 buf1[64], buf2[64];
+	int	 sockt;
 
 	assert(p != NULL);
 
@@ -71,10 +73,10 @@ cert_print(const struct cert *p)
 			fprintf(stderr, "%5zu: IP: %s\n", i + 1, buf1);
 			break;
 		case CERT_IP_RANGE:
-			ip_addr_range_print(&p->ips[i].range.min, 
-				p->ips[i].afi, buf1, sizeof(buf1), 0);
-			ip_addr_range_print(&p->ips[i].range.max, 
-				p->ips[i].afi, buf2, sizeof(buf2), 1);
+			sockt = (p->ips[i].afi == AFI_IPV4) ? 
+				AF_INET : AF_INET6;
+			inet_ntop(sockt, p->ips[i].min, buf1, sizeof(buf1));
+			inet_ntop(sockt, p->ips[i].max, buf2, sizeof(buf2));
 			fprintf(stderr, "%5zu: IP: %s--%s\n", i + 1, buf1, buf2);
 			break;
 		}
