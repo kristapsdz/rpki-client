@@ -101,7 +101,6 @@ ip_addr_check_covered(const struct roa_ip *ip,
  * Given a newly-parsed IP address or range "ip", make sure that "ip"
  * does not overlap with any addresses or ranges in the "ips" array.
  * This is defined by RFC 3779 section 2.2.3.6.
- * FIXME: check for increasing values as noted in the same section.
  * Returns zero on failure, non-zero on success.
  */
 int
@@ -194,6 +193,18 @@ ip_addr_parse(const ASN1_BIT_STRING *p,
 	} else if (unused > 8) {
 		warnx("%s: RFC 3779 section 2.2.3.8: unused "
 			"bit count must mask an unsigned char", fn);
+		return 0;
+	}
+
+	/* 
+	 * Check that the unused bits are set to zero.
+	 * If we don't do this, stray bits will corrupt our composition
+	 * of the [minimum] address ranges.
+	 */
+
+	if ((p->data[p->length - 1] & ((1 << unused) - 1))) {
+		warnx("%s: RFC 3779 section 2.2.3.8: unused "
+			"bits must be set to zero", fn);
 		return 0;
 	}
 
