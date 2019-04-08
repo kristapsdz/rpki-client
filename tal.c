@@ -94,6 +94,9 @@ tal_parse_stream(const char *fn, FILE *f)
 	if (tal->urisz == 0) {
 		warnx("%s: no URIs in manifest part", fn);
 		goto out;
+	} else if (tal->urisz > 1) {
+		warnx("%s: multiple URIs: using the first", fn);
+		goto out;
 	}
 
 	/* Now the BASE64-encoded public key. */

@@ -427,14 +427,18 @@ queue_add_tal(int fd, struct entryq *q, const char *file, size_t *eid)
 
 /*
  * Add rsync URIs (CER) from a TAL file, RFC 7730.
+ * Only use the first URI of the set.
  */
 static void
 queue_add_from_tal(int proc, int rsync, struct entryq *q,
-	const struct tal *tal, const char *uri, struct repotab *rt,
-	size_t *eid)
+	const struct tal *tal, struct repotab *rt, size_t *eid)
 {
 	char		  *nfile;
 	const struct repo *repo;
+	const char 	  *uri = tal->uri[0];
+
+	assert(tal->urisz);
+	uri = tal->uri[0];
 
 	/* Look up the repository. */
 
@@ -448,20 +452,6 @@ queue_add_from_tal(int proc, int rsync, struct entryq *q,
 
 	entryq_add(proc, q, nfile, RTYPE_CER,
 		repo, NULL, tal->pkey, tal->pkeysz, eid);
-}
-
-/*
- * Loops over queue_add_from_tal() for all files.
- */
-static void
-queue_add_from_tal_set(int proc, int rsync, struct entryq *q, 
-	const struct tal *tal, struct repotab *rt, size_t *eid)
-{
-	size_t	 i;
-
-	for (i = 0; i < tal->urisz; i++)
-		queue_add_from_tal(proc, rsync,
-			q, tal, tal->uri[i], rt, eid);
 }
 
 /*
@@ -793,6 +783,10 @@ proc_parser(int fd, int force, int norev)
 				goto out;
 			}
 			cert_buffer(&b, &bsz, &bmax, cert);
+			/*
+			 * Don't free the certificate here because we're
+			 * going to cache it in the "auths" array.
+			 */
 			break;
 		case RTYPE_MFT:
 			assert(!entp->has_dgst);
@@ -877,14 +871,14 @@ entry_process(int norev, int proc, int rsync, struct stats *st,
 	struct mft	*mft = NULL;
 	struct roa	*roa = NULL;
 	struct crl	*crl = NULL;
-	char		 buf[128];
+	char		 buf[64];
 	size_t		 i;
 
 	switch (ent->type) {
 	case RTYPE_TAL:
 		st->tals++;
 		tal = tal_read(proc);
-		queue_add_from_tal_set(proc, rsync, q, tal, rt, eid);
+		queue_add_from_tal(proc, rsync, q, tal, rt, eid);
 		break;
 	case RTYPE_CER:
 		st->certs++;
