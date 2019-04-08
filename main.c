@@ -507,6 +507,9 @@ proc_child(int signal)
  * It only exits cleanly when fd is closed.
  * FIXME: this should use buffered output to prevent deadlocks, but it's
  * very unlikely that we're going to fill our buffer, so whatever.
+ * FIXME: limit the number of simultaneous process.
+ * Currently, an attacker can trivially specify thousands of different
+ * repositories and saturate our system.
  */
 static void
 proc_rsync(const char *prog, int fd, int noop)
