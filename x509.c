@@ -105,24 +105,6 @@ x509_auth_ip_addr(const struct roa_ip *ip, size_t idx,
 }
 
 /*
- * Check the AS identifiers, if any, on a self-signed "root"
- * certificate.
- * Returns zero on failure, non-zero on success.
- */
-static int
-x509_auth_as_selfsigned(const struct cert *cert, const char *fn)
-{
-
-	/* The identifier cannot inherit from nothing. */
-
-	if (cert->asz == 0 || cert->as[0].type != CERT_AS_INHERIT)
-		return 1;
-
-	warnx("%s: self-signed AS identifier cannot inherit", fn);
-	return 0;
-}
-
-/*
  * Check to make sure that the AS identifiers specified in a certificate
  * are valid in view of the parent identifiers.
  * We can only narrow or inherit, not expand.
@@ -460,26 +442,19 @@ x509_auth_selfsigned_cert(X509 *x, const char *fn,
 	pk = d2i_PUBKEY(NULL, &pkey, pkeysz);
 	assert(pk != NULL);
 
-	/* Must not have a CRL. */
-
-	if (cert->crl != NULL) {
-		warnx("%s: RFC 6487: self-signed certificate "
-			"must not have a CRL distribution point", fn);
-		goto out;
-	}
-
 	/* Public keys should match and verify. */
 
 	if ((opk = X509_get_pubkey(x)) == NULL) {
-		cryptowarnx("%s: RFC 6487: no public key", fn);
+		cryptowarnx("%s: RFC 6487 (trust anchor): "
+			"missing public key", fn);
 		goto out;
 	} else if (!EVP_PKEY_cmp(pk, opk)) {
-		cryptowarnx("%s: given and self-signing "
-			"public keys are different", fn);
+		cryptowarnx("%s: RFC 6487 (trust anchor): "
+			"public key does not match TAL key", fn);
 		goto out;
 	} else if (!X509_verify(x, pk)) {
-		cryptowarnx("%s: RFC 6487: self-signed key does "
-			"not match TAL-specified key", fn);
+		cryptowarnx("%s: RFC 6487 (trust anchor): "
+			"invalid public key signature", fn);
 		goto out;
 	}
 
@@ -495,14 +470,12 @@ x509_auth_selfsigned_cert(X509 *x, const char *fn,
 		assert(obj != NULL);
 		switch (OBJ_obj2nid(obj)) {
 		case NID_authority_key_identifier:
-			aki = x509_get_aki(X509_get_ext(x, i), fn);
-			if (aki == NULL)
+			if ((aki = x509_get_aki(ext, fn)) == NULL)
 				goto out;
 			break;
 		return 0;
 		case NID_subject_key_identifier:
-			ski = x509_get_ski(X509_get_ext(x, i), fn);
-			if (ski == NULL)
+			if ((ski = x509_get_ski(ext, fn)) == NULL)
 				goto out;
 			break;
 		default:
@@ -510,31 +483,52 @@ x509_auth_selfsigned_cert(X509 *x, const char *fn,
 		}
 	}
 
-	/* The AKI, if provided, should match the SKI. */
+	/* 
+	 * The AKI, if provided, should match the SKI.
+	 * The SKI must not exist.
+	 */
 
 	if (ski == NULL) {
-		warnx("%s: RFC 6487: no subject key identifier", fn);
+		warnx("%s: RFC 6487 (trust anchor): missing SKI", fn);
 		goto out;
 	} else if (aki != NULL && strcmp(aki, ski)) {
-		warnx("%s: RFC 6487: non-matching subject and "
-			"authoritative key identifiers", fn);
+		warnx("%s: RFC 6487 (trust anchor): "
+			"non-matching SKI and AKI", fn);
 		goto out;
 	}
 
-	/* Don't allow the SKI to already exist. */
-
 	for (j = 0; j < *authsz; j++)
 		if (strcmp((*auths)[j].ski, ski) == 0) {
-			warnx("%s: RFC 6487: duplicate certificate", fn);
+			warnx("%s: RFC 6487 (trust anchor): "
+				"duplicate SKI in cache", fn);
 			goto out;
 		}
 
-	/* Verify and append our own public key to the key cache. */
+	/* AS and IP allocations may not inherit. */
 
-	if (!x509_auth_as_selfsigned(cert, fn))
+	if (cert->asz && cert->as[0].type == CERT_AS_INHERIT) {
+		warnx("%s: RFC 6487 (trust anchor): "
+			"inheriting AS resources", fn);
 		goto out;
+	}
 
-	/* FIXME: same as x509_auth_as_selfsigned() but for the IPs. */
+	for (j = 0; j < cert->ipsz; j++) 
+		if (cert->ips[j].type == CERT_IP_INHERIT) {
+			warnx("%s: RFC 6487 (trust anchor): "
+				"inheriting IP resources", fn);
+			goto out;
+		}
+
+	/* Must not have a CRL. */
+
+	if (cert->crl != NULL) {
+		warnx("%s: RFC 6487 (trust anchor): "
+			"CRL location not allowed", fn);
+		goto out;
+	}
+
+
+	/* Append to the certificate cache. */
 
 	*auths = reallocarray(*auths,
 		*authsz + 1, sizeof(struct auth));
