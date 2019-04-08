@@ -107,7 +107,6 @@ struct	cert {
 	size_t		 ipsz; /* length of "ips" */
 	struct cert_as	*as; /* list of AS numbers and ranges */
 	size_t		 asz; /* length of "asz" */
-	char		*rep; /* CA repository */
 	char		*mft; /* manifest (rsync:// uri) */
 	char		*crl; /* CRL location (rsync:// or NULL) */
 };

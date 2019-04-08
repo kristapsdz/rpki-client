@@ -39,10 +39,7 @@ cert_print(const struct cert *p)
 
 	assert(p != NULL);
 
-	if (p->rep != NULL)
-		fprintf(stderr, "CA repository: %s\n", p->rep);
-	if (p->mft != NULL)
-		fprintf(stderr, "Manifest: %s\n", p->mft);
+	fprintf(stderr, "Manifest: %s\n", p->mft);
 	if (p->crl != NULL)
 		fprintf(stderr, "Revocation list: %s\n", p->crl);
 
