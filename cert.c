@@ -68,6 +68,13 @@ ASN1_frame(struct parse *p, size_t sz,
 
 /*
  * Append an IP address structure to our list of results.
+ * This will also constrain us to having at most one inheritence
+ * statement per AFI and also not have overlapping rages (as prohibited
+ * in section 2.2.3.6).
+ * It does not make sure that ranges can't coalesce, that is, that any
+ * two ranges abut each other.
+ * This is warned against in section 2.2.3.6, but doesn't change the
+ * semantics of the system.
  * Return zero on failure (IP overlap) non-zero on success.
  */
 static int
@@ -783,14 +790,12 @@ out:
  * Return zero on failure, non-zero on success.
  */
 static int
-sbgp_range(struct parse *p, struct cert_ip *ip, 
+sbgp_addr_range(struct parse *p, struct cert_ip *ip, 
 	const unsigned char *d, size_t dsz)
 {
 	ASN1_SEQUENCE_ANY	*seq;
 	const ASN1_TYPE		*t;
 	int			 rc = 0;
-
-	/* Sequence of two elements. */
 
 	if ((seq = d2i_ASN1_SEQUENCE_ANY(NULL, &d, dsz)) == NULL) {
 		cryptowarnx("%s: RFC 3779 section 2.2.3.9: "
@@ -803,8 +808,6 @@ sbgp_range(struct parse *p, struct cert_ip *ip,
 			p->fn, sk_ASN1_TYPE_num(seq));
 		goto out;
 	}
-
-	/* Both elements are bit strings. */
 
 	t = sk_ASN1_TYPE_value(seq, 0);
 	if (t->type != V_ASN1_BIT_STRING) {
@@ -833,6 +836,7 @@ sbgp_range(struct parse *p, struct cert_ip *ip,
 			"invalid IP address", p->fn);
 		goto out;
 	}
+
 	if (!ip_cert_compose_ranges(ip)) {
 		warnx("%s: RFC 3779 section 2.2.3.9: IPAddressRange: "
 			"IP address range reversed", p->fn);
@@ -847,6 +851,8 @@ out:
 
 /*
  * Parse an IP address or range, RFC 3779 2.2.3.7.
+ * We don't constrain this parse (as specified in section 2.2.3.6) to
+ * having any kind of order.
  * Returns zero on failure, non-zero on success.
  */
 static int
@@ -880,7 +886,7 @@ sbgp_addr_or_range(struct parse *p, struct cert_ip *ip,
 			nip.type = CERT_IP_RANGE;
 			d = t->value.asn1_string->data;
 			dsz = t->value.asn1_string->length;
-			if (!sbgp_range(p, &nip, d, dsz))
+			if (!sbgp_addr_range(p, &nip, d, dsz))
 				goto out;
 			break;
 		default:
@@ -900,6 +906,11 @@ out:
 
 /*
  * Parse a sequence of address families as in RFC 3779 sec. 2.2.3.2.
+ * Ignore several stipulations of the RFC (2.2.3.3).
+ * Namely, we don't require entries to be ordered in any way (type, AFI
+ * or SAFI group, etc.).
+ * This is because it doesn't matter for our purposes: we're going to
+ * validate in the same way regardless.
  * Returns zero no failure, non-zero on success.
  */
 static int
@@ -940,7 +951,7 @@ sbgp_ipaddrfam(struct parse *p, const unsigned char *d, size_t dsz)
 		goto out;
 	}
 
-	/* Next, either sequence or null, RFC 3779 sec. 2.2.3.4. */
+	/* Either sequence or null (inherit), RFC 3779 sec. 2.2.3.4. */
 
 	t = sk_ASN1_TYPE_value(seq, 1);
 	switch (t->type) {
