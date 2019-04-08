@@ -78,10 +78,11 @@ tal_parse_stream(const char *fn, FILE *f)
 		/* Make sure we're a proper rsync URI. */
 
 		if (!rsync_uri_parse(NULL, NULL, 
-		    NULL, NULL, NULL, NULL, &rp, line))
+		    NULL, NULL, NULL, NULL, &rp, line)) {
+			warnx("%s: RFC 7730 section 2.1: "
+				"failed to parse URL: %s", fn, line);
 			goto out;
-
-		if (rp != RTYPE_CER) {
+		} else if (rp != RTYPE_CER) {
 			warnx("%s: RFC 7730 section 2.1: "
 				"not a certificate URL: %s", fn, line);
 			goto out;
