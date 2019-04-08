@@ -202,7 +202,8 @@ ip_addr_parse(const ASN1_BIT_STRING *p,
 	 * of the [minimum] address ranges.
 	 */
 
-	if ((p->data[p->length - 1] & ((1 << unused) - 1))) {
+	if (p->length &&
+	    (p->data[p->length - 1] & ((1 << unused) - 1))) {
 		warnx("%s: RFC 3779 section 2.2.3.8: unused "
 			"bits must be set to zero", fn);
 		return 0;
@@ -253,6 +254,7 @@ ip4_addr2str(const struct ip_addr *addr, char *b, size_t bsz)
 
 /*
  * Convert the IPv6 address into CIDR notation conforming to RFC 4291.
+ * See also RFC 5952.
  * Must hold 0000:0000:0000:0000:0000:0000:0000:0000/nn.
  */
 static void
@@ -276,16 +278,25 @@ ip6_addr2str(const struct ip_addr *addr, char *b, size_t bsz)
 		sz++;
 	assert(sz <= sizeof(buf));
 
+	b[0] = '\0';
 	for (i = 0; i < sz; i += 2) {
 		v = htons(*(uint16_t *)&buf[i]);
 		pos += snprintf(b + pos, bsz - pos, "%hx:", v);
 	}
 
-	if (sz == 0)
-		pos = strlcpy(b, "0:", bsz);
+	/* 
+	 * If we have nothing, just use "0::".
+	 * If we have a remaining 4+ octets that weren't specified and
+	 * are thus zero, compress them into "::".
+	 * Otherwise, truncate the last ":" as above.
+	 */
 
-	assert(pos > 1);
-	b[--pos] = '\0';
+	if (sz == 0)
+		pos = strlcat(b, "0::", bsz);
+	else if (sz < 12)
+		pos = strlcat(b, ":", bsz);
+	else
+		b[--pos] = '\0';
 
 	if (addr->sz == 16)
 		return;
