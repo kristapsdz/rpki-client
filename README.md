@@ -17,7 +17,7 @@ A lot of tightness mandated by the RPKI RFCs (such as which X509 fields
 are mandatory or not) is not followed.
 These areas are specifically noted in the sources.
 
-**rpki-client** runs on a current [OpenBSD](https://www.openbsd.org)
+The system runs on a current [OpenBSD](https://www.openbsd.org)
 installation with the the [OpenSSL](https://www.openssl.org) external
 library installed.
 See [Portability](#portability) for instructions on how to port the
@@ -33,8 +33,6 @@ this omission is not for security purposes, but happenstance.
 
 See the [TODO](TODO.md) file for open questions regarding RPKI operation
 in general.
-In the remainder of this document, I describe the architecture and
-algorithm of **rpki-client**.
 
 ## Project background
 
@@ -157,10 +155,53 @@ TAL (trust anchor locator) file.
 
 The validation algorithm is a breadth-first (though whether depth or
 breadth first is irrelevant) tree walk.
-It begins with a TAL file, which specifies a top-level X509 and a digest
-of the file.
 
-(TODO...)
+## TAL algorithm
+
+It begins by parsing a TAL file, [RFC
+7730](https://tools.ietf.org/html/rfc7730), which specifies a trust
+anchor certificate address and its public key.
+
+*Side note*: the TAL file may technically specify multiple top-level
+certificates; but in the case of **rpki-client**, only the first is
+processed.
+
+The parsing and validation of the TAL file occurs in [tal.c](tal.c).
+
+## Trust anchor algorithm
+
+A trust anchor is an X509 ([RFC
+6487](https://tools.ietf.org/html/rfc6487) certificate given by the TAL
+file.
+Beyond the usual X509 parsing in [cert.c](cert.c), the trust anchor
+files also have a number of additional constraints imposed in
+[x509.c](x509.c):
+
+- the certificate must be self-signed (attached public key must also be
+  the signing key)
+- the public key must match the one given in the TAL file
+- it must have an SKI (subject key identifier) and either an empty or
+  matching AKI (authority key identifier)
+- the SKI must be unique in the set of all parsed certificates (trust
+  anchors and otherwise)
+- must not specify a CRL resource
+
+Furthermore:
+
+- it may only contain non-inheritance AS identifiers
+- it may only contain non-inheritance IP blocks
+
+Each trust anchor (inheriting from the X509 validation) contains a
+reference to a manifest file that's used for further parsing.
+
+## Manifest algorithm
+
+Manifests ([RFC 6486](https://tools.ietf.org/html/rfc6487)) contain
+links to more resources.
+They are parsed in [mft.c](mft.c), with additional checks implemented in
+[x509.c](x509.c).
+
+TODO...
 
 # Portability
 
