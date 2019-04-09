@@ -17,6 +17,7 @@
 #include <assert.h>
 #include <err.h>
 #include <stdarg.h>
+#include <stdint.h>
 #include <stdlib.h>
 #include <string.h>
 #include <unistd.h>
@@ -40,11 +41,10 @@ cms_parse_validate(X509 **xp, const char *fn,
 	ASN1_OCTET_STRING **os = NULL;
 	BIO 		   *bio = NULL, *shamd;
 	CMS_ContentInfo    *cms;
-	char 		    buf[128];
+	char 		    buf[128], mdbuf[EVP_MAX_MD_SIZE];
 	int		    rc = 0, sz;
 	STACK_OF(X509)	   *certs = NULL;
 	EVP_MD		   *md;
-	unsigned char	    mdbuf[EVP_MAX_MD_SIZE];
 
 	*xp = NULL;
 

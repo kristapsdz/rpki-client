@@ -17,9 +17,12 @@
 #include <err.h>
 #include <stdarg.h>
 #include <stdio.h>
+#include <stdint.h>
 
 #include <openssl/err.h>
 #include <openssl/ssl.h>
+
+#include "extern.h"
 
 /*
  * Print the chain of openssl errors that led to the current one.
@@ -28,7 +31,7 @@
  * It's followed by the (optional) given error message, then terminates.
  */
 void
-cryptoerrx(int code, const char *fmt, ...)
+cryptoerrx(const char *fmt, ...)
 {
 	unsigned long	 er;
 	char		 buf[BUFSIZ];
@@ -36,7 +39,7 @@ cryptoerrx(int code, const char *fmt, ...)
 
 	while ((er = ERR_get_error()) > 0) {
 		ERR_error_string_n(er, buf, sizeof(buf));
-		warnx("backtrace: %s", buf);
+		warnx(" ...trace: %s", buf);
 	}
 
 	if (fmt != NULL) {
@@ -45,7 +48,7 @@ cryptoerrx(int code, const char *fmt, ...)
 		va_end(ap);
 	}
 
-	exit(code);
+	exit(EXIT_FAILURE);
 }
 
 /*
@@ -60,7 +63,7 @@ cryptowarnx(const char *fmt, ...)
 
 	while ((er = ERR_get_error()) > 0) {
 		ERR_error_string_n(er, buf, sizeof(buf));
-		warnx("backtrace: %s", buf);
+		warnx(" ...trace: %s", buf);
 	}
 
 	if (fmt != NULL) {

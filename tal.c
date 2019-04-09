@@ -14,10 +14,9 @@
  * ACTION OF CONTRACT, NEGLIGENCE OR OTHER TORTIOUS ACTION, ARISING OUT OF
  * OR IN CONNECTION WITH THE USE OR PERFORMANCE OF THIS SOFTWARE.
  */
-#include <netinet/in.h>
-
 #include <assert.h>
 #include <err.h>
+#include <netinet/in.h>
 #include <resolv.h>
 #include <stdio.h>
 #include <stdlib.h>

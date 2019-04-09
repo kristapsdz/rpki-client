@@ -322,7 +322,7 @@ entryq_add(int fd, struct entryq *q, char *file, enum rtype type,
 	p->id = (*eid)++;
 	p->type = type;
 	p->uri = file;
-	p->repo = (NULL != rp) ? rp->id : -1;
+	p->repo = (NULL != rp) ? (ssize_t)rp->id : -1;
 	p->has_dgst = dgst != NULL;
 	p->has_pkey = pkey != NULL;
 	if (p->has_dgst)

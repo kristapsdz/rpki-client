@@ -203,7 +203,7 @@ sbgp_sia_resource_mft(struct parse *p,
 	if (!ASN1_frame(p, dsz, &d, &plen, &ptag))
 		goto out;
 
-	if ((p->res->mft = strndup(d, plen)) == NULL)
+	if ((p->res->mft = strndup((const char *)d, plen)) == NULL)
 		err(EXIT_FAILURE, NULL);
 
 	/* Make sure it's an MFT rsync address. */
@@ -308,7 +308,7 @@ sbgp_crl_bits(struct parse *p, const unsigned char *d, size_t dsz)
 
 	assert(p->res->crl == NULL);
 	p->res->crl = strndup
-		(nm->d.uniformResourceIdentifier->data,
+		((const char *)nm->d.uniformResourceIdentifier->data,
 		 nm->d.uniformResourceIdentifier->length);
 	if (p->res->crl == NULL)
 		err(EXIT_FAILURE, NULL);
@@ -367,10 +367,9 @@ sbgp_crl(struct parse *p, X509_EXTENSION *ext)
 {
 	unsigned char		*sv = NULL;
 	const unsigned char 	*d;
-	size_t		 	 dsz;
 	ASN1_SEQUENCE_ANY	*seq = NULL;
 	const ASN1_TYPE		*t;
-	int			 rc = 0;
+	int			 dsz, rc = 0;
 
 	if (p->res->crl != NULL) {
 		warnx("%s: RFC 6487 section 4.8.6: CRL: "
@@ -444,10 +443,9 @@ sbgp_sia(struct parse *p, X509_EXTENSION *ext)
 {
 	unsigned char		*sv = NULL;
 	const unsigned char 	*d;
-	size_t		 	 dsz;
 	ASN1_SEQUENCE_ANY	*seq = NULL;
 	const ASN1_TYPE		*t;
-	int			 rc = 0;
+	int			 dsz, rc = 0;
 
 	if ((dsz = i2d_X509_EXTENSION(ext, &sv)) < 0) {
 		cryptowarnx("%s: RFC 6487 section 4.8.8: SIA: "
@@ -690,12 +688,11 @@ out:
 static int
 sbgp_assysnum(struct parse *p, X509_EXTENSION *ext)
 {
-	size_t	 	 	 dsz;
 	unsigned char		*sv = NULL;
 	const unsigned char 	*d;
 	ASN1_SEQUENCE_ANY	*seq = NULL, *sseq = NULL;
 	const ASN1_TYPE		*t;
-	int			 rc = 0, i, ptag;
+	int			 dsz, rc = 0, i, ptag;
 	long		 	 plen;
 
 	if ((dsz = i2d_X509_EXTENSION(ext, &sv)) < 0) {
@@ -1103,7 +1100,7 @@ cert_parse(X509 **xp, const char *fn, const unsigned char *dgst)
 	struct parse	 p;
 	BIO		*bio = NULL, *shamd;
 	EVP_MD		*md;
-	unsigned char	 mdbuf[EVP_MAX_MD_SIZE];
+	char		 mdbuf[EVP_MAX_MD_SIZE];
 
 	*xp = NULL;
 	memset(&p, 0, sizeof(struct parse));
