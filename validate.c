@@ -67,7 +67,7 @@ tracewarn(size_t idx, const struct auth *auths, size_t authsz)
  * Returns the index of the certificate in auths or -1 on error.
  */
 static ssize_t
-x509_auth_as(uint32_t min, uint32_t max,
+valid_as(uint32_t min, uint32_t max,
 	size_t idx, const struct auth *as, size_t asz)
 {
 	int	 c;
@@ -89,7 +89,7 @@ x509_auth_as(uint32_t min, uint32_t max,
 
 	if (as[idx].parent == as[idx].id)
 		return -1;
-	return x509_auth_as(min, max, as[idx].parent, as, asz);
+	return valid_as(min, max, as[idx].parent, as, asz);
 }
 
 /*
@@ -99,7 +99,7 @@ x509_auth_as(uint32_t min, uint32_t max,
  * Returns the index of the certificate in auths or -1 on error.
  */
 static ssize_t
-x509_auth_ip_addr(size_t idx, enum afi afi, 
+valid_ip(size_t idx, enum afi afi, 
 	const unsigned char *min, const unsigned char *max, 
 	const struct auth *as, size_t asz)
 {
@@ -120,8 +120,7 @@ x509_auth_ip_addr(size_t idx, enum afi afi,
 
 	if (as[idx].parent == as[idx].id)
 		return -1;
-	return x509_auth_ip_addr
-		(as[idx].parent, afi, min, max, as, asz);
+	return valid_ip(as[idx].parent, afi, min, max, as, asz);
 }
 
 /*
@@ -319,7 +318,7 @@ out:
 }
 
 /*
- * Authenticate a self-signed certificate with the given public key.
+ * Authenticate a trust anchor with the given public key.
  * This conforms to RFC 6487 in the case where the public key is given
  * in the TAL file and is self-signed---that is, it does not specify a
  * different authority key identifier.
@@ -328,7 +327,7 @@ out:
  * Returns zero on failure, non-zero on success.
  */
 int
-x509_auth_selfsigned_cert(X509 *x, const char *fn,
+valid_ta(X509 *x, const char *fn,
 	struct auth **auths, size_t *authsz,
 	const unsigned char *pkey, size_t pkeysz, struct cert *cert)
 {
@@ -570,12 +569,12 @@ out:
 }
 
 /*
- * Validate a signed (non-TA) certificate.
+ * Validate a non-TA certificate.
  * Returns zero on failure, non-zero on success.
  * On success, adds the certificate to the cache.
  */
 int
-x509_auth_signed_cert(X509 *x, const char *fn,
+valid_cert(X509 *x, const char *fn,
 	struct auth **auths, size_t *authsz, struct cert *cert)
 {
 	ssize_t	 	 c, pp;
@@ -610,7 +609,7 @@ x509_auth_signed_cert(X509 *x, const char *fn,
 			cert->as[i].id : cert->as[i].range.min;
 		max = cert->as[i].type == CERT_AS_ID ?
 			cert->as[i].id : cert->as[i].range.max;
-		pp = x509_auth_as(min, max, c, *auths, *authsz);
+		pp = valid_as(min, max, c, *auths, *authsz);
 		if (pp >= 0)
 			continue;
 		warnx("%s: RFC 6487: uncovered AS: %" 
@@ -620,7 +619,7 @@ x509_auth_signed_cert(X509 *x, const char *fn,
 	}
 
 	for (i = 0; i < cert->ipsz; i++) {
-		pp = x509_auth_ip_addr
+		pp = valid_ip
 			(c, cert->ips[i].afi, cert->ips[i].min, 
 			 cert->ips[i].max, *auths, *authsz);
 		if (pp >= 0)
@@ -676,7 +675,7 @@ err:
  * Returns zero on failure, non-zero on success.
  */
 int
-x509_auth_signed_mft(X509 *x, const char *fn,
+valid_mft(X509 *x, const char *fn,
 	const struct auth *auths, size_t authsz, struct mft *mft)
 {
 
@@ -691,7 +690,7 @@ x509_auth_signed_mft(X509 *x, const char *fn,
  * Sets the "invalid" field if any of these fail.
  */
 void
-x509_auth_signed_roa(X509 *x, const char *fn,
+valid_roa(X509 *x, const char *fn,
 	const struct auth *auths, size_t authsz, struct roa *roa)
 {
 	ssize_t	 c, pp;
@@ -709,7 +708,7 @@ x509_auth_signed_roa(X509 *x, const char *fn,
 	 */
 
 	if (roa->asid > 0) {
-		pp = x509_auth_as(roa->asid, 
+		pp = valid_as(roa->asid, 
 			roa->asid, c, auths, authsz);
 		if (pp < 0) {
 			warnx("%s: RFC 6482: uncovered AS: "
@@ -720,7 +719,7 @@ x509_auth_signed_roa(X509 *x, const char *fn,
 	}
 
 	for (i = 0; i < roa->ipsz; i++) {
-		pp = x509_auth_ip_addr
+		pp = valid_ip
 			(c, roa->ips[i].afi, roa->ips[i].min, 
 			 roa->ips[i].max, auths, authsz);
 		if (pp >= 0)
