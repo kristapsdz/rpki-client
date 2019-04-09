@@ -435,7 +435,7 @@ queue_add_from_tal(int proc, int rsync, struct entryq *q,
 {
 	char		  *nfile;
 	const struct repo *repo;
-	const char 	  *uri = tal->uri[0];
+	const char 	  *uri;
 
 	assert(tal->urisz);
 	uri = tal->uri[0];
