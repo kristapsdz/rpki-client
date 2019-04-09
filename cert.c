@@ -143,7 +143,7 @@ static int
 sbgp_sia_resource_mft(struct parse *p,
 	const unsigned char *d, size_t dsz)
 {
-	const ASN1_SEQUENCE_ANY	*seq;
+	ASN1_SEQUENCE_ANY	*seq;
 	const ASN1_TYPE		*t;
 	int			 rc = 0, ptag;
 	char		  	 buf[128];
@@ -223,7 +223,7 @@ sbgp_sia_resource_mft(struct parse *p,
 
 	rc = 1;
 out:
-	sk_ASN1_TYPE_free(seq);
+	sk_ASN1_TYPE_pop_free(seq, ASN1_TYPE_free);
 	return rc;
 }
 
@@ -237,7 +237,7 @@ static int
 sbgp_crl_bits(struct parse *p, const unsigned char *d, size_t dsz)
 {
 	DIST_POINT		*pnt = NULL;
-	const ASN1_SEQUENCE_ANY	*seq;
+	ASN1_SEQUENCE_ANY	*seq;
 	const ASN1_TYPE		*t;
 	int			 rc = 0;
 	char			*buf = NULL;
@@ -316,7 +316,7 @@ sbgp_crl_bits(struct parse *p, const unsigned char *d, size_t dsz)
 	rc = 1;
 out:
 	free(buf);
-	sk_ASN1_TYPE_free(seq);
+	sk_ASN1_TYPE_pop_free(seq, ASN1_TYPE_free);
 	DIST_POINT_free(pnt);
 	return rc;
 }
@@ -328,7 +328,7 @@ out:
 static int
 sbgp_sia_resource(struct parse *p, const unsigned char *d, size_t dsz)
 {
-	const ASN1_SEQUENCE_ANY	*seq;
+	ASN1_SEQUENCE_ANY	*seq;
 	const ASN1_TYPE		*t;
 	int			 rc = 0, i;
 
@@ -354,7 +354,7 @@ sbgp_sia_resource(struct parse *p, const unsigned char *d, size_t dsz)
 
 	rc = 1;
 out:
-	sk_ASN1_TYPE_free(seq);
+	sk_ASN1_TYPE_pop_free(seq, ASN1_TYPE_free);
 	return rc;
 }
 
@@ -494,7 +494,7 @@ sbgp_sia(struct parse *p, X509_EXTENSION *ext)
 
 	rc = 1;
 out:
-	sk_ASN1_TYPE_free(seq);
+	sk_ASN1_TYPE_pop_free(seq, ASN1_TYPE_free);
 	free(sv);
 	return rc;
 }
@@ -565,7 +565,7 @@ sbgp_asrange(struct parse *p, const unsigned char *d, size_t dsz)
 
 	rc = 1;
 out:
-	sk_ASN1_TYPE_free(seq);
+	sk_ASN1_TYPE_pop_free(seq, ASN1_TYPE_free);
 	return rc;
 }
 
@@ -603,7 +603,7 @@ static int
 sbgp_asnum(struct parse *p, const unsigned char *d, size_t dsz)
 {
 	struct cert_as	 	 as;
-	ASN1_TYPE		*t;
+	ASN1_TYPE		*t, *tt;
 	ASN1_SEQUENCE_ANY	*seq = NULL;
 	int			 i, rc = 0;
 	const unsigned char	*sv = d;
@@ -652,15 +652,15 @@ sbgp_asnum(struct parse *p, const unsigned char *d, size_t dsz)
 	/* Accepts RFC 3779 3.2.3.6 or 3.2.3.7 (sequence). */
 
 	for (i = 0; i < sk_ASN1_TYPE_num(seq); i++) {
-		t = sk_ASN1_TYPE_value(seq, i);
-		switch (t->type) {
+		tt = sk_ASN1_TYPE_value(seq, i);
+		switch (tt->type) {
 		case V_ASN1_INTEGER:
-			if (!sbgp_asid(p, t->value.integer))
+			if (!sbgp_asid(p, tt->value.integer))
 				goto out;
 			break;
 		case V_ASN1_SEQUENCE:
-			d = t->value.asn1_string->data;
-			dsz = t->value.asn1_string->length;
+			d = tt->value.asn1_string->data;
+			dsz = tt->value.asn1_string->length;
 			if (!sbgp_asrange(p, d, dsz))
 				goto out;
 			break;
@@ -668,7 +668,7 @@ sbgp_asnum(struct parse *p, const unsigned char *d, size_t dsz)
 			warnx("%s: RFC 3779 section 3.2.3.4: "
 				"IPAddressOrRange: want ASN.1 sequence "
 				"or integer, have %s (NID %d)", 
-				p->fn, ASN1_tag2str(t->type), t->type);
+				p->fn, ASN1_tag2str(tt->type), tt->type);
 			goto out;
 		}
 	}
@@ -676,7 +676,7 @@ sbgp_asnum(struct parse *p, const unsigned char *d, size_t dsz)
 	rc = 1;
 out:
 	ASN1_TYPE_free(t);
-	sk_ASN1_TYPE_free(seq);
+	sk_ASN1_TYPE_pop_free(seq, ASN1_TYPE_free);
 	return rc;
 }
 
@@ -787,8 +787,8 @@ sbgp_assysnum(struct parse *p, X509_EXTENSION *ext)
 
 	rc = 1;
 out:
-	sk_ASN1_TYPE_free(seq);
-	sk_ASN1_TYPE_free(sseq);
+	sk_ASN1_TYPE_pop_free(seq, ASN1_TYPE_free);
+	sk_ASN1_TYPE_pop_free(sseq, ASN1_TYPE_free);
 	free(sv);
 	return rc;
 }
@@ -983,7 +983,7 @@ sbgp_ipaddrfam(struct parse *p, const unsigned char *d, size_t dsz)
 
 	rc = 1;
 out:
-	sk_ASN1_TYPE_free(seq);
+	sk_ASN1_TYPE_pop_free(seq, ASN1_TYPE_free);
 	return rc;
 }
 
@@ -1077,8 +1077,8 @@ sbgp_ipaddrblk(struct parse *p, X509_EXTENSION *ext)
 
 	rc = 1;
 out:
-	sk_ASN1_TYPE_free(seq);
-	sk_ASN1_TYPE_free(sseq);
+	sk_ASN1_TYPE_pop_free(seq, ASN1_TYPE_free);
+	sk_ASN1_TYPE_pop_free(sseq, ASN1_TYPE_free);
 	free(sv);
 	return rc;
 }
