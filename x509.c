@@ -50,28 +50,46 @@ ASN1_frame(const char *fn, size_t sz,
 	return ASN1_object_size((ret & 0x01) ? 2 : 0, *cntsz, *tag);
 }
 
+static void
+tracewarn(size_t idx, const struct auth *auths, size_t authsz)
+{
+
+	for (;; idx = auths[idx].parent) {
+		warnx(" ...inheriting from: %s", auths[idx].fn);
+		if (auths[idx].parent == (size_t)idx)
+			break;
+	}
+}
+
 /*
  * Walk up the chain of certificates trying to match our AS number to
  * one of the allocations in that chain.
  * Returns the index of the certificate in auths or -1 on error.
  */
 static ssize_t
-x509_auth_as(uint32_t asid, size_t idx,
-	const struct auth *as, size_t asz)
+x509_auth_as(uint32_t min, uint32_t max,
+	size_t idx, const struct auth *as, size_t asz)
 {
+	int	 c;
 
 	assert(idx < asz);
 
 	/* Does this certificate cover our AS number? */
 
-	if (as_check_covered(asid, as[idx].cert->as, as[idx].cert->asz))
-		return idx;
+	if (as[idx].cert->asz) {
+		c = as_check_covered(min, max, 
+			as[idx].cert->as, as[idx].cert->asz);
+		if (c > 0)
+			return idx;
+		else if (c < 0)
+			return -1;
+	}
 
 	/* If it doesn't, walk up the chain. */
 
 	if (as[idx].parent == as[idx].id)
 		return -1;
-	return x509_auth_as(asid, as[idx].parent, as, asz);
+	return x509_auth_as(min, max, as[idx].parent, as, asz);
 }
 
 /*
@@ -107,120 +125,6 @@ x509_auth_ip_addr(size_t idx, enum afi afi,
 }
 
 /*
- * Check to make sure that the AS identifiers specified in a certificate
- * are valid in view of the parent identifiers.
- * We can only narrow or inherit, not expand.
- * Return zero on failure, non-zero on success.
- */
-static int
-x509_auth_as_signed(const struct cert *cert, const char *fn,
-	size_t parent, const struct auth *auths, size_t authsz)
-{
-	const struct cert	*pcert;
-	const struct cert_as	*as, *pas;
-	size_t			 i, j;
-	int			 found;
-
-	assert(parent < authsz);
-	pcert = auths[parent].cert;
-
-	/* 
-	 * Allow us to narrow to nothingness the possible identifiers or
-	 * to inherit fully.
-	 */
-
-	if (cert->asz == 0)
-		return 1;
-	if (cert->asz && cert->as[0].type == CERT_AS_INHERIT)
-		return 1;
-
-	assert(cert->asz);
-
-	if (pcert->asz == 0) {
-		warnx("%s: expanding parent AS identifiers", fn);
-		return 0;
-	}
-
-	assert(cert->asz && pcert->asz);
-
-	/*
-	 * We want to examine the first parent that has non-inheritable
-	 * entries, so climb from here.
-	 */
-
-	if (pcert->as[0].type == CERT_AS_INHERIT) {
-		assert(auths[parent].parent != auths[parent].id);
-		return x509_auth_as_signed(cert, fn,
-			auths[parent].parent, auths, authsz);
-	}
-
-	/*
-	 * Now our parent is either an identifier or a range, so we can
-	 * make sure that all of our identifiers fall into the
-	 * parent's ranges or singular identifiers.
-	 */
-
-	for (i = 0; i < cert->asz; i++) {
-		found = 0;
-		as = &cert->as[i];
-		switch (as->type) {
-		case CERT_AS_ID:
-			for (j = 0; !found && j < pcert->asz; j++) {
-				pas = &pcert->as[j];
-				switch (pas->type) {
-				case CERT_AS_ID:
-					if (as->id == pas->id)
-						found = 1;
-					break;
-				case CERT_AS_RANGE:
-					if (as->id >= pas->range.min &&
-					    as->id <= pas->range.max)
-						found = 1;
-					break;
-				default:
-					abort();
-				}
-			}
-			break;
-		case CERT_AS_RANGE:
-			for (j = 0; !found && j < pcert->asz; j++) {
-				pas = &pcert->as[j];
-				switch (pas->type) {
-				case CERT_AS_ID:
-					/*
-					 * A range must have at least
-					 * two elements, and sequential
-					 * identifiers must be collapsed
-					 * into a range, so this will
-					 * never happen.
-					 */
-					break;
-				case CERT_AS_RANGE:
-					if (as->range.min >= 
-					     pas->range.min &&
-					    as->range.max <= 
-					     pas->range.max)
-						found = 1;
-					break;
-				default:
-					abort();
-				}
-			}
-			break;
-		default:
-			abort();
-		}
-		if (found == 0) {
-			warnx("%s: AS identifiers don't fall "
-				"into parent allocations", fn);
-			return 0;
-		}
-	}
-
-	return 1;
-}
-
- /*
  * Parse X509v3 authority key identifier, RFC 6487 sec. 4.8.3.
  * Returns the AKI or NULL if it could not be parsed.
  */
@@ -677,27 +581,75 @@ int
 x509_auth_signed_cert(X509 *x, const char *fn,
 	struct auth **auths, size_t *authsz, struct cert *cert)
 {
-	ssize_t	 	 c;
+	ssize_t	 	 c, pp;
+	size_t		 i;
+	uint32_t	 min, max;
 	char		*ski;
+	char		 buf1[64], buf2[64];
 	EVP_PKEY	*pkey;
 
 	if (cert->crl == NULL) {
-		warnx("%s: RFC 6487: signed certificate "
-			"must have a CRL distribution point", fn);
+		warnx("%s: RFC 6487: missing CRL", fn);
 		return 0;
 	} else if ((pkey = X509_get_pubkey(x)) == NULL) {
-		warnx("%s: RFC 6487: signed certificate "
-			"must have a public key", fn);
+		warnx("%s: RFC 6487: missing pubkey", fn);
 		return 0;
 	}
 
-	/* Use "err" now to decrement pkey refcount. */
+	/* 
+	 * Use "err" now to decrement pkey refcount. 
+	 * Validate the certificate, then validate that our AS and IP
+	 * allocations are properly inheriting.
+	 */
 
 	c = x509_auth_cert(x, fn, *auths, *authsz, &ski);
 	if (c < 0)
 		goto err;
-	if (!x509_auth_as_signed(cert, fn, c, *auths, *authsz))
+
+	for (i = 0; i < cert->asz; i++) {
+		if (cert->as[i].type == CERT_AS_INHERIT)
+			continue;
+		min = cert->as[i].type == CERT_AS_ID ?
+			cert->as[i].id : cert->as[i].range.min;
+		max = cert->as[i].type == CERT_AS_ID ?
+			cert->as[i].id : cert->as[i].range.max;
+		pp = x509_auth_as(min, max, c, *auths, *authsz);
+		if (pp >= 0)
+			continue;
+		warnx("%s: RFC 6487: uncovered AS: %" 
+			PRIu32 "--%" PRIu32, fn, min, max);
+		tracewarn(c, *auths, *authsz);
 		goto err;
+	}
+
+	for (i = 0; i < cert->ipsz; i++) {
+		pp = x509_auth_ip_addr
+			(c, cert->ips[i].afi, cert->ips[i].min, 
+			 cert->ips[i].max, *auths, *authsz);
+		if (pp >= 0)
+			continue;
+		switch (cert->ips[i].type) {
+		case CERT_IP_RANGE:
+			ip_addr_print(&cert->ips[i].range.min, 
+				cert->ips[i].afi, buf1, sizeof(buf1));
+			ip_addr_print(&cert->ips[i].range.max, 
+				cert->ips[i].afi, buf2, sizeof(buf2));
+			warnx("%s: RFC 6487: uncovered IP: "
+				"%s--%s", fn, buf1, buf2);
+			break;
+		case CERT_IP_ADDR:
+			ip_addr_print(&cert->ips[i].ip, 
+				cert->ips[i].afi, buf1, sizeof(buf1));
+			warnx("%s: RFC 6487: uncovered IP: "
+				"%s", fn, buf1);
+		case CERT_IP_INHERIT:
+			warnx("%s: RFC 6487: uncovered IP: "
+				"(inherit)", fn);
+			break;
+		}
+		tracewarn(c, *auths, *authsz);
+		goto err;
+	}
 
 	*auths = reallocarray(*auths,
 		*authsz + 1, sizeof(struct auth));
@@ -745,9 +697,9 @@ void
 x509_auth_signed_roa(X509 *x, const char *fn,
 	const struct auth *auths, size_t authsz, struct roa *roa)
 {
-	ssize_t		 c;
-	size_t		 asz, i, level;
-	struct cert_as	*as;
+	ssize_t	 c, pp;
+	size_t	 i;
+	char	 buf[64];
 
 	roa->invalid = 1;
 
@@ -759,43 +711,29 @@ x509_auth_signed_roa(X509 *x, const char *fn,
 	 * the prefix is specifically disallowed from being routed.
 	 */
 
-	if (roa->asid > 0 &&
-	    x509_auth_as(roa->asid, c, auths, authsz) < 0) {
-		warnx("%s: uncovered AS "
-			"identifier: %" PRIu32, fn, roa->asid);
-		
-		/* Trace coverage. */
-
-		for (level = 0; ; level++, c = auths[c].parent) {
-			as = auths[c].cert->as;
-			asz = auths[c].cert->asz;
-			for (i = 0; i < asz; i++) 
-				switch (as[i].type) {
-				case CERT_AS_ID:
-					warnx(" ...parent[%zu]: %" 
-						PRIu32, level, as[i].id);
-					break;
-				case CERT_AS_RANGE:
-					warnx(" ...parent[%zu]: %" 
-						PRIu32 "--%" PRIu32, 
-						level, as[i].range.min, 
-						as[i].range.max);
-					break;
-				default:
-					break;
-				}
-			if (auths[c].parent == (size_t)c)
-				break;
-		}
-		return;
-	}
-
-	for (i = 0; i < roa->ipsz; i++) 
-		if (x509_auth_ip_addr(c, roa->ips[i].afi, 
-		    roa->ips[i].min, roa->ips[i].max, auths, authsz) < 0) {
-			warnx("%s: uncovered IP address", fn);
+	if (roa->asid > 0) {
+		pp = x509_auth_as(roa->asid, 
+			roa->asid, c, auths, authsz);
+		if (pp < 0) {
+			warnx("%s: RFC 6482: uncovered AS: "
+				"%" PRIu32, fn, roa->asid);
+			tracewarn(c, auths, authsz);
 			return;
 		}
+	}
+
+	for (i = 0; i < roa->ipsz; i++) {
+		pp = x509_auth_ip_addr
+			(c, roa->ips[i].afi, roa->ips[i].min, 
+			 roa->ips[i].max, auths, authsz);
+		if (pp >= 0)
+			continue;
+		ip_addr_print(&roa->ips[i].addr, 
+			roa->ips[i].afi, buf, sizeof(buf));
+		warnx("%s: RFC 6482: uncovered IP: %s", fn, buf);
+		tracewarn(c, auths, authsz);
+		return;
+	}
 
 	roa->invalid = 0;
 }
