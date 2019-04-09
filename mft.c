@@ -17,6 +17,7 @@
 #include <assert.h>
 #include <err.h>
 #include <stdarg.h>
+#include <stdint.h>
 #include <stdlib.h>
 #include <string.h>
 #include <unistd.h>
@@ -113,7 +114,7 @@ mft_parse_filehash(struct parse *p, const ASN1_OCTET_STRING *os)
 		goto out;
 	}
 	fn = strndup
-		(file->value.ia5string->data,
+		((const char *)file->value.ia5string->data,
 		 file->value.ia5string->length);
 	if (fn == NULL)
 		err(EXIT_FAILURE, NULL);

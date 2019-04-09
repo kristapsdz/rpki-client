@@ -45,7 +45,7 @@ crl_parse(const char *fn, const unsigned char *dgst)
 	struct parse	 p;
 	BIO		*bio = NULL, *shamd;
 	EVP_MD		*md;
-	unsigned char	 mdbuf[EVP_MAX_MD_SIZE];
+	char	 	 mdbuf[EVP_MAX_MD_SIZE];
 
 	memset(&p, 0, sizeof(struct parse));
 	p.fn = fn;
