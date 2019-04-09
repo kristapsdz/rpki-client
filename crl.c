@@ -130,7 +130,7 @@ crl_read(int fd)
 {
 	struct crl	*p;
 
-	if ((p = calloc(1, sizeof(struct cert))) == NULL)
+	if ((p = calloc(1, sizeof(struct crl))) == NULL)
 		err(EXIT_FAILURE, NULL);
 
 	return p;
