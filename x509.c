@@ -81,7 +81,8 @@ x509_auth_as(uint32_t asid, size_t idx,
  * Returns the index of the certificate in auths or -1 on error.
  */
 static ssize_t
-x509_auth_ip_addr(const struct roa_ip *ip, size_t idx,
+x509_auth_ip_addr(size_t idx, enum afi afi, 
+	const unsigned char *min, const unsigned char *max, 
 	const struct auth *as, size_t asz)
 {
 	int	 c;
@@ -90,7 +91,7 @@ x509_auth_ip_addr(const struct roa_ip *ip, size_t idx,
 
 	/* Does this certificate cover our IP prefix? */
 
-	c = ip_addr_check_covered(ip, 
+	c = ip_addr_check_covered(afi, min, max,
 		as[idx].cert->ips, as[idx].cert->ipsz);
 	if (c > 0)
 		return idx;
@@ -101,7 +102,8 @@ x509_auth_ip_addr(const struct roa_ip *ip, size_t idx,
 
 	if (as[idx].parent == as[idx].id)
 		return -1;
-	return x509_auth_ip_addr(ip, as[idx].parent, as, asz);
+	return x509_auth_ip_addr
+		(as[idx].parent, afi, min, max, as, asz);
 }
 
 /*
@@ -442,69 +444,11 @@ x509_auth_selfsigned_cert(X509 *x, const char *fn,
 	pk = d2i_PUBKEY(NULL, &pkey, pkeysz);
 	assert(pk != NULL);
 
-	/* Public keys should match and verify. */
-
-	if ((opk = X509_get_pubkey(x)) == NULL) {
-		cryptowarnx("%s: RFC 6487 (trust anchor): "
-			"missing public key", fn);
-		goto out;
-	} else if (!EVP_PKEY_cmp(pk, opk)) {
-		cryptowarnx("%s: RFC 6487 (trust anchor): "
-			"public key does not match TAL key", fn);
-		goto out;
-	} else if (!X509_verify(x, pk)) {
-		cryptowarnx("%s: RFC 6487 (trust anchor): "
-			"invalid public key signature", fn);
-		goto out;
-	}
-
-	/* Get the SKI and (optionally) AKI. */
-
-	if ((extsz = X509_get_ext_count(x)) < 0)
-		cryptoerrx("X509_get_ext_count");
-
-	for (i = 0; i < extsz; i++) {
-		ext = X509_get_ext(x, i);
-		assert(ext != NULL);
-		obj = X509_EXTENSION_get_object(ext);
-		assert(obj != NULL);
-		switch (OBJ_obj2nid(obj)) {
-		case NID_authority_key_identifier:
-			if ((aki = x509_get_aki(ext, fn)) == NULL)
-				goto out;
-			break;
-		return 0;
-		case NID_subject_key_identifier:
-			if ((ski = x509_get_ski(ext, fn)) == NULL)
-				goto out;
-			break;
-		default:
-			break;
-		}
-	}
-
 	/* 
-	 * The AKI, if provided, should match the SKI.
-	 * The SKI must not exist.
+	 * Pre-validation: AS and IP resources must not inherit.  The
+	 * CRL must not be specified.  The pubkey must exist and must
+	 * match the given pubkey.
 	 */
-
-	if (ski == NULL) {
-		warnx("%s: RFC 6487 (trust anchor): missing SKI", fn);
-		goto out;
-	} else if (aki != NULL && strcmp(aki, ski)) {
-		warnx("%s: RFC 6487 (trust anchor): "
-			"non-matching SKI and AKI", fn);
-		goto out;
-	}
-
-	for (j = 0; j < *authsz; j++)
-		if (strcmp((*auths)[j].ski, ski) == 0) {
-			warnx("%s: RFC 6487 (trust anchor): "
-				"duplicate SKI in cache", fn);
-			goto out;
-		}
-
-	/* AS and IP allocations may not inherit. */
 
 	if (cert->asz && cert->as[0].type == CERT_AS_INHERIT) {
 		warnx("%s: RFC 6487 (trust anchor): "
@@ -519,16 +463,82 @@ x509_auth_selfsigned_cert(X509 *x, const char *fn,
 			goto out;
 		}
 
-	/* Must not have a CRL. */
-
 	if (cert->crl != NULL) {
 		warnx("%s: RFC 6487 (trust anchor): "
 			"CRL location not allowed", fn);
 		goto out;
 	}
 
+	if ((opk = X509_get_pubkey(x)) == NULL) {
+		cryptowarnx("%s: RFC 6487 (trust anchor): "
+			"missing pubkey", fn);
+		goto out;
+	} else if (!EVP_PKEY_cmp(pk, opk)) {
+		cryptowarnx("%s: RFC 6487 (trust anchor): "
+			"pubkey does not match TAL pubkey", fn);
+		goto out;
+	} else if (!X509_verify(x, pk)) {
+		cryptowarnx("%s: RFC 6487 (trust anchor): "
+			"bad pubkey signature", fn);
+		goto out;
+	}
 
-	/* Append to the certificate cache. */
+	/* Extract SKI and AKI from X509. */
+
+	if ((extsz = X509_get_ext_count(x)) < 0)
+		cryptoerrx("X509_get_ext_count");
+
+	for (i = 0; i < extsz; i++) {
+		ext = X509_get_ext(x, i);
+		assert(ext != NULL);
+		obj = X509_EXTENSION_get_object(ext);
+		assert(obj != NULL);
+		switch (OBJ_obj2nid(obj)) {
+		case NID_authority_key_identifier:
+			if (aki != NULL) {
+				warnx("%s: RFC 6487 (trust anchor): "
+					"repeat AKI", fn);
+				goto out;
+			}
+			if ((aki = x509_get_aki(ext, fn)) == NULL)
+				goto out;
+			break;
+		return 0;
+		case NID_subject_key_identifier:
+			if (ski != NULL) {
+				warnx("%s: RFC 6487 (trust anchor): "
+					"repeat SKI", fn);
+				goto out;
+			}
+			if ((ski = x509_get_ski(ext, fn)) == NULL)
+				goto out;
+			break;
+		default:
+			break;
+		}
+	}
+
+	/* 
+	 * Post-validation: the AKI, if provided, should match the SKI.
+	 * The SKI must not exist.
+	 */
+
+	if (ski == NULL) {
+		warnx("%s: RFC 6487 (trust anchor): missing SKI", fn);
+		goto out;
+	} else if (aki != NULL && strcmp(aki, ski)) {
+		warnx("%s: RFC 6487 (trust anchor): "
+			"non-matching SKI and AKI", fn);
+		goto out;
+	}
+	for (j = 0; j < *authsz; j++)
+		if (strcmp((*auths)[j].ski, ski) == 0) {
+			warnx("%s: RFC 6487 (trust anchor): "
+				"re-registering SKI", fn);
+			goto out;
+		}
+
+	/* Success: append to the certificate cache. */
 
 	*auths = reallocarray(*auths,
 		*authsz + 1, sizeof(struct auth));
@@ -559,13 +569,11 @@ out:
  * Take a signed certificate as specified in RFC 6487, look up the
  * referenced certificate (AKI) in the key cache, and verify the
  * signature.
- * If cert is non-NULL, augments the key cache with the certificate's
- * SKI, public key, and parsed data.
  * Returns zero on failure, non-zero on success.
  */
 static ssize_t
-x509_auth_signed(X509 *x, const char *fn,
-	struct auth **auths, size_t *authsz, struct cert *cert)
+x509_auth_cert(X509 *x, const char *fn,
+	const struct auth *auths, size_t authsz, char **skip)
 {
 	int	 	 i, extsz;
 	ssize_t		 rc = -1;
@@ -573,14 +581,13 @@ x509_auth_signed(X509 *x, const char *fn,
 	char		*ski = NULL, *aki = NULL;
 	X509_EXTENSION	*ext;
 	ASN1_OBJECT	*obj;
-	EVP_PKEY	*pk;
 
-	/* Get the public key, SKI, and AKI. */
+	if (skip != NULL)
+		*skip = NULL;
 
-	if ((pk = X509_get_pubkey(x)) == NULL) {
-		cryptowarnx("%s: no public key", fn);
-		return -1;
-	} else if ((extsz = X509_get_ext_count(x)) < 0)
+	/* Extract SKI and AKI from X509. */
+
+	if ((extsz = X509_get_ext_count(x)) < 0)
 		cryptoerrx("X509_get_ext_count");
 
 	for (i = 0; i < extsz; i++) {
@@ -588,18 +595,23 @@ x509_auth_signed(X509 *x, const char *fn,
 		assert(ext != NULL);
 		obj = X509_EXTENSION_get_object(ext);
 		assert(obj != NULL);
+
 		switch (OBJ_obj2nid(obj)) {
 		case NID_authority_key_identifier:
-			free(aki);
-			aki = x509_get_aki(X509_get_ext(x, i), fn);
-			if (aki == NULL)
+			if (aki != NULL) {
+				warnx("%s: RFC 6487: repeat AKI", fn);
+				goto out;
+			}
+			if ((aki = x509_get_aki(ext, fn)) == NULL)
 				goto out;
 			break;
 		return 0;
 		case NID_subject_key_identifier:
-			free(ski);
-			ski = x509_get_ski(X509_get_ext(x, i), fn);
-			if (ski == NULL)
+			if (ski != NULL) {
+				warnx("%s: RFC 6487: repeat SKI", fn);
+				goto out;
+			}
+			if ((ski = x509_get_ski(ext, fn)) == NULL)
 				goto out;
 			break;
 		default:
@@ -607,103 +619,123 @@ x509_auth_signed(X509 *x, const char *fn,
 		}
 	}
 
+	/*
+	 * Validation: AKI and SKI must exist and match, SKI must not
+	 * aleady be registered, AKI must be registered, key
+	 * verification with AKI key must succeed.
+	 */
+
 	if (aki == NULL) {
-		warnx("%s: RFC 6487: no authority key identifier", fn);
+		warnx("%s: RFC 6487: missing AKI", fn);
 		goto out;
 	} else if (ski == NULL) {
-		warnx("%s: RFC 6487: no subject key identifier", fn);
+		warnx("%s: RFC 6487: missing SKI", fn);
 		goto out;
 	} else if (strcmp(aki, ski) == 0) {
-		warnx("%s: RFC 6487: self-signing key not allowed", fn);
+		warnx("%s: RFC 6487: matching SKI and AKI", fn);
 		goto out;
 	}	
 
-	/* SKI shouldn't already be specified. */
-
-	for (j = 0; j < *authsz; j++)
-		if (strcmp((*auths)[j].ski, ski) == 0) {
-			warnx("%s: RFC 6487: duplicate certificate", fn);
+	for (j = 0; j < authsz; j++)
+		if (strcmp(auths[j].ski, ski) == 0) {
+			warnx("%s: RFC 6487: re-registering SKI", fn);
 			goto out;
 		}
 
-	/* Look for a certificate matching the AKI. */
-
-	for (j = 0; j < *authsz; j++)
-		if (strcmp((*auths)[j].ski, aki) == 0)
+	for (j = 0; j < authsz; j++)
+		if (strcmp(auths[j].ski, aki) == 0)
 			break;
-
-	if (j == *authsz) {
-		warnx("%s: RFC 6487: authority key "
-			"identifier not found", fn);
-		goto out;
-	} else if (!X509_verify(x, (*auths)[j].pkey)) {
-		cryptowarnx("%s: RFC 6487: key verification failed", fn);
+	if (j == authsz) {
+		warnx("%s: RFC 6487: unknown AKI", fn);
 		goto out;
 	}
 
-	/* 
-	 * FIXME: make sure that the AS inherits (I actually don't think
-	 * this is a thing, and that inheriting certificates can do
-	 * whatever they want with the AS numbers) but for sure make
-	 * sure that our IP ranges are fully covered by the parent.
-	 */
+	if (!X509_verify(x, auths[j].pkey)) {
+		cryptowarnx("%s: RFC 6487: key verify failed", fn);
+		goto out;
+	}
 
-	/* Verify and append our own public key to the key cache. */
+	/* Success: assign SKI and AKI index. */
 
-	if (cert != NULL) {
-		if (!x509_auth_as_signed(cert, fn, j, *auths, *authsz))
-			goto out;
-		*auths = reallocarray(*auths,
-			*authsz + 1, sizeof(struct auth));
-		if (*auths == NULL)
-			err(EXIT_FAILURE, NULL);
-		(*auths)[*authsz].id = *authsz;
-		(*auths)[*authsz].parent = j;
-		(*auths)[*authsz].ski = ski;
-		(*auths)[*authsz].pkey = pk;
-		(*auths)[*authsz].cert = cert;
-		(*auths)[*authsz].fn = strdup(fn);
-		if ((*auths)[*authsz].fn == NULL)
-			err(EXIT_FAILURE, NULL);
-		(*authsz)++;
+	if (skip != NULL) {
+		*skip = ski;
 		ski = NULL;
-		pk = NULL;
 	}
-
 	rc = j;
 out:
 	free(ski);
 	free(aki);
-	EVP_PKEY_free(pk);
 	return rc;
 }
 
+/*
+ * Validate a signed (non-TA) certificate.
+ * Returns zero on failure, non-zero on success.
+ * On success, adds the certificate to the cache.
+ */
 int
 x509_auth_signed_cert(X509 *x, const char *fn,
 	struct auth **auths, size_t *authsz, struct cert *cert)
 {
-
-	/* Must have a CRL. */
+	ssize_t	 	 c;
+	char		*ski;
+	EVP_PKEY	*pkey;
 
 	if (cert->crl == NULL) {
 		warnx("%s: RFC 6487: signed certificate "
 			"must have a CRL distribution point", fn);
 		return 0;
+	} else if ((pkey = X509_get_pubkey(x)) == NULL) {
+		warnx("%s: RFC 6487: signed certificate "
+			"must have a public key", fn);
+		return 0;
 	}
 
-	return x509_auth_signed(x, fn, auths, authsz, cert) >= 0;
-}
+	/* Use "err" now to decrement pkey refcount. */
 
-int
-x509_auth_signed_mft(X509 *x, const char *fn,
-	struct auth **auths, size_t *authsz, struct mft *mft)
-{
+	c = x509_auth_cert(x, fn, *auths, *authsz, &ski);
+	if (c < 0)
+		goto err;
+	if (!x509_auth_as_signed(cert, fn, c, *auths, *authsz))
+		goto err;
 
-	return x509_auth_signed(x, fn, auths, authsz, NULL) >= 0;
+	*auths = reallocarray(*auths,
+		*authsz + 1, sizeof(struct auth));
+	if (*auths == NULL)
+		err(EXIT_FAILURE, NULL);
+
+	(*auths)[*authsz].id = *authsz;
+	(*auths)[*authsz].parent = c;
+	(*auths)[*authsz].ski = ski;
+	(*auths)[*authsz].pkey = X509_get_pubkey(x);
+	assert((*auths)[*authsz].pkey != NULL);
+	(*auths)[*authsz].cert = cert;
+	(*auths)[*authsz].fn = strdup(fn);
+	if ((*auths)[*authsz].fn == NULL)
+		err(EXIT_FAILURE, NULL);
+	(*authsz)++;
+	return 1;
+
+err:
+	EVP_PKEY_free(pkey);
+	return 0;
 }
 
 /*
- * Check our ROA.
+ * Validate our MFT.
+ * At this time, this simply means validating the signing key.
+ * Returns zero on failure, non-zero on success.
+ */
+int
+x509_auth_signed_mft(X509 *x, const char *fn,
+	const struct auth *auths, size_t authsz, struct mft *mft)
+{
+
+	return x509_auth_cert(x, fn, auths, authsz, NULL) >= 0;
+}
+
+/*
+ * Validate our ROA.
  * Beyond the usual, this means checking that the AS number is covered
  * by one of the parent certificates and the IP prefix is also
  * contained.
@@ -711,7 +743,7 @@ x509_auth_signed_mft(X509 *x, const char *fn,
  */
 void
 x509_auth_signed_roa(X509 *x, const char *fn,
-	struct auth **auths, size_t *authsz, struct roa *roa)
+	const struct auth *auths, size_t authsz, struct roa *roa)
 {
 	ssize_t		 c;
 	size_t		 asz, i, level;
@@ -719,7 +751,7 @@ x509_auth_signed_roa(X509 *x, const char *fn,
 
 	roa->invalid = 1;
 
-	if ((c = x509_auth_signed(x, fn, auths, authsz, NULL)) < 0)
+	if ((c = x509_auth_cert(x, fn, auths, authsz, NULL)) < 0)
 		return;
 
 	/*
@@ -728,15 +760,15 @@ x509_auth_signed_roa(X509 *x, const char *fn,
 	 */
 
 	if (roa->asid > 0 &&
-	    x509_auth_as(roa->asid, c, *auths, *authsz) < 0) {
+	    x509_auth_as(roa->asid, c, auths, authsz) < 0) {
 		warnx("%s: uncovered AS "
 			"identifier: %" PRIu32, fn, roa->asid);
 		
 		/* Trace coverage. */
 
-		for (level = 0; ; level++, c = (*auths)[c].parent) {
-			as = (*auths)[c].cert->as;
-			asz = (*auths)[c].cert->asz;
+		for (level = 0; ; level++, c = auths[c].parent) {
+			as = auths[c].cert->as;
+			asz = auths[c].cert->asz;
 			for (i = 0; i < asz; i++) 
 				switch (as[i].type) {
 				case CERT_AS_ID:
@@ -752,14 +784,15 @@ x509_auth_signed_roa(X509 *x, const char *fn,
 				default:
 					break;
 				}
-			if ((*auths)[c].parent == (size_t)c)
+			if (auths[c].parent == (size_t)c)
 				break;
 		}
 		return;
 	}
 
 	for (i = 0; i < roa->ipsz; i++) 
-		if (x509_auth_ip_addr(&roa->ips[i], c, *auths, *authsz) < 0) {
+		if (x509_auth_ip_addr(c, roa->ips[i].afi, 
+		    roa->ips[i].min, roa->ips[i].max, auths, authsz) < 0) {
 			warnx("%s: uncovered IP address", fn);
 			return;
 		}

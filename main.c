@@ -793,7 +793,7 @@ proc_parser(int fd, int force, int norev)
 			if ((mft = mft_parse(&x509, entp->uri, force)) == NULL)
 				goto out;
 			c = x509_auth_signed_mft
-				(x509, entp->uri, &auths, &authsz, mft);
+				(x509, entp->uri, auths, authsz, mft);
 			X509_free(x509);
 			if (!c) {
 				mft_free(mft);
@@ -825,7 +825,7 @@ proc_parser(int fd, int force, int norev)
 			 */
 
 			x509_auth_signed_roa(x509, 
-				entp->uri, &auths, &authsz, roa);
+				entp->uri, auths, authsz, roa);
 			X509_free(x509);
 			roa_buffer(&b, &bsz, &bmax, roa);
 			roa_free(roa);
