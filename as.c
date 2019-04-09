@@ -105,31 +105,28 @@ as_check_overlap(const struct cert_as *a, const char *fn,
 }
 
 /*
- * See if a given AS number is covered by the AS numbers or ranges
+ * See if a given AS range (which may be the same number, in the case of
+ * singleton AS identifiers) is covered by the AS numbers or ranges
  * specified in the "as" array.
- * Return zero if there is no cover, non-zero if there is.
+ * Return <0 if there is no cover, 0 if we're inheriting, >0 if there is.
  */
 int
-as_check_covered(uint32_t asid, const struct cert_as *as, size_t asz)
+as_check_covered(uint32_t min, uint32_t max,
+	const struct cert_as *as, size_t asz)
 {
 	size_t	 i;
+	uint32_t amin, amax;
 
-	for (i = 0; i < asz; i++)
-		switch (as[i].type) {
-		case CERT_AS_ID:
-			if (asid == as[i].id)
-				return 1;
-			break;
-		case CERT_AS_RANGE:
-			if (asid >= as[i].range.min &&
-			    asid <= as[i].range.max)
-				return 1;
-			break;
-		case CERT_AS_INHERIT:
-			break;
-		default:
-			abort();
-		}
+	for (i = 0; i < asz; i++) {
+		if (CERT_AS_INHERIT == as[i].type)
+			return 0;
+		amin = CERT_AS_RANGE == as[i].type ?
+			as[i].range.min : as[i].id;
+		amax = CERT_AS_RANGE == as[i].type ?
+			as[i].range.max : as[i].id;
+		if (min >= amin && max <= amax)
+			return 1;
+	}
 
-	return 0;
+	return -1;
 }

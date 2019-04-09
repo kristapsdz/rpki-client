@@ -267,7 +267,8 @@ void		 ip_roa_compose_ranges(struct roa_ip *);
 
 int		 as_check_overlap(const struct cert_as *, const char *,
 			const struct cert_as *, size_t);
-int		 as_check_covered(uint32_t, const struct cert_as *, size_t);
+int		 as_check_covered(uint32_t, uint32_t,
+			const struct cert_as *, size_t);
 
 /* Rsync-specific. */
 
