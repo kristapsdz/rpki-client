@@ -232,9 +232,9 @@ struct crl	*crl_read(int);
 int		 x509_auth_signed_cert(X509 *, const char *,
 			struct auth **, size_t *, struct cert *);
 int		 x509_auth_signed_mft(X509 *, const char *,
-			struct auth **, size_t *, struct mft *);
+			const struct auth *, size_t, struct mft *);
 void		 x509_auth_signed_roa(X509 *, const char *,
-			struct auth **, size_t *, struct roa *);
+			const struct auth *, size_t, struct roa *);
 int		 x509_auth_selfsigned_cert(X509 *, const char *,
 			struct auth **, size_t *, const unsigned char *,
 			size_t, struct cert *);
@@ -258,8 +258,8 @@ void		 ip_addr_range_read(int, struct ip_addr_range *);
 int		 ip_addr_cmp(const struct ip_addr *, const struct ip_addr *);
 int		 ip_addr_check_overlap(const struct cert_ip *,
 			const char *, const struct cert_ip *, size_t);
-int		 ip_addr_check_covered(const struct roa_ip *,
-			const struct cert_ip *, size_t);
+int		 ip_addr_check_covered(enum afi, const unsigned char *,
+			const unsigned char *, const struct cert_ip *, size_t);
 int		 ip_cert_compose_ranges(struct cert_ip *);
 void		 ip_roa_compose_ranges(struct roa_ip *);
 

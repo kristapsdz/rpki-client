@@ -79,18 +79,19 @@ ip_addr_afi_parse(const char *fn,
  * or <0 if we're not covered.
  */
 int
-ip_addr_check_covered(const struct roa_ip *ip,
+ip_addr_check_covered(enum afi afi,
+	const unsigned char *min, const unsigned char *max, 
 	const struct cert_ip *ips, size_t ipsz)
 {
-	size_t	 i, sz = AFI_IPV4 == ip->afi ? 4 : 16;
+	size_t	 i, sz = AFI_IPV4 == afi ? 4 : 16;
 
 	for (i = 0; i < ipsz; i++) {
-		if (ips[i].afi != ip->afi)
+		if (ips[i].afi != afi)
 			continue;
 		if (ips[i].type == CERT_IP_INHERIT)
 			return 0;
-		if (memcmp(ips[i].min, ip->min, sz) <= 0 &&
-	  	    memcmp(ips[i].max, ip->max, sz) >= 0)
+		if (memcmp(ips[i].min, min, sz) <= 0 &&
+	  	    memcmp(ips[i].max, max, sz) >= 0)
 			return 1;
 	}
 
