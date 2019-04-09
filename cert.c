@@ -213,11 +213,13 @@ sbgp_sia_resource_mft(struct parse *p,
 		warnx("%s: RFC 6487 section 4.8.8: SIA: "
 			"failed to parse rsync URI", p->fn);
 		free(p->res->mft);
+		p->res->mft = NULL;
 		goto out;
 	} else if (rt != RTYPE_MFT) {
 		warnx("%s: RFC 6487 section 4.8.8: SIA: "
 			"invalid rsync URI suffix", p->fn);
 		free(p->res->mft);
+		p->res->mft = NULL;
 		goto out;
 	}
 
