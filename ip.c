@@ -248,8 +248,6 @@ ip4_addr2str(const struct ip_addr *addr, char *b, size_t bsz)
 
 	/* Prefix mask only if we don't have all bits set. */
 
-	if (addr->sz == 4)
-		return;
 	snprintf(b + pos, bsz - pos, "/%zu", addr->sz * 8 - addr->unused);
 }
 
@@ -299,8 +297,6 @@ ip6_addr2str(const struct ip_addr *addr, char *b, size_t bsz)
 	else
 		b[--pos] = '\0';
 
-	if (addr->sz == 16)
-		return;
 	snprintf(b + pos, bsz - pos, "/%zu", addr->sz * 8 - addr->unused);
 }
 
