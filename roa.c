@@ -42,7 +42,7 @@ static int
 roa_parse_addr(const ASN1_OCTET_STRING *os,
 	enum afi afi, struct parse *p)
 {
-	const ASN1_SEQUENCE_ANY *seq;
+	ASN1_SEQUENCE_ANY 	*seq;
 	const unsigned char     *d = os->data;
 	size_t		         dsz = os->length;
 	int			 rc = 0;
@@ -118,7 +118,7 @@ roa_parse_addr(const ASN1_OCTET_STRING *os,
 
 	rc = 1;
 out:
-	sk_ASN1_TYPE_free(seq);
+	sk_ASN1_TYPE_pop_free(seq, ASN1_TYPE_free);
 	return rc;
 }
 
@@ -129,7 +129,7 @@ out:
 static int
 roa_parse_ipfam(const ASN1_OCTET_STRING *os, struct parse *p)
 {
-	const ASN1_SEQUENCE_ANY *seq, *sseq = NULL;
+	ASN1_SEQUENCE_ANY 	*seq, *sseq = NULL;
 	const unsigned char     *d = os->data;
 	size_t		         dsz = os->length;
 	int			 i, rc = 0;
@@ -194,8 +194,8 @@ roa_parse_ipfam(const ASN1_OCTET_STRING *os, struct parse *p)
 
 	rc = 1;
 out:
-	sk_ASN1_TYPE_free(seq);
-	sk_ASN1_TYPE_free(sseq);
+	sk_ASN1_TYPE_pop_free(seq, ASN1_TYPE_free);
+	sk_ASN1_TYPE_pop_free(sseq, ASN1_TYPE_free);
 	return rc;
 }
 
@@ -206,7 +206,7 @@ out:
 static int
 roa_parse_ipblocks(const ASN1_OCTET_STRING *os, struct parse *p)
 {
-	const ASN1_SEQUENCE_ANY *seq;
+	ASN1_SEQUENCE_ANY 	*seq;
 	const unsigned char     *d = os->data;
 	size_t		         dsz = os->length;
 	int			 i, rc = 0;
@@ -232,7 +232,7 @@ roa_parse_ipblocks(const ASN1_OCTET_STRING *os, struct parse *p)
 
 	rc = 1;
 out:
-	sk_ASN1_TYPE_free(seq);
+	sk_ASN1_TYPE_pop_free(seq, ASN1_TYPE_free);
 	return rc;
 }
 
@@ -243,7 +243,7 @@ out:
 static int
 roa_parse_econtent(const unsigned char *d, size_t dsz, struct parse *p)
 {
-	const ASN1_SEQUENCE_ANY *seq;
+	ASN1_SEQUENCE_ANY 	*seq;
 	int		         i = 0, rc = 0, sz;
 	const ASN1_TYPE		*t;
 	long			 id;
@@ -314,7 +314,7 @@ roa_parse_econtent(const unsigned char *d, size_t dsz, struct parse *p)
 
 	rc = 1;
 out:
-	sk_ASN1_TYPE_free(seq);
+	sk_ASN1_TYPE_pop_free(seq, ASN1_TYPE_free);
 	return rc;
 }
 
