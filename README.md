@@ -4,32 +4,32 @@
 unless doing so for specific testing.  Thank you!  If you'd like to
 participate in development or testing, please contact the author.**
 
-This is an implementation of RPKI, resource public key infrastructure,
-described in [RFC 6480](https://tools.ietf.org/html/rfc6480).
+**rpki-client** is an implementation of RPKI (resource public key
+infrastructure) described in [RFC
+6480](https://tools.ietf.org/html/rfc6480).
 It implements the *client* side of RPKI, which is responsible for
-downloading and validating route ownership statements.
+downloading and validating route origin statements.
 For usage, please read [rpki-client(1)](rpki-client.1).
 
 The design focus of **rpki-client** is simplicity and security.
-As such, it focusses on only implementing components of RPKI necessary
-to its operation: namely, proper key signing, IP inheritence, and so on.
-A lot of tightness mandated by the RPKI RFCs (such as which X509 fields
-are mandatory or not) is not followed.
-These areas are specifically noted in the sources.
+To wit, it implements RPKI components necessary for validating route
+statements and omits superfluities (such as, for example, which X509
+certificate sections must be labelled "Critical").
 
-The system runs on a current [OpenBSD](https://www.openbsd.org)
-installation with the the [OpenSSL](https://www.openssl.org) external
+The system runs on current [OpenBSD](https://www.openbsd.org)
+installations with the the [OpenSSL](https://www.openssl.org) external
 library installed.
 See [Portability](#portability) for instructions on how to port the
 software.
-Non-current OpenBSD installations will need specification of an
-alternate **rsync** utility with the **-e** flag.
+Non-current OpenBSD installations, or older versions, will need
+specification of an alternate **rsync** utility with the **-e** flag.
 
 At this time, **rpki-client** does not work with OpenBSD's native
 [libressl](https://www.libressl.org) due to requiring CMS parsing.
 According to 
 [this thread](http://openbsd-archive.7691.n7.nabble.com/LibreSSL-why-is-support-for-CMS-disabled-td253212.html),
-this omission is not for security purposes, but happenstance.
+this omission from libressl is not for security purposes, but
+happenstance.
 
 See the [TODO](TODO.md) file for open questions regarding RPKI operation
 in general.
@@ -85,8 +85,9 @@ designing a new non-OpenSSL parser for CRL files entirely.
 
 The **rpki-client** run-time is split into at least three processes
 which pass data back and forth.
-"At least" since the system will dynamically spawn additional process.
-Most of the architecture is laid out in [main.c](main.c).
+"At least" since the system will dynamically spawn additional process in
+addition to the three core processes.
+Most of the architecture is implemented in [main.c](main.c).
 
 The master process orchestrates all other process.
 It also formats and outputs valid route data.
@@ -250,8 +251,11 @@ performed in [x509.c](x509.c).
 - the SKI must be unique in the set of all parsed certificates (trust
   anchors and otherwise)
 - must specify a CRL resource
-
-...TODO.
+- AS identifiers/ranges must be within the ranges allocated by the
+  nearest non-inheriting certificate in the chain to the trust anchor
+  (see [TODO](TODO.md) for notes)
+- IP blocks must be within the ranges allocated by the nearest
+  non-inheriting certificate in the chain to the trust anchor
 
 ## Revocation list validation
 
