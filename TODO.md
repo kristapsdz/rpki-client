@@ -17,7 +17,8 @@ The following are unclear to me.
   scope of available identifiers.  However, in practise, this happens
   all the time.
 
-  This is currently implemented in x509.c, `x509_auth_as()`.
+  This is currently implemented in [validate.c](validate.c),
+  `x509_auth_as()`.
 
 - Following up on validating AS numbers for certificates or ROAs.  The
   specification is not clear on what happens with empty AS extensions in

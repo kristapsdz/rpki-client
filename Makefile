@@ -1,4 +1,5 @@
 OBJS	 = as.o \
+	   cert.o \
 	   cms.o \
 	   crl.o \
 	   io.o \
@@ -8,21 +9,20 @@ OBJS	 = as.o \
 	   roa.o \
 	   rsync.o \
 	   tal.o \
-	   cert.o \
-	   x509.o
+	   validate.o
 ALLOBJS	 = $(OBJS) \
 	   main.o \
+	   test-cert.o \
 	   test-ip.o \
 	   test-mft.o \
 	   test-roa.o \
-	   test-tal.o \
-	   test-cert.o
+	   test-tal.o
 BINS	 = rpki-client \
+	   test-cert \
 	   test-ip \
 	   test-mft \
 	   test-roa \
-	   test-tal \
-	   test-cert
+	   test-tal
 CFLAGS	+= -O0 -g -W -Wall -Wextra -Wno-unused-parameter
 
 CFLAGS	+= -I/usr/local/include/eopenssl
