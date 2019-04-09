@@ -176,7 +176,7 @@ A trust anchor is an X509 ([RFC
 file.
 Beyond the usual certificate parsing in [cert.c](cert.c), the trust
 anchor files also have a number of additional constraints imposed in
-[x509.c](x509.c):
+[validate.c](validate.c):
 
 - the certificate must be self-signed (attached public key must also be
   the signing key)
@@ -201,7 +201,8 @@ Manifests ([RFC 6486](https://tools.ietf.org/html/rfc6487)) contain
 links to more resources.
 They are parsed in [mft.c](mft.c), with the CMS ([RFC
 6488](https://tools.ietf.org/html/rfc6488)) envelope parsed in
-[cms.c](cms.c), and additional checks implemented in [x509.c](x509.c).
+[cms.c](cms.c), and additional checks implemented in
+[validate.c](validate.c).
 
 - self-signed CMS envelope
 - CMS envelope self-signed certificate is signed by the AKI's
@@ -225,7 +226,8 @@ valid routes.
 ROA files consist of data wrapped in a CMS envelope.
 They are parsed in [roa.c](roa.c), with the CMS ([RFC
 6488](https://tools.ietf.org/html/rfc6488)) envelope parsed in
-[cms.c](cms.c), and additional checks implemented in [x509.c](x509.c).
+[cms.c](cms.c), and additional checks implemented in
+[validate.c](validate.c).
 
 - computed digest matches that given by the manifest
 - self-signed CMS envelope
@@ -244,7 +246,7 @@ If this is the case, it is merely skipped.
 X509 certificates ([RFC 6487](https://tools.ietf.org/html/rfc6487) certificate
 are the mainstay of RPKI's validation.
 They are parsed in [cert.c](cert.c) with further validation being
-performed in [x509.c](x509.c).
+performed in [validate.c](validate.c).
 
 - computed digest matches that given by the manifest
 - the certificate must be signed by the AKI's certificate
