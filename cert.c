@@ -429,7 +429,7 @@ sbgp_crl(struct parse *p, X509_EXTENSION *ext)
 
 	rc = 1;
 out:
-	sk_ASN1_TYPE_free(seq);
+	sk_ASN1_TYPE_pop_free(seq, ASN1_TYPE_free);
 	free(sv);
 	return rc;
 }
@@ -853,7 +853,7 @@ sbgp_addr_range(struct parse *p, struct cert_ip *ip,
 
 	rc = append_ip(p, ip);
 out:
-	sk_ASN1_TYPE_free(seq);
+	sk_ASN1_TYPE_pop_free(seq, ASN1_TYPE_free);
 	return rc;
 }
 
@@ -908,7 +908,7 @@ sbgp_addr_or_range(struct parse *p, struct cert_ip *ip,
 
 	rc = 1;
 out:
-	sk_ASN1_TYPE_free(seq);
+	sk_ASN1_TYPE_pop_free(seq, ASN1_TYPE_free);
 	return rc;
 }
 
