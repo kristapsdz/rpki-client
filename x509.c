@@ -134,7 +134,7 @@ x509_get_aki(X509_EXTENSION *ext, const char *fn)
 	unsigned char		*sv = NULL;
 	const unsigned char 	*d;
 	const ASN1_TYPE		*t;
-	const ASN1_SEQUENCE_ANY	*seq = NULL, *sseq = NULL;
+	ASN1_SEQUENCE_ANY	*seq = NULL, *sseq = NULL;
 	int			 dsz, ptag;
 	long			 i, plen;
 	char			 buf[4];
@@ -221,8 +221,8 @@ x509_get_aki(X509_EXTENSION *ext, const char *fn)
 	}
 	res[plen * 3 - 1] = '\0';
 out:
-	sk_ASN1_TYPE_free(seq);
-	sk_ASN1_TYPE_free(sseq);
+	sk_ASN1_TYPE_pop_free(seq, ASN1_TYPE_free);
+	sk_ASN1_TYPE_pop_free(sseq, ASN1_TYPE_free);
 	free(sv);
 	return res;
 }
@@ -235,7 +235,7 @@ static char *
 x509_get_ski(X509_EXTENSION *ext, const char *fn)
 {
 	const unsigned char 	*d;
-	const ASN1_SEQUENCE_ANY	*seq = NULL;
+	ASN1_SEQUENCE_ANY	*seq = NULL;
 	const ASN1_TYPE		*t;
 	int			 dsz, ptag;
 	unsigned char		*sv = NULL;
@@ -313,7 +313,7 @@ x509_get_ski(X509_EXTENSION *ext, const char *fn)
 	}
 	res[plen * 3 - 1] = '\0';
 out:
-	sk_ASN1_TYPE_free(seq);
+	sk_ASN1_TYPE_pop_free(seq, ASN1_TYPE_free);
 	free(sv);
 	return res;
 }
