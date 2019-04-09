@@ -772,11 +772,11 @@ proc_parser(int fd, int force, int norev)
 				goto out;
 			assert(x509 != NULL);
 			c = entp->has_pkey ?
-				x509_auth_selfsigned_cert(x509, 
-					entp->uri, &auths, &authsz,
-					entp->pkey, entp->pkeysz, cert) :
-				x509_auth_signed_cert(x509,
-					entp->uri, &auths, &authsz, cert);
+				valid_ta(x509, entp->uri, 
+					&auths, &authsz, entp->pkey, 
+					entp->pkeysz, cert) :
+				valid_cert(x509, entp->uri, 
+					&auths, &authsz, cert);
 			X509_free(x509);
 			if (!c) {
 				cert_free(cert);
@@ -792,8 +792,7 @@ proc_parser(int fd, int force, int norev)
 			assert(!entp->has_dgst);
 			if ((mft = mft_parse(&x509, entp->uri, force)) == NULL)
 				goto out;
-			c = x509_auth_signed_mft
-				(x509, entp->uri, auths, authsz, mft);
+			c = valid_mft(x509, entp->uri, auths, authsz, mft);
 			X509_free(x509);
 			if (!c) {
 				mft_free(mft);
@@ -824,8 +823,7 @@ proc_parser(int fd, int force, int norev)
 			 * check the "invalid" field itself.
 			 */
 
-			x509_auth_signed_roa(x509, 
-				entp->uri, auths, authsz, roa);
+			valid_roa(x509, entp->uri, auths, authsz, roa);
 			X509_free(x509);
 			roa_buffer(&b, &bsz, &bmax, roa);
 			roa_free(roa);

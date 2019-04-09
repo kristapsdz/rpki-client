@@ -227,15 +227,15 @@ void		 crl_free(struct crl *);
 struct crl 	*crl_parse(const char *, const unsigned char *);
 struct crl	*crl_read(int);
 
-/* Authentication of X509 objects. */
+/* Validation of our objects. */
 
-int		 x509_auth_signed_cert(X509 *, const char *,
+int		 valid_cert(X509 *, const char *,
 			struct auth **, size_t *, struct cert *);
-int		 x509_auth_signed_mft(X509 *, const char *,
+int		 valid_mft(X509 *, const char *,
 			const struct auth *, size_t, struct mft *);
-void		 x509_auth_signed_roa(X509 *, const char *,
+void		 valid_roa(X509 *, const char *,
 			const struct auth *, size_t, struct roa *);
-int		 x509_auth_selfsigned_cert(X509 *, const char *,
+int		 valid_ta(X509 *, const char *,
 			struct auth **, size_t *, const unsigned char *,
 			size_t, struct cert *);
 
