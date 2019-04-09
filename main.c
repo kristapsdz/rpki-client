@@ -910,12 +910,20 @@ entry_process(int norev, int proc, int rsync, struct stats *st,
 			st->roas_invalid++;
 			break;
 		}
+
+		/* 
+		 * FIXME: obviously this should be in its own output
+		 * module and not stuffed right in here.
+		 */
+
 		for (i = 0; i < roa->ipsz; i++) {
 			ip_addr_print(&roa->ips[i].addr, 
 				roa->ips[i].afi, buf, sizeof(buf));
 			printf("%s ", buf);
-			if (roa->ips[i].maxlength)
-				printf("maxlength %zu ", roa->ips[i].maxlength);
+			if (roa->ips[i].maxlength >
+			    (roa->ips[i].addr.sz * 8 - 
+			     roa->ips[i].addr.unused))
+				printf("maxlen %zu ", roa->ips[i].maxlength);
 			printf("source-as %" PRIu32 "\n", roa->asid);
 		}
 		break;
