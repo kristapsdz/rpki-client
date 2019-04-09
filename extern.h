@@ -241,9 +241,8 @@ int		 x509_auth_selfsigned_cert(X509 *, const char *,
 
 /* Working with CMS files. */
 
-const ASN1_OCTET_STRING
- 		*cms_parse_validate(X509 **, const char *,
-			const char *, const unsigned char *);
+unsigned char	*cms_parse_validate(X509 **, const char *,
+			const char *, const unsigned char *, size_t *);
 
 /* Work with RFC 3779 IP addresses, prefixes, ranges. */
 

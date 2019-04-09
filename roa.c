@@ -241,17 +241,12 @@ out:
  * Returns zero on failure, non-zero on success.
  */
 static int
-roa_parse_econtent(const ASN1_OCTET_STRING *os, struct parse *p)
+roa_parse_econtent(const unsigned char *d, size_t dsz, struct parse *p)
 {
 	const ASN1_SEQUENCE_ANY *seq;
-	const unsigned char     *d;
-	size_t		         dsz;
 	int		         i = 0, rc = 0, sz;
 	const ASN1_TYPE		*t;
 	long			 id;
-
-	d = os->data;
-	dsz = os->length;
 
 	/* RFC 6482, section 3. */
 
@@ -332,22 +327,23 @@ out:
 struct roa *
 roa_parse(X509 **x509, const char *fn, const unsigned char *dgst)
 {
-	struct parse		 p;
-	const ASN1_OCTET_STRING	*os;
+	struct parse	 p;
+	size_t		 cmsz;
+	unsigned char	*cms;
 
 	memset(&p, 0, sizeof(struct parse));
 	p.fn = fn;
 
 	/* OID from section 2, RFC 6482. */
 
-	os = cms_parse_validate(x509, fn,
-		"1.2.840.113549.1.9.16.1.24", dgst);
-	if (os == NULL)
+	cms = cms_parse_validate(x509, fn,
+		"1.2.840.113549.1.9.16.1.24", dgst, &cmsz);
+	if (cms == NULL)
 		return NULL;
 
 	if ((p.res = calloc(1, sizeof(struct roa))) == NULL)
 		err(EXIT_FAILURE, NULL);
-	if (!roa_parse_econtent(os, &p)) {
+	if (!roa_parse_econtent(cms, cmsz, &p)) {
 		roa_free(p.res);
 		p.res = NULL;
 		if (x509 != NULL) {
@@ -355,6 +351,7 @@ roa_parse(X509 **x509, const char *fn, const unsigned char *dgst)
 			*x509 = NULL;
 		}
 	}
+	free(cms);
 	return p.res;
 
 }

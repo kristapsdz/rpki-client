@@ -31,11 +31,11 @@
  * certificate has been hashed to dgst (optional).
  * Conforms to RFC 6488.
  * The eContentType of the message must be an oid object.
- * Return the eContent as an octet string or NULL on "soft" failure.
+ * Return the eContent as a string and set "rsz" to be its length.
  */
-const ASN1_OCTET_STRING *
+unsigned char *
 cms_parse_validate(X509 **xp, const char *fn,
-	const char *oid, const unsigned char *dgst)
+	const char *oid, const unsigned char *dgst, size_t *rsz)
 {
 	const ASN1_OBJECT  *obj;
 	ASN1_OCTET_STRING **os = NULL;
@@ -45,7 +45,9 @@ cms_parse_validate(X509 **xp, const char *fn,
 	int		    rc = 0, sz;
 	STACK_OF(X509)	   *certs = NULL;
 	EVP_MD		   *md;
+	unsigned char	   *res = NULL;
 
+	*rsz = 0;
 	*xp = NULL;
 
 	if ((bio = BIO_new_file(fn, "rb")) == NULL)
@@ -134,7 +136,7 @@ cms_parse_validate(X509 **xp, const char *fn,
 	}
 	*xp = X509_dup(sk_X509_value(certs, 0));
 
-	/* Extract eContent and pass to output function. */
+	/* Verify that we have eContent to disseminate. */
 
 	if ((os = CMS_get0_content(cms)) == NULL || *os == NULL) {
 		warnx("%s: RFC 6488 section 2.1.4: "
@@ -142,15 +144,28 @@ cms_parse_validate(X509 **xp, const char *fn,
 		goto out;
 	}
 
+	/*
+	 * Extract and duplicate the eContent.
+	 * The CMS framework offers us no other way of easily managing
+	 * this information; and since we're going to d2i it anyway,
+	 * simply pass it as the desired underlying types.
+	 */
+
+	if ((res = malloc((*os)->length)) == NULL)
+		err(EXIT_FAILURE, NULL);
+	memcpy(res, (*os)->data, (*os)->length);
+	*rsz = (*os)->length;
+
 	rc = 1;
 out:
 	BIO_free_all(bio);
 	sk_X509_free(certs);
+	CMS_ContentInfo_free(cms);
 
 	if (rc == 0) {
 		X509_free(*xp);
 		*xp = NULL;
 	}
 
-	return (rc == 0) ? NULL : *os;
+	return res;
 }

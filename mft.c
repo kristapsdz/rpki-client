@@ -70,6 +70,7 @@ gentime2time(struct parse *p, const ASN1_GENERALIZEDTIME *tp)
 	buf[len] = '\0';
 	BIO_free(mem);
 
+	memset(&tm, 0, sizeof(struct tm));
 	if (strptime(buf, "%b %d %T %Y %Z", &tm) == NULL)
 		errx(EXIT_FAILURE, "%s: strptime", buf);
 	if ((t = mktime(&tm)) == -1)
@@ -182,7 +183,7 @@ mft_parse_filehash(struct parse *p, const ASN1_OCTET_STRING *os)
 	rc = 1;
 out:
 	free(fn);
-	sk_ASN1_TYPE_free(seq);
+	sk_ASN1_TYPE_pop_free(seq, ASN1_TYPE_free);
 	return rc;
 }
 
@@ -193,7 +194,7 @@ out:
 static int
 mft_parse_flist(struct parse *p, const ASN1_OCTET_STRING *os)
 {
-	const ASN1_SEQUENCE_ANY *seq;
+	ASN1_SEQUENCE_ANY 	*seq;
 	const ASN1_TYPE		*t;
 	const unsigned char     *d = os->data;
 	size_t		         dsz = os->length;
@@ -218,7 +219,7 @@ mft_parse_flist(struct parse *p, const ASN1_OCTET_STRING *os)
 
 	rc = 1;
 out:
-	sk_ASN1_TYPE_free(seq);
+	sk_ASN1_TYPE_pop_free(seq, ASN1_TYPE_free);
 	return rc;
 }
 
@@ -227,13 +228,10 @@ out:
  * Returns <0 on failure, 0 on stale, >0 on success.
  */
 static int
-mft_parse_econtent(const ASN1_OCTET_STRING *os,
-	struct parse *p, int force)
+mft_parse_econtent(const unsigned char *d, size_t dsz, struct parse *p, int force)
 {
-	const ASN1_SEQUENCE_ANY *seq;
-	const unsigned char     *d = os->data;
-	size_t		         dsz = os->length;
-	const ASN1_TYPE	        *t;
+	ASN1_SEQUENCE_ANY 	*seq;
+	const ASN1_TYPE		*t;
 	int		         i, rc = -1;
 	time_t			 this, next, now = time(NULL);
 	char			 buf[64];
@@ -351,7 +349,7 @@ mft_parse_econtent(const ASN1_OCTET_STRING *os,
 
 	rc = 1;
 out:
-	sk_ASN1_TYPE_free(seq);
+	sk_ASN1_TYPE_pop_free(seq, ASN1_TYPE_free);
 	return rc;
 }
 
@@ -365,17 +363,17 @@ out:
 struct mft *
 mft_parse(X509 **x509, const char *fn, int force)
 {
-	struct parse		 p;
-	const ASN1_OCTET_STRING *os;
-	int			 rc;
-	size_t			 i;
+	struct parse	 p;
+	int		 rc;
+	size_t		 i, cmsz;
+	unsigned char	*cms;
 
 	memset(&p, 0, sizeof(struct parse));
 	p.fn = fn;
 
-	os = cms_parse_validate(x509, fn,
-		"1.2.840.113549.1.9.16.1.26", NULL);
-	if (os == NULL)
+	cms = cms_parse_validate(x509, fn,
+		"1.2.840.113549.1.9.16.1.26", NULL, &cmsz);
+	if (cms == NULL)
 		return NULL;
 
 	if ((p.res = calloc(1, sizeof(struct mft))) == NULL)
@@ -388,7 +386,7 @@ mft_parse(X509 **x509, const char *fn, int force)
 	 * references as well as marking it as stale.
 	 */
 
-	if ((rc = mft_parse_econtent(os, &p, force)) == 0) {
+	if ((rc = mft_parse_econtent(cms, cmsz, &p, force)) == 0) {
 		p.res->stale = 1;
 		if (p.res->files != NULL)
 			for (i = 0; i < p.res->filesz; i++)
@@ -405,6 +403,7 @@ mft_parse(X509 **x509, const char *fn, int force)
 		}
 	}
 
+	free(cms);
 	return p.res;
 }
 
