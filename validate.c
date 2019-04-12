@@ -466,13 +466,15 @@ out:
 }
 
 /*
- * Take a signed certificate as specified in RFC 6487, look up the
- * referenced certificate (AKI) in the key cache, and verify the
- * signature.
+ * Take a signed certificate or certificate revocation list (exclusive
+ * OR) as specified in RFC 6487, look up the referenced certificate
+ * (AKI) in the key cache, and verify the signature.
+ * This behaves slightly differently between certificate and revocation
+ * list: the latter does not enact any SKI checks.
  * Returns zero on failure, non-zero on success.
  */
 static ssize_t
-x509_auth_cert(X509 *x, const char *fn,
+x509_auth_cert(X509 *x, X509_CRL *crl, const char *fn,
 	const struct auth *auths, size_t authsz, char **skip)
 {
 	int	 	 i, extsz;
@@ -482,16 +484,25 @@ x509_auth_cert(X509 *x, const char *fn,
 	X509_EXTENSION	*ext;
 	ASN1_OBJECT	*obj;
 
+	assert((x != NULL && crl == NULL) ||
+	       (x == NULL && crl != NULL));
+
 	if (skip != NULL)
 		*skip = NULL;
 
-	/* Extract SKI and AKI from X509. */
+	/* Extract AKI and SKI (only if X509) from certificate. */
 
-	if ((extsz = X509_get_ext_count(x)) < 0)
-		cryptoerrx("X509_get_ext_count");
+	if (x != NULL) {
+		if ((extsz = X509_get_ext_count(x)) < 0)
+			cryptoerrx("X509_get_ext_count");
+	} else {
+		if ((extsz = X509_CRL_get_ext_count(crl)) < 0)
+			cryptoerrx("X509_CRL_get_ext_count");
+	}
 
 	for (i = 0; i < extsz; i++) {
-		ext = X509_get_ext(x, i);
+		ext = x != NULL ? X509_get_ext(x, i) : 
+			X509_CRL_get_ext(crl, i);
 		assert(ext != NULL);
 		obj = X509_EXTENSION_get_object(ext);
 		assert(obj != NULL);
@@ -520,27 +531,31 @@ x509_auth_cert(X509 *x, const char *fn,
 	}
 
 	/*
-	 * Validation: AKI and SKI must exist and match, SKI must not
-	 * aleady be registered, AKI must be registered, key
-	 * verification with AKI key must succeed.
+	 * Validation (mostly only for certificate, not for revocation):
+	 * AKI and SKI must exist and match, SKI must not aleady be
+	 * registered, AKI must be registered, key verification with AKI
+	 * key must succeed.
 	 */
 
 	if (aki == NULL) {
 		warnx("%s: RFC 6487: missing AKI", fn);
 		goto out;
-	} else if (ski == NULL) {
-		warnx("%s: RFC 6487: missing SKI", fn);
-		goto out;
-	} else if (strcmp(aki, ski) == 0) {
-		warnx("%s: RFC 6487: matching SKI and AKI", fn);
-		goto out;
-	}	
+	} 
 
-	for (j = 0; j < authsz; j++)
-		if (strcmp(auths[j].ski, ski) == 0) {
-			warnx("%s: RFC 6487: re-registering SKI", fn);
+	if (x != NULL) {
+		if (ski == NULL) {
+			warnx("%s: RFC 6487: missing SKI", fn);
 			goto out;
-		}
+		} else if (strcmp(aki, ski) == 0) {
+			warnx("%s: RFC 6487: matching SKI and AKI", fn);
+			goto out;
+		}	
+		for (j = 0; j < authsz; j++)
+			if (strcmp(auths[j].ski, ski) == 0) {
+				warnx("%s: RFC 6487: re-registering SKI", fn);
+				goto out;
+			}
+	}
 
 	for (j = 0; j < authsz; j++)
 		if (strcmp(auths[j].ski, aki) == 0)
@@ -550,9 +565,18 @@ x509_auth_cert(X509 *x, const char *fn,
 		goto out;
 	}
 
-	if (!X509_verify(x, auths[j].pkey)) {
-		cryptowarnx("%s: RFC 6487: key verify failed", fn);
-		goto out;
+	/* Actually check the keys. */
+
+	if (x != NULL) {
+		if (!X509_verify(x, auths[j].pkey)) {
+			cryptowarnx("%s: RFC 6487: key verify failed", fn);
+			goto out;
+		}
+	} else {
+		if (!X509_CRL_verify(crl, auths[j].pkey)) {
+			cryptowarnx("%s: RFC 6487: key verify failed", fn);
+			goto out;
+		}
 	}
 
 	/* Success: assign SKI and AKI index. */
@@ -598,7 +622,7 @@ valid_cert(X509 *x, const char *fn,
 	 * allocations are properly inheriting.
 	 */
 
-	c = x509_auth_cert(x, fn, *auths, *authsz, &ski);
+	c = x509_auth_cert(x, NULL, fn, *auths, *authsz, &ski);
 	if (c < 0)
 		goto err;
 
@@ -679,7 +703,7 @@ valid_mft(X509 *x, const char *fn,
 	const struct auth *auths, size_t authsz, struct mft *mft)
 {
 
-	return x509_auth_cert(x, fn, auths, authsz, NULL) >= 0;
+	return x509_auth_cert(x, NULL, fn, auths, authsz, NULL) >= 0;
 }
 
 /*
@@ -699,7 +723,7 @@ valid_roa(X509 *x, const char *fn,
 
 	roa->invalid = 1;
 
-	if ((c = x509_auth_cert(x, fn, auths, authsz, NULL)) < 0)
+	if ((c = x509_auth_cert(x, NULL, fn, auths, authsz, NULL)) < 0)
 		return;
 
 	/*
@@ -738,6 +762,11 @@ int
 valid_crl(X509_CRL *x, const char *fn,
 	const struct auth *auths, size_t authsz, struct crl *crl)
 {
+	int	 c;
+
+	c = x509_auth_cert(NULL, x, fn, auths, authsz, NULL);
+	if (c < 0)
+		return 0;
 
 	return 1;
 }
