@@ -40,12 +40,15 @@ struct	parse {
 struct crl *
 crl_parse(const char *fn, const unsigned char *dgst)
 {
-	int	 	 rc = 0, sz;
+	int	 	 i, rc = 0, sz;
 	X509_CRL	*x = NULL;
 	struct parse	 p;
 	BIO		*bio = NULL, *shamd;
 	EVP_MD		*md;
 	char	 	 mdbuf[EVP_MAX_MD_SIZE];
+	STACK_OF(X509_REVOKED) *revs = NULL;
+	const ASN1_INTEGER *sn;
+	X509_REVOKED	*r;
 
 	memset(&p, 0, sizeof(struct parse));
 	p.fn = fn;
@@ -96,6 +99,42 @@ crl_parse(const char *fn, const unsigned char *dgst)
 		}
 	}
 
+
+	/* RFC 6487, section 4.1. */
+
+	if (X509_CRL_get_version(x) != 1) {
+		warnx("%s: RFC 6487 section 5: bad CRL version: "
+			"%ld ", p.fn, X509_CRL_get_version(x));
+		goto out;
+	}
+
+	/*
+	 * FIXME: in the ports version of OpenSSL, I need to use the
+	 * direct structure items.
+	 * In libressl, we have X509_REVOKED_get0_serialNumber() and
+	 * friends to access these values.
+	 */
+
+	revs = X509_CRL_get_REVOKED(x);
+	for (i = 0; i < sk_X509_REVOKED_num(revs); i++) {
+		r = sk_X509_REVOKED_value(revs, i);
+		if (X509_cmp_current_time(r->revocationDate) > 0)
+			continue;
+		sn = r->serialNumber;
+		assert(sn != NULL);
+		p.res->sns = reallocarray
+			(p.res->sns, p.res->snsz + 1, sizeof(uint32_t));
+		if (p.res->sns == NULL)
+			err(EXIT_FAILURE, NULL);
+		p.res->sns[p.res->snsz] = ASN1_INTEGER_get(sn);
+		if (p.res->sns[p.res->snsz] < 0) {
+			warnx("%s: RFC 6487 section 5: CRL "
+				"serial number <0", p.fn);
+			goto out;
+		}
+		p.res->snsz++;
+	}
+
 	rc = 1;
 out:
 	BIO_free_all(bio);
@@ -109,6 +148,8 @@ void
 crl_free(struct crl *p)
 {
 
+	if (p->sns != NULL)
+		free(p->sns);
 	free(p);
 }
 
@@ -119,6 +160,11 @@ crl_free(struct crl *p)
 void
 crl_buffer(char **b, size_t *bsz, size_t *bmax, const struct crl *p)
 {
+	size_t	 i;
+
+	io_simple_buffer(b, bsz, bmax, &p->snsz, sizeof(size_t));
+	for (i = 0; i < p->snsz; i++)
+		io_simple_buffer(b, bsz, bmax, &p->sns[i], sizeof(uint32_t));
 }
 
 /*
@@ -129,10 +175,16 @@ struct crl *
 crl_read(int fd)
 {
 	struct crl	*p;
+	size_t	 	 i;
 
 	if ((p = calloc(1, sizeof(struct crl))) == NULL)
 		err(EXIT_FAILURE, NULL);
 
+	io_simple_read(fd, &p->snsz, sizeof(size_t));
+	if ((p->sns = calloc(p->snsz, sizeof(size_t))) == NULL)
+		err(EXIT_FAILURE, NULL);
+	for (i = 0; i < p->snsz; i++) 
+		io_simple_read(fd, &p->sns[i], sizeof(uint32_t));
 	return p;
 }
 
