@@ -112,7 +112,8 @@ struct	cert {
 };
 
 struct	crl {
-	int		 dummy;
+	uint32_t	*sns; /* serial number of revoked certs */
+	size_t		 snsz; /* number of sns */
 };
 
 /*
