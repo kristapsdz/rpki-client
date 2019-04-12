@@ -733,3 +733,11 @@ valid_roa(X509 *x, const char *fn,
 
 	roa->invalid = 0;
 }
+
+int
+valid_crl(X509_CRL *x, const char *fn,
+	const struct auth *auths, size_t authsz, struct crl *crl)
+{
+
+	return 1;
+}

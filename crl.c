@@ -38,7 +38,7 @@ struct	parse {
 };
 
 struct crl *
-crl_parse(const char *fn, const unsigned char *dgst)
+crl_parse(X509_CRL **xp, const char *fn, const unsigned char *dgst)
 {
 	int	 	 i, rc = 0, sz;
 	X509_CRL	*x = NULL;
@@ -71,7 +71,7 @@ crl_parse(const char *fn, const unsigned char *dgst)
 			cryptoerrx("BIO_push");
 	}
 
-	if ((x = d2i_X509_CRL_bio(bio, NULL)) == NULL) {
+	if ((x = *xp = d2i_X509_CRL_bio(bio, NULL)) == NULL) {
 		cryptowarnx("%s: d2i_X509_CRL_bio", p.fn);
 		goto out;
 	}
@@ -138,9 +138,11 @@ crl_parse(const char *fn, const unsigned char *dgst)
 	rc = 1;
 out:
 	BIO_free_all(bio);
-	if (rc == 0)
+	if (rc == 0) {
 		crl_free(p.res);
-	X509_CRL_free(x);
+		X509_CRL_free(x);
+		*xp = NULL;
+	}
 	return (rc == 0) ? NULL : p.res;
 }
 
@@ -148,8 +150,9 @@ void
 crl_free(struct crl *p)
 {
 
-	if (p->sns != NULL)
-		free(p->sns);
+	if (p == NULL)
+		return;
+	free(p->sns);
 	free(p);
 }
 

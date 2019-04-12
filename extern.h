@@ -225,7 +225,7 @@ struct roa	*roa_read(int);
 
 void		 crl_buffer(char **, size_t *, size_t *, const struct crl *);
 void		 crl_free(struct crl *);
-struct crl 	*crl_parse(const char *, const unsigned char *);
+struct crl 	*crl_parse(X509_CRL **, const char *, const unsigned char *);
 struct crl	*crl_read(int);
 
 /* Validation of our objects. */
@@ -234,6 +234,8 @@ int		 valid_cert(X509 *, const char *,
 			struct auth **, size_t *, struct cert *);
 int		 valid_mft(X509 *, const char *,
 			const struct auth *, size_t, struct mft *);
+int		 valid_crl(X509_CRL *, const char *,
+			const struct auth *, size_t, struct crl *);
 void		 valid_roa(X509 *, const char *,
 			const struct auth *, size_t, struct roa *);
 int		 valid_ta(X509 *, const char *,
