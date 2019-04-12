@@ -45,6 +45,7 @@ main(int argc, char *argv[])
 	int		 c, verb = 0;
 	size_t		 i;
 	struct crl	*p;
+	X509_CRL	*x;
 
 	SSL_library_init();
 	SSL_load_error_strings();
@@ -62,11 +63,12 @@ main(int argc, char *argv[])
 	argc -= optind;
 
 	for (i = 0; i < (size_t)argc; i++) {
-		if ((p = crl_parse(argv[i], NULL)) == NULL)
+		if ((p = crl_parse(&x, argv[i], NULL)) == NULL)
 			break;
 		if (verb)
 			crl_print(p);
 		crl_free(p);
+		X509_CRL_free(x);
 	}
 
 	EVP_cleanup();

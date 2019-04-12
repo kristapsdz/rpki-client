@@ -359,7 +359,7 @@ queue_add_from_mft(int fd, struct entryq *q,
 	assert(strncmp(mft, BASE_DIR, strlen(BASE_DIR)) == 0);
 	assert(sz > 4);
 
-	/* Determine the file type, ignoring revocation lists. */
+	/* Determine the file type. */
 
 	if (strcasecmp(file->file + sz - 4, ".cer") == 0)
 		type = RTYPE_CER;
@@ -671,6 +671,7 @@ proc_parser(int fd, int force, int norev)
 	size_t		 i, bsz = 0, bmax = 0, bpos = 0, authsz = 0;
 	ssize_t		 ssz;
 	X509		*x509;
+	X509_CRL	*x509crl;
 	struct auth	*auths = NULL;
 
 	TAILQ_INIT(&q);
@@ -804,10 +805,16 @@ proc_parser(int fd, int force, int norev)
 		case RTYPE_CRL:
 			if (norev)
 				break;
-			crl = crl_parse(entp->uri, 
+			crl = crl_parse(&x509crl, entp->uri, 
 				entp->has_dgst ? entp->dgst : NULL);
 			if (crl == NULL)
 				goto out;
+			c = valid_crl(x509crl, entp->uri, auths, authsz, crl);
+			X509_CRL_free(x509crl);
+			if (!c) {
+				crl_free(crl);
+				goto out;
+			}
 			crl_buffer(&b, &bsz, &bmax, crl);
 			crl_free(crl);
 			break;
@@ -881,12 +888,19 @@ entry_process(int norev, int proc, int rsync, struct stats *st,
 	case RTYPE_CER:
 		st->certs++;
 		cert = cert_read(proc);
-		if (cert->mft != NULL)
-			queue_add_from_cert(proc, rsync, 
-				q, cert->mft, rt, eid);
+
+		/*
+		 * Process the revocation list from the certificate
+		 * *first*, since it might mark that we're revoked and
+		 * then we don't want to process the MFT.
+		 */
+
 		if (cert->crl != NULL)
 			queue_add_from_cert(proc, rsync, 
 				q, cert->crl, rt, eid);
+		if (cert->mft != NULL)
+			queue_add_from_cert(proc, rsync, 
+				q, cert->mft, rt, eid);
 		break;
 	case RTYPE_MFT:
 		st->mfts++;
