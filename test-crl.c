@@ -35,6 +35,7 @@ crl_print(const struct crl *p)
 {
 	size_t	 i;
 
+	fprintf(stderr, "CRL number: %" PRIu32 "\n", p->num);
 	for (i = 0; i < p->snsz; i++)
 		fprintf(stderr, "%5zu: %04X\n", i + 1, p->sns[i]);
 }

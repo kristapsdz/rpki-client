@@ -49,6 +49,7 @@ crl_parse(X509_CRL **xp, const char *fn, const unsigned char *dgst)
 	STACK_OF(X509_REVOKED) *revs = NULL;
 	const ASN1_INTEGER *sn;
 	X509_REVOKED	*r;
+	long		 v;
 
 	memset(&p, 0, sizeof(struct parse));
 	p.fn = fn;
@@ -108,6 +109,35 @@ crl_parse(X509_CRL **xp, const char *fn, const unsigned char *dgst)
 		goto out;
 	}
 
+	if (X509_CRL_get_lastUpdate(x) == NULL ||
+	    X509_CRL_get_nextUpdate(x) == NULL) {
+		warnx("%s: RFC 6487 section 5: CRL "
+			"lacks time validity constraints", p.fn);
+		goto out;
+	}
+
+	/* Time boundaries set by RFC 5280. */
+
+	if (X509_cmp_current_time(X509_CRL_get_nextUpdate(x)) < 0) {
+		warnx("%s: RFC 5280 section 5.1.2.5: nextUpdate: "
+			"stale CRL", p.fn);
+		goto out;
+	}
+	if (X509_cmp_current_time(X509_CRL_get_lastUpdate(x)) > 0) {
+		warnx("%s: RFC 5280 section 5.1.2.5: lastUpdate: "
+			"before date interval (clock drift?)", p.fn);
+		goto out;
+	}
+
+	/* FIXME: use ASN1_INTEGER: don't cast to uint32_t. */
+
+	if ((v = ASN1_INTEGER_get(x->crl_number)) < 0) {
+		warnx("%s: RFC 6487 section 5: "
+			"negative CRL number: %ld ", p.fn, v);
+		goto out;
+	}
+	p.res->num = v;
+
 	/*
 	 * FIXME: in the ports version of OpenSSL, I need to use the
 	 * direct structure items.
@@ -122,17 +152,16 @@ crl_parse(X509_CRL **xp, const char *fn, const unsigned char *dgst)
 			continue;
 		sn = r->serialNumber;
 		assert(sn != NULL);
+		if ((v = ASN1_INTEGER_get(sn)) < 0) {
+			warnx("%s: RFC 6487 section 5: negative "
+				"CRL serial number: %ld", p.fn, v);
+			goto out;
+		}
 		p.res->sns = reallocarray
 			(p.res->sns, p.res->snsz + 1, sizeof(uint32_t));
 		if (p.res->sns == NULL)
 			err(EXIT_FAILURE, NULL);
-		p.res->sns[p.res->snsz] = ASN1_INTEGER_get(sn);
-		if (p.res->sns[p.res->snsz] < 0) {
-			warnx("%s: RFC 6487 section 5: CRL "
-				"serial number <0", p.fn);
-			goto out;
-		}
-		p.res->snsz++;
+		p.res->sns[p.res->snsz++] = v;
 	}
 
 	rc = 1;

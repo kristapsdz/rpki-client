@@ -279,3 +279,7 @@ Several other portability issues relate to OpenSSL:
   conversion from the `ASN1_INTEGER` values, as the standard way of
   extracting via a `long` will truncate.
 - it's not clear how OpenSSL will handle the 32-bit time expiration
+
+In general, the use of `ASN1_INTEGER_get` needs to be audited to make
+sure that the possible numbers don't exceed `long`.  Ideally, these
+should not be used at all and the native `ASN1_INTEGER` type retained.

@@ -111,7 +111,12 @@ struct	cert {
 	char		*crl; /* CRL location (rsync:// or NULL) */
 };
 
+/*
+ * Parsed components of a certificate revocation list.
+ * FIXME: use ASN1_INTEGER instead of uint32_t.
+ */
 struct	crl {
+	uint32_t	 num; /* CRL number */
 	uint32_t	*sns; /* serial number of revoked certs */
 	size_t		 snsz; /* number of sns */
 };
