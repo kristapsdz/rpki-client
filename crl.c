@@ -47,9 +47,8 @@ crl_parse(X509_CRL **xp, const char *fn, const unsigned char *dgst)
 	EVP_MD		*md;
 	char	 	 mdbuf[EVP_MAX_MD_SIZE];
 	STACK_OF(X509_REVOKED) *revs = NULL;
-	const ASN1_INTEGER *sn;
+	ASN1_INTEGER 	*sn;
 	X509_REVOKED	*r;
-	long		 v;
 
 	memset(&p, 0, sizeof(struct parse));
 	p.fn = fn;
@@ -129,14 +128,15 @@ crl_parse(X509_CRL **xp, const char *fn, const unsigned char *dgst)
 		goto out;
 	}
 
-	/* FIXME: use ASN1_INTEGER: don't cast to uint32_t. */
+	/* 
+	 * This value is optional, but if we have multiple CRLs, we'll
+	 * need it to determine which to use.
+	 * FIXME: use an access for this...?
+	 */
 
-	if ((v = ASN1_INTEGER_get(x->crl_number)) < 0) {
-		warnx("%s: RFC 6487 section 5: "
-			"negative CRL number: %ld ", p.fn, v);
-		goto out;
-	}
-	p.res->num = v;
+	if (x->crl_number != NULL &&
+	    (p.res->num = ASN1_INTEGER_dup(x->crl_number)) == NULL)
+		cryptoerrx("ASN1_INTEGER_dup");
 
 	/*
 	 * FIXME: in the ports version of OpenSSL, I need to use the
@@ -150,18 +150,15 @@ crl_parse(X509_CRL **xp, const char *fn, const unsigned char *dgst)
 		r = sk_X509_REVOKED_value(revs, i);
 		if (X509_cmp_current_time(r->revocationDate) > 0)
 			continue;
-		sn = r->serialNumber;
-		assert(sn != NULL);
-		if ((v = ASN1_INTEGER_get(sn)) < 0) {
-			warnx("%s: RFC 6487 section 5: negative "
-				"CRL serial number: %ld", p.fn, v);
-			goto out;
-		}
+		sn = ASN1_INTEGER_dup(r->serialNumber);
+		if (sn == NULL)
+			cryptoerrx("ASN1_INTEGER_dup");
 		p.res->sns = reallocarray
-			(p.res->sns, p.res->snsz + 1, sizeof(uint32_t));
+			(p.res->sns, p.res->snsz + 1, 
+			 sizeof(ASN1_INTEGER *));
 		if (p.res->sns == NULL)
 			err(EXIT_FAILURE, NULL);
-		p.res->sns[p.res->snsz++] = v;
+		p.res->sns[p.res->snsz++] = sn;
 	}
 
 	rc = 1;
@@ -178,9 +175,13 @@ out:
 void
 crl_free(struct crl *p)
 {
+	size_t	 i;
 
 	if (p == NULL)
 		return;
+	ASN1_INTEGER_free(p->num);
+	for (i = 0; i < p->snsz; i++)
+		ASN1_INTEGER_free(p->sns[i]);
 	free(p->sns);
 	free(p);
 }
@@ -194,9 +195,12 @@ crl_buffer(char **b, size_t *bsz, size_t *bmax, const struct crl *p)
 {
 	size_t	 i;
 
+	io_integer_buffer(b, bsz, bmax, p->num);
 	io_simple_buffer(b, bsz, bmax, &p->snsz, sizeof(size_t));
-	for (i = 0; i < p->snsz; i++)
-		io_simple_buffer(b, bsz, bmax, &p->sns[i], sizeof(uint32_t));
+	for (i = 0; i < p->snsz; i++) {
+		assert(p->sns[i] != NULL);
+		io_integer_buffer(b, bsz, bmax, p->sns[i]);
+	}
 }
 
 /*
@@ -212,11 +216,14 @@ crl_read(int fd)
 	if ((p = calloc(1, sizeof(struct crl))) == NULL)
 		err(EXIT_FAILURE, NULL);
 
+	io_integer_read(fd, &p->num);
 	io_simple_read(fd, &p->snsz, sizeof(size_t));
-	if ((p->sns = calloc(p->snsz, sizeof(size_t))) == NULL)
+	if ((p->sns = calloc(p->snsz, sizeof(ASN1_INTEGER *))) == NULL)
 		err(EXIT_FAILURE, NULL);
-	for (i = 0; i < p->snsz; i++) 
-		io_simple_read(fd, &p->sns[i], sizeof(uint32_t));
+	for (i = 0; i < p->snsz; i++) {
+		io_integer_read(fd, &p->sns[i]);
+		assert(p->sns[i] != NULL);
+	}
 	return p;
 }
 

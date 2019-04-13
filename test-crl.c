@@ -34,10 +34,25 @@ static void
 crl_print(const struct crl *p)
 {
 	size_t	 i;
+	BIO	*ob;
+	
+	if ((ob = BIO_new_fp(stdout, BIO_NOCLOSE)) == NULL)
+		errx(EXIT_FAILURE, "BIO_new_fp");
 
-	fprintf(stderr, "CRL number: %" PRIu32 "\n", p->num);
-	for (i = 0; i < p->snsz; i++)
-		fprintf(stderr, "%5zu: %04X\n", i + 1, p->sns[i]);
+	if (p->num != NULL) {
+		printf("CRL number: ");
+		i2a_ASN1_INTEGER(ob, p->num);
+		printf("\n");
+	}
+
+	for (i = 0; i < p->snsz; i++) {
+		assert(p->sns[i] != NULL);
+		printf("%5zu: ", i + 1);
+		i2a_ASN1_INTEGER(ob, p->sns[i]);
+		printf("\n");
+	}
+
+	BIO_free(ob);
 }
 
 int

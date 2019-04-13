@@ -113,12 +113,11 @@ struct	cert {
 
 /*
  * Parsed components of a certificate revocation list.
- * FIXME: use ASN1_INTEGER instead of uint32_t.
  */
 struct	crl {
-	uint32_t	 num; /* CRL number */
-	uint32_t	*sns; /* serial number of revoked certs */
-	size_t		 snsz; /* number of sns */
+	ASN1_INTEGER	 *num; /* CRL number (or NULL) */
+	ASN1_INTEGER	**sns; /* serial number of revoked certs */
+	size_t		  snsz; /* number of sns */
 };
 
 /*
@@ -304,5 +303,7 @@ void		 io_buf_write(int, const void *, size_t);
 void		 io_str_buffer(char **, size_t *, size_t *, const char *);
 void		 io_str_read(int, char **);
 void		 io_str_write(int, const char *);
+void		 io_integer_buffer(char **, size_t *, size_t *, ASN1_INTEGER *);
+void		 io_integer_read(int, ASN1_INTEGER **);
 
 #endif /* ! EXTERN_H */
