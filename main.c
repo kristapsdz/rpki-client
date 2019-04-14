@@ -690,18 +690,14 @@ proc_parser_roa(struct entry *entp, X509_STORE *store,
 	assert(x509 != NULL);
 	valid_roa(x509, entp->uri, auths, authsz, roa);
 
-	if ((param = X509_VERIFY_PARAM_new()) == NULL)
-		cryptoerrx("X509_VERIFY_PARAM_new");
 	if (!X509_STORE_CTX_init(ctx, store, x509, NULL))
 		cryptoerrx("X509_STORE_CTX_init");
-
+	if ((param = X509_STORE_CTX_get0_param(ctx)) == NULL)
+		cryptoerrx("X509_STORE_CTX_get0_param");
 	fl = X509_VERIFY_PARAM_get_flags(param);
 	nfl = X509_V_FLAG_CRL_CHECK | X509_V_FLAG_CRL_CHECK_ALL;
-
 	if (!X509_VERIFY_PARAM_set_flags(param, fl | nfl))
 		cryptoerrx("X509_VERIFY_PARAM_set_flags");
-	X509_STORE_CTX_set0_param(ctx, param);
-	param = NULL;
 
 	if (X509_verify_cert(ctx) <= 0) {
 		c = X509_STORE_CTX_get_error(ctx);
@@ -731,25 +727,33 @@ proc_parser_mft(struct entry *entp, int force, X509_STORE *store,
 	assert(!entp->has_dgst);
 	if ((mft = mft_parse(&x509, entp->uri, force)) == NULL)
 		return NULL;
-
-	if ((param = X509_VERIFY_PARAM_new()) == NULL)
-		cryptoerrx("X509_VERIFY_PARAM_new");
-	if (!X509_STORE_CTX_init(ctx, store, x509, NULL))
-		cryptoerrx("X509_STORE_CTX_init");
-
-	fl = X509_VERIFY_PARAM_get_flags(param);
 	nfl = X509_V_FLAG_CRL_CHECK | X509_V_FLAG_CRL_CHECK_ALL;
 
+	/* 
+	 * Do this twice: once with the assumption that we have a valid
+	 * CRL (mandatory for all MFTs not inheriting directly from the
+	 * root certificate), then again, without.
+	 */
+again:
+	if (!X509_STORE_CTX_init(ctx, store, x509, NULL))
+		cryptoerrx("X509_STORE_CTX_init");
+	if ((param = X509_STORE_CTX_get0_param(ctx)) == NULL)
+		cryptoerrx("X509_STORE_CTX_get0_param");
+	fl = X509_VERIFY_PARAM_get_flags(param);
 	if (!X509_VERIFY_PARAM_set_flags(param, fl | nfl))
 		cryptoerrx("X509_VERIFY_PARAM_set_flags");
-	X509_STORE_CTX_set0_param(ctx, param);
-	param = NULL;
+	nfl = 0;
 
 	if (X509_verify_cert(ctx) <= 0) {
 		c = X509_STORE_CTX_get_error(ctx);
 		X509_STORE_CTX_cleanup(ctx);
 		warnx("%s: %s", entp->uri,
 			X509_verify_cert_error_string(c));
+		if (X509_V_ERR_UNABLE_TO_GET_CRL == c) {
+			warnx("%s: trying again "
+				"without CRL...", entp->uri);
+			goto again;
+		}
 		mft_free(mft);
 		X509_free(x509);
 		return NULL;
@@ -793,27 +797,22 @@ proc_parser_cert(struct entry *entp, int norev, X509_STORE *store,
 		return NULL;
 	}
 
-	if ((param = X509_VERIFY_PARAM_new()) == NULL)
-		cryptoerrx("X509_VERIFY_PARAM_new");
 	if (!X509_STORE_CTX_init(ctx, store, x509, NULL))
 		cryptoerrx("X509_STORE_CTX_init");
-
+	if ((param = X509_STORE_CTX_get0_param(ctx)) == NULL)
+		cryptoerrx("X509_STORE_CTX_get0_param");
 	fl = X509_VERIFY_PARAM_get_flags(param);
-	nfl = norev ? 0 :
-		X509_V_FLAG_CRL_CHECK | X509_V_FLAG_CRL_CHECK_ALL;
-
+	nfl = X509_V_FLAG_CRL_CHECK | X509_V_FLAG_CRL_CHECK_ALL;
 	if (!X509_VERIFY_PARAM_set_flags(param, fl | nfl))
 		cryptoerrx("X509_VERIFY_PARAM_set_flags");
-	X509_STORE_CTX_set0_param(ctx, param);
-	param = NULL;
 
 	if (X509_verify_cert(ctx) <= 0) {
 		c = X509_STORE_CTX_get_error(ctx);
-		X509_STORE_CTX_cleanup(ctx);
 		if (c != X509_V_ERR_DEPTH_ZERO_SELF_SIGNED_CERT ||
 		    !entp->has_pkey) {
 			warnx("%s: %s", entp->uri,
 				X509_verify_cert_error_string(c));
+			X509_STORE_CTX_cleanup(ctx);
 			X509_free(x509);
 			return NULL;
 		}
