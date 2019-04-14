@@ -377,10 +377,6 @@ valid_ta(X509 *x, const char *fn,
 		cryptowarnx("%s: RFC 6487 (trust anchor): "
 			"pubkey does not match TAL pubkey", fn);
 		goto out;
-	} else if (!X509_verify(x, pk)) {
-		cryptowarnx("%s: RFC 6487 (trust anchor): "
-			"bad pubkey signature", fn);
-		goto out;
 	}
 
 	/* Extract SKI and AKI from X509. */
