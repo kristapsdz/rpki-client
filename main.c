@@ -383,6 +383,11 @@ queue_add_from_mft(int fd, struct entryq *q, const char *mft,
 
 /*
  * Loops over queue_add_from_mft() for all files.
+ * The order here is important: we want to parse the revocation
+ * list *before* we parse anything else.
+ * FIXME: set the type of file in the mftfile so that we don't need to
+ * keep doing the check (this should be done in the parser, where we
+ * check the suffix anyway).
  */
 static void
 queue_add_from_mft_set(int fd, struct entryq *q,
@@ -666,9 +671,11 @@ static struct roa *
 proc_parser_roa(struct entry *entp, X509_STORE *store,
 	X509_STORE_CTX *ctx, const struct auth *auths, size_t authsz)
 {
-	struct roa	*roa;
-	X509		*x509;
-	int		 c;
+	struct roa	  *roa;
+	X509		  *x509;
+	int		   c;
+	X509_VERIFY_PARAM *param;
+	unsigned int	   fl, nfl;
 
 	assert(entp->has_dgst);
 	if ((roa = roa_parse(&x509, entp->uri, entp->dgst)) == NULL)
@@ -683,8 +690,18 @@ proc_parser_roa(struct entry *entp, X509_STORE *store,
 	assert(x509 != NULL);
 	valid_roa(x509, entp->uri, auths, authsz, roa);
 
+	if ((param = X509_VERIFY_PARAM_new()) == NULL)
+		cryptoerrx("X509_VERIFY_PARAM_new");
 	if (!X509_STORE_CTX_init(ctx, store, x509, NULL))
 		cryptoerrx("X509_STORE_CTX_init");
+
+	fl = X509_VERIFY_PARAM_get_flags(param);
+	nfl = X509_V_FLAG_CRL_CHECK | X509_V_FLAG_CRL_CHECK_ALL;
+
+	if (!X509_VERIFY_PARAM_set_flags(param, fl | nfl))
+		cryptoerrx("X509_VERIFY_PARAM_set_flags");
+	X509_STORE_CTX_set0_param(ctx, param);
+	param = NULL;
 
 	if (X509_verify_cert(ctx) <= 0) {
 		c = X509_STORE_CTX_get_error(ctx);
@@ -705,23 +722,28 @@ static struct mft *
 proc_parser_mft(struct entry *entp, int force, X509_STORE *store,
 	X509_STORE_CTX *ctx, const struct auth *auths, size_t authsz)
 {
-	struct mft	*mft;
-	X509		*x509;
-	int		 c;
+	struct mft	  *mft;
+	X509		  *x509;
+	int		   c;
+	X509_VERIFY_PARAM *param;
+	unsigned int	   fl, nfl;
 
 	assert(!entp->has_dgst);
 	if ((mft = mft_parse(&x509, entp->uri, force)) == NULL)
 		return NULL;
 
-	assert(x509 != NULL);
-	if (!valid_mft(x509, entp->uri, auths, authsz, mft)) {
-		mft_free(mft);
-		X509_free(x509);
-		return NULL;
-	}
-
+	if ((param = X509_VERIFY_PARAM_new()) == NULL)
+		cryptoerrx("X509_VERIFY_PARAM_new");
 	if (!X509_STORE_CTX_init(ctx, store, x509, NULL))
 		cryptoerrx("X509_STORE_CTX_init");
+
+	fl = X509_VERIFY_PARAM_get_flags(param);
+	nfl = X509_V_FLAG_CRL_CHECK | X509_V_FLAG_CRL_CHECK_ALL;
+
+	if (!X509_VERIFY_PARAM_set_flags(param, fl | nfl))
+		cryptoerrx("X509_VERIFY_PARAM_set_flags");
+	X509_STORE_CTX_set0_param(ctx, param);
+	param = NULL;
 
 	if (X509_verify_cert(ctx) <= 0) {
 		c = X509_STORE_CTX_get_error(ctx);
@@ -782,6 +804,8 @@ proc_parser_cert(struct entry *entp, int norev, X509_STORE *store,
 
 	if (!X509_VERIFY_PARAM_set_flags(param, fl | nfl))
 		cryptoerrx("X509_VERIFY_PARAM_set_flags");
+	X509_STORE_CTX_set0_param(ctx, param);
+	param = NULL;
 
 	if (X509_verify_cert(ctx) <= 0) {
 		c = X509_STORE_CTX_get_error(ctx);
@@ -797,6 +821,7 @@ proc_parser_cert(struct entry *entp, int norev, X509_STORE *store,
 
 	X509_STORE_CTX_cleanup(ctx);
 	X509_STORE_add_cert(store, x509);
+	X509_free(x509);
 	return cert;
 }
 
@@ -810,13 +835,8 @@ proc_parser_crl(struct entry *entp, X509_STORE *store,
 		entp->has_dgst ? entp->dgst : NULL);
 	if (x509 == NULL)
 		return 0;
-
-	if (!valid_crl(x509, entp->uri, auths, authsz)) {
-		X509_CRL_free(x509);
-		return 0;
-	}
-
 	X509_STORE_add_crl(store, x509);
+	X509_CRL_free(x509);
 	return 1;
 }
 
@@ -847,6 +867,10 @@ proc_parser(int fd, int force, int norev)
 
 	if ((store = X509_STORE_new()) == NULL)
 		cryptoerrx("X509_STORE_new");
+
+	/*if (!X509_STORE_set_flags(store, X509_V_FLAG_CRL_CHECK | X509_V_FLAG_CRL_CHECK_ALL))
+		cryptoerrx("X509_STORE_set_flags");*/
+
 	if ((ctx = X509_STORE_CTX_new()) == NULL)
 		cryptoerrx("X509_STORE_CTX_new");
 

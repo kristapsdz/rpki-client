@@ -83,14 +83,6 @@ crl_parse(const char *fn, const unsigned char *dgst)
 		}
 	}
 
-	/* RFC 6487, section 4.1. */
-
-	if (X509_CRL_get_version(x) != 1) {
-		warnx("%s: RFC 6487 section 5: bad CRL version: "
-			"%ld ", fn, X509_CRL_get_version(x));
-		goto out;
-	}
-
 	rc = 1;
 out:
 	BIO_free_all(bio);

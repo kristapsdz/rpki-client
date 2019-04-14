@@ -1154,28 +1154,6 @@ cert_parse(X509 **xp, const char *fn, const unsigned char *dgst)
 		}
 	}
 
-	/* RFC 6487, section 4.1. */
-
-	if (X509_get_version(x) != 2) {
-		warnx("%s: RFC 6487 section 4.1: bad certificate "
-			"version: %ld ", p.fn, X509_get_version(x));
-		goto out;
-	}
-
-	/* RFC 6487, section 4.6.1, 4.6.2. */
-
-	if (X509_get_notBefore(x) == NULL || X509_get_notAfter(x) == NULL) {
-		warnx("%s: RFC 6487 section 4.6.1, 4.6.2: "
-			"lacks time validity constraints", p.fn);
-		goto out;
-	}
-	if (X509_cmp_current_time(X509_get_notBefore(x)) > 0 ||
-	    X509_cmp_current_time(X509_get_notAfter(x)) < 0) {
-		warnx("%s: RFC 6487 section 4.6.1, 4.6.2: "
-			"time validity constraint violation", p.fn);
-		goto out;
-	}
-
 	/* Look for X509v3 extensions. */
 
 	if ((extsz = X509_get_ext_count(x)) < 0)
