@@ -760,7 +760,7 @@ valid_roa(X509 *x, const char *fn,
 
 int
 valid_crl(X509_CRL *x, const char *fn,
-	const struct auth *auths, size_t authsz, struct crl *crl)
+	const struct auth *auths, size_t authsz)
 {
 	int	 c;
 
