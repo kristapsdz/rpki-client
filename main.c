@@ -745,7 +745,7 @@ proc_parser_mft(struct entry *entp, int force, X509_STORE *store,
  * In the latter case, we're given the public key from the TAL itself.
  */
 static struct cert *
-proc_parser_cert(struct entry *entp, X509_STORE *store,
+proc_parser_cert(struct entry *entp, int norev, X509_STORE *store,
 	X509_STORE_CTX *ctx, struct auth **auths, size_t *authsz)
 {
 	struct cert	  *cert;
@@ -777,7 +777,8 @@ proc_parser_cert(struct entry *entp, X509_STORE *store,
 		cryptoerrx("X509_STORE_CTX_init");
 
 	fl = X509_VERIFY_PARAM_get_flags(param);
-	nfl = X509_V_FLAG_CRL_CHECK | X509_V_FLAG_CRL_CHECK_ALL;
+	nfl = norev ? 0 :
+		X509_V_FLAG_CRL_CHECK | X509_V_FLAG_CRL_CHECK_ALL;
 
 	if (!X509_VERIFY_PARAM_set_flags(param, fl | nfl))
 		cryptoerrx("X509_VERIFY_PARAM_set_flags");
@@ -931,7 +932,7 @@ proc_parser(int fd, int force, int norev)
 			tal_free(tal);
 			break;
 		case RTYPE_CER:
-			cert = proc_parser_cert(entp, 
+			cert = proc_parser_cert(entp, norev,
 				store, ctx, &auths, &authsz);
 			if (cert == NULL)
 				goto out;
