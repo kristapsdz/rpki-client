@@ -176,7 +176,6 @@ struct	roa {
  */
 struct	auth {
 	char		*ski; /* subject key identifier */
-	EVP_PKEY	*pkey; /* public key */
 	struct cert	*cert; /* owner information */
 	size_t		 id; /* self-index */
 	size_t		 parent; /* index of parent pair (or self) */
