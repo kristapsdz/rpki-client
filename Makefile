@@ -13,14 +13,12 @@ OBJS	 = as.o \
 ALLOBJS	 = $(OBJS) \
 	   main.o \
 	   test-cert.o \
-	   test-crl.o \
 	   test-ip.o \
 	   test-mft.o \
 	   test-roa.o \
 	   test-tal.o
 BINS	 = rpki-client \
 	   test-cert \
-	   test-crl \
 	   test-ip \
 	   test-mft \
 	   test-roa \
@@ -50,9 +48,6 @@ test-roa: $(OBJS) test-roa.o
 
 test-cert: $(OBJS) test-cert.o
 	$(CC) -o $@ test-cert.o $(OBJS) $(LDFLAGS) $(LDADD)
-
-test-crl: $(OBJS) test-crl.o
-	$(CC) -o $@ test-crl.o $(OBJS) $(LDFLAGS) $(LDADD)
 
 clean:
 	rm -f $(BINS) $(ALLOBJS)

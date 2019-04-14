@@ -112,15 +112,6 @@ struct	cert {
 };
 
 /*
- * Parsed components of a certificate revocation list.
- */
-struct	crl {
-	ASN1_INTEGER	 *num; /* CRL number (or NULL) */
-	ASN1_INTEGER	**sns; /* serial number of revoked certs */
-	size_t		  snsz; /* number of sns */
-};
-
-/*
  * The TAL file conforms to RFC 7730.
  * It is the top-level structure of RPKI and defines where we can find
  * certificates for TAs (trust anchors).
@@ -227,10 +218,7 @@ void		 roa_free(struct roa *);
 struct roa 	*roa_parse(X509 **, const char *, const unsigned char *);
 struct roa	*roa_read(int);
 
-void		 crl_buffer(char **, size_t *, size_t *, const struct crl *);
-void		 crl_free(struct crl *);
-struct crl 	*crl_parse(X509_CRL **, const char *, const unsigned char *);
-struct crl	*crl_read(int);
+X509_CRL 	*crl_parse(const char *, const unsigned char *);
 
 /* Validation of our objects. */
 
@@ -239,7 +227,7 @@ int		 valid_cert(X509 *, const char *,
 int		 valid_mft(X509 *, const char *,
 			const struct auth *, size_t, struct mft *);
 int		 valid_crl(X509_CRL *, const char *,
-			const struct auth *, size_t, struct crl *);
+			const struct auth *, size_t);
 void		 valid_roa(X509 *, const char *,
 			const struct auth *, size_t, struct roa *);
 int		 valid_ta(X509 *, const char *,

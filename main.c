@@ -349,26 +349,13 @@ entryq_add(int fd, struct entryq *q, char *file, enum rtype type,
  * These are always relative to the directory in which "mft" sits.
  */
 static void
-queue_add_from_mft(int fd, struct entryq *q,
-	const char *mft, const struct mftfile *file, size_t *eid)
+queue_add_from_mft(int fd, struct entryq *q, const char *mft, 
+	const struct mftfile *file, enum rtype type, size_t *eid)
 {
-	size_t	 	 sz = strlen(file->file);
+	size_t	 	 sz;
 	char		*cp, *nfile;
-	enum rtype	 type = RTYPE_EOF;
 
 	assert(strncmp(mft, BASE_DIR, strlen(BASE_DIR)) == 0);
-	assert(sz > 4);
-
-	/* Determine the file type. */
-
-	if (strcasecmp(file->file + sz - 4, ".cer") == 0)
-		type = RTYPE_CER;
-	else if (strcasecmp(file->file + sz - 4, ".roa") == 0)
-		type = RTYPE_ROA;
-	else if (strcasecmp(file->file + sz - 4, ".crl") == 0)
-		type = RTYPE_CRL;
-
-	assert(type != RTYPE_EOF);
 
 	/* Construct local path from filename. */
 
@@ -401,11 +388,38 @@ static void
 queue_add_from_mft_set(int fd, struct entryq *q,
 	const struct mft *mft, size_t *eid)
 {
-	size_t	 i;
+	size_t			 i, sz;
+	const struct mftfile 	*f;
 
-	for (i = 0; i < mft->filesz; i++)
+	for (i = 0; i < mft->filesz; i++) {
+		f = &mft->files[i];
+		sz = strlen(f->file);
+		assert(sz > 4);
+		if (strcasecmp(f->file + sz - 4, ".crl"))
+			continue;
 		queue_add_from_mft(fd, q,
-			mft->file, &mft->files[i], eid);
+			mft->file, f, RTYPE_CRL, eid);
+	}
+
+	for (i = 0; i < mft->filesz; i++) {
+		f = &mft->files[i];
+		sz = strlen(f->file);
+		assert(sz > 4);
+		if (strcasecmp(f->file + sz - 4, ".cer"))
+			continue;
+		queue_add_from_mft(fd, q,
+			mft->file, f, RTYPE_CER, eid);
+	}
+
+	for (i = 0; i < mft->filesz; i++) {
+		f = &mft->files[i];
+		sz = strlen(f->file);
+		assert(sz > 4);
+		if (strcasecmp(f->file + sz - 4, ".roa"))
+			continue;
+		queue_add_from_mft(fd, q,
+			mft->file, f, RTYPE_ROA, eid);
+	}
 }
 
 /*
@@ -648,6 +662,163 @@ out:
 	/* NOTREACHED */
 }
 
+static struct roa *
+proc_parser_roa(struct entry *entp, X509_STORE *store,
+	X509_STORE_CTX *ctx, const struct auth *auths, size_t authsz)
+{
+	struct roa	*roa;
+	X509		*x509;
+	int		 c;
+
+	assert(entp->has_dgst);
+	if ((roa = roa_parse(&x509, entp->uri, entp->dgst)) == NULL)
+		return NULL;
+	
+	/*
+	 * If the ROA isn't valid, we accept it anyway and depend upon
+	 * the code around roa_read() to check the "invalid" field
+	 * itself.
+	 */
+
+	assert(x509 != NULL);
+	valid_roa(x509, entp->uri, auths, authsz, roa);
+
+	if (!X509_STORE_CTX_init(ctx, store, x509, NULL))
+		cryptoerrx("X509_STORE_CTX_init");
+
+	if (X509_verify_cert(ctx) <= 0) {
+		c = X509_STORE_CTX_get_error(ctx);
+		X509_STORE_CTX_cleanup(ctx);
+		warnx("%s: %s", entp->uri,
+			X509_verify_cert_error_string(c));
+		X509_free(x509);
+		roa_free(roa);
+		return NULL;
+	}
+
+	X509_STORE_CTX_cleanup(ctx);
+	X509_free(x509);
+	return roa;
+}
+
+static struct mft *
+proc_parser_mft(struct entry *entp, int force, X509_STORE *store,
+	X509_STORE_CTX *ctx, const struct auth *auths, size_t authsz)
+{
+	struct mft	*mft;
+	X509		*x509;
+	int		 c;
+
+	assert(!entp->has_dgst);
+	if ((mft = mft_parse(&x509, entp->uri, force)) == NULL)
+		return NULL;
+
+	assert(x509 != NULL);
+	if (!valid_mft(x509, entp->uri, auths, authsz, mft)) {
+		mft_free(mft);
+		X509_free(x509);
+		return NULL;
+	}
+
+	if (!X509_STORE_CTX_init(ctx, store, x509, NULL))
+		cryptoerrx("X509_STORE_CTX_init");
+
+	if (X509_verify_cert(ctx) <= 0) {
+		c = X509_STORE_CTX_get_error(ctx);
+		X509_STORE_CTX_cleanup(ctx);
+		warnx("%s: %s", entp->uri,
+			X509_verify_cert_error_string(c));
+		mft_free(mft);
+		X509_free(x509);
+		return NULL;
+	}
+
+	X509_STORE_CTX_cleanup(ctx);
+	X509_free(x509);
+	return mft;
+}
+
+/* 
+ * Certificates are from manifests or TALs.
+ * In the former case, the certificates have digests and infer the
+ * signer from the SKI record of the certificate.
+ * In the latter case, we're given the public key from the TAL itself.
+ */
+static struct cert *
+proc_parser_cert(struct entry *entp, X509_STORE *store,
+	X509_STORE_CTX *ctx, struct auth **auths, size_t *authsz)
+{
+	struct cert	  *cert;
+	X509		  *x509;
+	int		   c;
+	X509_VERIFY_PARAM *param;
+	unsigned int	   fl, nfl;
+
+	assert(entp->has_dgst || entp->has_pkey);
+	cert = cert_parse(&x509, entp->uri, 
+		entp->has_dgst ? entp->dgst : NULL);
+	if (cert == NULL)
+		return NULL;
+
+	assert(x509 != NULL);
+	c = entp->has_pkey ?
+		valid_ta(x509, entp->uri, auths, authsz, 
+			entp->pkey, entp->pkeysz, cert) :
+		valid_cert(x509, entp->uri, auths, authsz, cert);
+	if (!c) {
+		cert_free(cert);
+		X509_free(x509);
+		return NULL;
+	}
+
+	if ((param = X509_VERIFY_PARAM_new()) == NULL)
+		cryptoerrx("X509_VERIFY_PARAM_new");
+	if (!X509_STORE_CTX_init(ctx, store, x509, NULL))
+		cryptoerrx("X509_STORE_CTX_init");
+
+	fl = X509_VERIFY_PARAM_get_flags(param);
+	nfl = X509_V_FLAG_CRL_CHECK | X509_V_FLAG_CRL_CHECK_ALL;
+
+	if (!X509_VERIFY_PARAM_set_flags(param, fl | nfl))
+		cryptoerrx("X509_VERIFY_PARAM_set_flags");
+
+	if (X509_verify_cert(ctx) <= 0) {
+		c = X509_STORE_CTX_get_error(ctx);
+		X509_STORE_CTX_cleanup(ctx);
+		if (c != X509_V_ERR_DEPTH_ZERO_SELF_SIGNED_CERT ||
+		    !entp->has_pkey) {
+			warnx("%s: %s", entp->uri,
+				X509_verify_cert_error_string(c));
+			X509_free(x509);
+			return NULL;
+		}
+	}
+
+	X509_STORE_CTX_cleanup(ctx);
+	X509_STORE_add_cert(store, x509);
+	return cert;
+}
+
+static int
+proc_parser_crl(struct entry *entp, X509_STORE *store,
+	X509_STORE_CTX *ctx, const struct auth *auths, size_t authsz)
+{
+	X509_CRL	*x509;
+
+	x509 = crl_parse(entp->uri,
+		entp->has_dgst ? entp->dgst : NULL);
+	if (x509 == NULL)
+		return 0;
+
+	if (!valid_crl(x509, entp->uri, auths, authsz)) {
+		X509_CRL_free(x509);
+		return 0;
+	}
+
+	X509_STORE_add_crl(store, x509);
+	return 1;
+}
+
 /*
  * Process responsible for parsing and validating content.
  * All this process does is wait to be told about a file to parse, then
@@ -662,17 +833,21 @@ proc_parser(int fd, int force, int norev)
 	struct cert	*cert;
 	struct mft	*mft;
 	struct roa	*roa;
-	struct crl	*crl;
 	struct entry	*entp;
 	struct entryq	 q;
-	int		 rc = 0, c;
+	int		 rc = 0;
 	struct pollfd	 pfd;
 	char		*b = NULL;
 	size_t		 i, bsz = 0, bmax = 0, bpos = 0, authsz = 0;
 	ssize_t		 ssz;
-	X509		*x509;
-	X509_CRL	*x509crl;
+	X509_STORE	*store;
+	X509_STORE_CTX	*ctx;
 	struct auth	*auths = NULL;
+
+	if ((store = X509_STORE_new()) == NULL)
+		cryptoerrx("X509_STORE_new");
+	if ((ctx = X509_STORE_CTX_new()) == NULL)
+		cryptoerrx("X509_STORE_CTX_new");
 
 	TAILQ_INIT(&q);
 
@@ -756,82 +931,33 @@ proc_parser(int fd, int force, int norev)
 			tal_free(tal);
 			break;
 		case RTYPE_CER:
-			/* 
-			 * Certificates are from manifests or TALs.
-			 * In the former case, the certificates have
-			 * digests and infer the signer from the SKI
-			 * record of the certificate.
-			 * In the latter case, we're given the public
-			 * key from the TAL itself.
-			 */
-
-			assert(entp->has_dgst || entp->has_pkey);
-			x509 = NULL;
-			cert = cert_parse(&x509, entp->uri,
-				entp->has_dgst ? entp->dgst : NULL);
+			cert = proc_parser_cert(entp, 
+				store, ctx, &auths, &authsz);
 			if (cert == NULL)
 				goto out;
-			assert(x509 != NULL);
-			c = entp->has_pkey ?
-				valid_ta(x509, entp->uri, 
-					&auths, &authsz, entp->pkey, 
-					entp->pkeysz, cert) :
-				valid_cert(x509, entp->uri, 
-					&auths, &authsz, cert);
-			X509_free(x509);
-			if (!c) {
-				cert_free(cert);
-				goto out;
-			}
 			cert_buffer(&b, &bsz, &bmax, cert);
-			/*
-			 * Don't free the certificate here because we're
-			 * going to cache it in the "auths" array.
-			 */
 			break;
 		case RTYPE_MFT:
-			assert(!entp->has_dgst);
-			if ((mft = mft_parse(&x509, entp->uri, force)) == NULL)
+			mft = proc_parser_mft(entp, force,
+				store, ctx, auths, authsz);
+			if (mft == NULL)
 				goto out;
-			c = valid_mft(x509, entp->uri, auths, authsz, mft);
-			X509_free(x509);
-			if (!c) {
-				mft_free(mft);
-				goto out;
-			}
 			mft_buffer(&b, &bsz, &bmax, mft);
 			mft_free(mft);
 			break;
 		case RTYPE_CRL:
 			if (norev)
 				break;
-			crl = crl_parse(&x509crl, entp->uri, 
-				entp->has_dgst ? entp->dgst : NULL);
-			if (crl == NULL)
+			if (!proc_parser_crl
+			    (entp, store, ctx, auths, authsz))
 				goto out;
-			c = valid_crl(x509crl, entp->uri, auths, authsz, crl);
-			X509_CRL_free(x509crl);
-			if (!c) {
-				crl_free(crl);
-				goto out;
-			}
-			crl_buffer(&b, &bsz, &bmax, crl);
-			crl_free(crl);
 			break;
 		case RTYPE_ROA:
 			assert(entp->has_dgst);
-			roa = roa_parse(&x509, entp->uri, entp->dgst);
+			roa = proc_parser_roa(entp, 
+				store, ctx, auths, authsz);
 			if (roa == NULL)
 				goto out;
-			
-			/*
-			 * If the ROA isn't valid, we accept it anyway
-			 * and depend upon the code around roa_read() to
-			 * check the "invalid" field itself.
-			 */
-
-			valid_roa(x509, entp->uri, auths, authsz, roa);
-			X509_free(x509);
 			roa_buffer(&b, &bsz, &bmax, roa);
 			roa_free(roa);
 			break;
@@ -857,6 +983,8 @@ out:
 		cert_free(auths[i].cert);
 	}
 
+	X509_STORE_CTX_free(ctx);
+	X509_STORE_free(store);
 	free(auths);
 	exit(rc ? EXIT_SUCCESS : EXIT_FAILURE);
 }
@@ -875,7 +1003,6 @@ entry_process(int norev, int proc, int rsync, struct stats *st,
 	struct cert	*cert = NULL;
 	struct mft	*mft = NULL;
 	struct roa	*roa = NULL;
-	struct crl	*crl = NULL;
 	char		 buf[64];
 	size_t		 i;
 
@@ -913,7 +1040,6 @@ entry_process(int norev, int proc, int rsync, struct stats *st,
 		if (norev)
 			break;
 		st->crls++;
-		crl = crl_read(proc);
 		break;
 	case RTYPE_ROA:
 		st->roas++;
@@ -947,7 +1073,6 @@ entry_process(int norev, int proc, int rsync, struct stats *st,
 	mft_free(mft);
 	roa_free(roa);
 	cert_free(cert);
-	crl_free(crl);
 }
 
 int
