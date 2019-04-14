@@ -224,10 +224,6 @@ X509_CRL 	*crl_parse(const char *, const unsigned char *);
 
 int		 valid_cert(X509 *, const char *,
 			struct auth **, size_t *, struct cert *);
-int		 valid_mft(X509 *, const char *,
-			const struct auth *, size_t, struct mft *);
-int		 valid_crl(X509_CRL *, const char *,
-			const struct auth *, size_t);
 void		 valid_roa(X509 *, const char *,
 			const struct auth *, size_t, struct roa *);
 int		 valid_ta(X509 *, const char *,

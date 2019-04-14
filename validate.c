@@ -474,49 +474,31 @@ out:
  * Returns zero on failure, non-zero on success.
  */
 static ssize_t
-x509_auth_cert(X509 *x, X509_CRL *crl, const char *fn,
+x509_auth_cert(X509 *x, const char *fn,
 	const struct auth *auths, size_t authsz, char **skip)
 {
 	int	 	 i, extsz;
 	ssize_t		 rc = -1;
 	size_t		 j;
-	char		*ski = NULL, *aki = NULL;
+	char		*ski = NULL;
 	X509_EXTENSION	*ext;
 	ASN1_OBJECT	*obj;
-
-	assert((x != NULL && crl == NULL) ||
-	       (x == NULL && crl != NULL));
 
 	if (skip != NULL)
 		*skip = NULL;
 
 	/* Extract AKI and SKI (only if X509) from certificate. */
 
-	if (x != NULL) {
-		if ((extsz = X509_get_ext_count(x)) < 0)
-			cryptoerrx("X509_get_ext_count");
-	} else {
-		if ((extsz = X509_CRL_get_ext_count(crl)) < 0)
-			cryptoerrx("X509_CRL_get_ext_count");
-	}
+	if ((extsz = X509_get_ext_count(x)) < 0)
+		cryptoerrx("X509_get_ext_count");
 
 	for (i = 0; i < extsz; i++) {
-		ext = x != NULL ? X509_get_ext(x, i) : 
-			X509_CRL_get_ext(crl, i);
+		ext = X509_get_ext(x, i);
 		assert(ext != NULL);
 		obj = X509_EXTENSION_get_object(ext);
 		assert(obj != NULL);
 
 		switch (OBJ_obj2nid(obj)) {
-		case NID_authority_key_identifier:
-			if (aki != NULL) {
-				warnx("%s: RFC 6487: repeat AKI", fn);
-				goto out;
-			}
-			if ((aki = x509_get_aki(ext, fn)) == NULL)
-				goto out;
-			break;
-		return 0;
 		case NID_subject_key_identifier:
 			if (ski != NULL) {
 				warnx("%s: RFC 6487: repeat SKI", fn);
@@ -537,47 +519,16 @@ x509_auth_cert(X509 *x, X509_CRL *crl, const char *fn,
 	 * key must succeed.
 	 */
 
-	if (aki == NULL) {
-		warnx("%s: RFC 6487: missing AKI", fn);
+	if (ski == NULL) {
+		warnx("%s: RFC 6487: missing SKI", fn);
 		goto out;
-	} 
-
-	if (x != NULL) {
-		if (ski == NULL) {
-			warnx("%s: RFC 6487: missing SKI", fn);
-			goto out;
-		} else if (strcmp(aki, ski) == 0) {
-			warnx("%s: RFC 6487: matching SKI and AKI", fn);
-			goto out;
-		}	
-		for (j = 0; j < authsz; j++)
-			if (strcmp(auths[j].ski, ski) == 0) {
-				warnx("%s: RFC 6487: re-registering SKI", fn);
-				goto out;
-			}
-	}
+	}	
 
 	for (j = 0; j < authsz; j++)
-		if (strcmp(auths[j].ski, aki) == 0)
-			break;
-	if (j == authsz) {
-		warnx("%s: RFC 6487: unknown AKI", fn);
-		goto out;
-	}
-
-	/* Actually check the keys. */
-
-	if (x != NULL) {
-		if (!X509_verify(x, auths[j].pkey)) {
-			cryptowarnx("%s: RFC 6487: key verify failed", fn);
+		if (strcmp(auths[j].ski, ski) == 0) {
+			warnx("%s: RFC 6487: re-registering SKI", fn);
 			goto out;
 		}
-	} else {
-		if (!X509_CRL_verify(crl, auths[j].pkey)) {
-			cryptowarnx("%s: RFC 6487: key verify failed", fn);
-			goto out;
-		}
-	}
 
 	/* Success: assign SKI and AKI index. */
 
@@ -588,7 +539,6 @@ x509_auth_cert(X509 *x, X509_CRL *crl, const char *fn,
 	rc = j;
 out:
 	free(ski);
-	free(aki);
 	return rc;
 }
 
@@ -622,7 +572,7 @@ valid_cert(X509 *x, const char *fn,
 	 * allocations are properly inheriting.
 	 */
 
-	c = x509_auth_cert(x, NULL, fn, *auths, *authsz, &ski);
+	c = x509_auth_cert(x, fn, *auths, *authsz, &ski);
 	if (c < 0)
 		goto err;
 
@@ -694,19 +644,6 @@ err:
 }
 
 /*
- * Validate our MFT.
- * At this time, this simply means validating the signing key.
- * Returns zero on failure, non-zero on success.
- */
-int
-valid_mft(X509 *x, const char *fn,
-	const struct auth *auths, size_t authsz, struct mft *mft)
-{
-
-	return x509_auth_cert(x, NULL, fn, auths, authsz, NULL) >= 0;
-}
-
-/*
  * Validate our ROA.
  * Beyond the usual, this means checking that the AS number is covered
  * by one of the parent certificates and the IP prefix is also
@@ -723,7 +660,7 @@ valid_roa(X509 *x, const char *fn,
 
 	roa->invalid = 1;
 
-	if ((c = x509_auth_cert(x, NULL, fn, auths, authsz, NULL)) < 0)
+	if ((c = x509_auth_cert(x, fn, auths, authsz, NULL)) < 0)
 		return;
 
 	/*
@@ -756,17 +693,4 @@ valid_roa(X509 *x, const char *fn,
 	}
 
 	roa->invalid = 0;
-}
-
-int
-valid_crl(X509_CRL *x, const char *fn,
-	const struct auth *auths, size_t authsz)
-{
-	int	 c;
-
-	c = x509_auth_cert(NULL, x, fn, auths, authsz, NULL);
-	if (c < 0)
-		return 0;
-
-	return 1;
 }
