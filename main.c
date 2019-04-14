@@ -1003,7 +1003,6 @@ out:
 	for (i = 0; i < authsz; i++) {
 		free(auths[i].fn);
 		free(auths[i].ski);
-		EVP_PKEY_free(auths[i].pkey);
 		cert_free(auths[i].cert);
 	}
 

@@ -447,7 +447,6 @@ valid_ta(X509 *x, const char *fn,
 	(*auths)[*authsz].id = *authsz;
 	(*auths)[*authsz].parent = *authsz;
 	(*auths)[*authsz].ski = ski;
-	(*auths)[*authsz].pkey = opk;
 	(*auths)[*authsz].cert = cert;
 	(*auths)[*authsz].fn = strdup(fn);
 	if ((*auths)[*authsz].fn == NULL)
@@ -556,25 +555,15 @@ valid_cert(X509 *x, const char *fn,
 	uint32_t	 min, max;
 	char		*ski;
 	char		 buf1[64], buf2[64];
-	EVP_PKEY	*pkey;
 
 	if (cert->crl == NULL) {
 		warnx("%s: RFC 6487: missing CRL", fn);
 		return 0;
-	} else if ((pkey = X509_get_pubkey(x)) == NULL) {
-		warnx("%s: RFC 6487: missing pubkey", fn);
-		return 0;
 	}
-
-	/* 
-	 * Use "err" now to decrement pkey refcount. 
-	 * Validate the certificate, then validate that our AS and IP
-	 * allocations are properly inheriting.
-	 */
 
 	c = x509_auth_cert(x, fn, *auths, *authsz, &ski);
 	if (c < 0)
-		goto err;
+		return 0;
 
 	for (i = 0; i < cert->asz; i++) {
 		if (cert->as[i].type == CERT_AS_INHERIT)
@@ -589,7 +578,7 @@ valid_cert(X509 *x, const char *fn,
 		warnx("%s: RFC 6487: uncovered AS: %" 
 			PRIu32 "--%" PRIu32, fn, min, max);
 		tracewarn(c, *auths, *authsz);
-		goto err;
+		return 0;
 	}
 
 	for (i = 0; i < cert->ipsz; i++) {
@@ -618,7 +607,7 @@ valid_cert(X509 *x, const char *fn,
 			break;
 		}
 		tracewarn(c, *auths, *authsz);
-		goto err;
+		return 0;
 	}
 
 	*auths = reallocarray(*auths,
@@ -629,18 +618,12 @@ valid_cert(X509 *x, const char *fn,
 	(*auths)[*authsz].id = *authsz;
 	(*auths)[*authsz].parent = c;
 	(*auths)[*authsz].ski = ski;
-	(*auths)[*authsz].pkey = X509_get_pubkey(x);
-	assert((*auths)[*authsz].pkey != NULL);
 	(*auths)[*authsz].cert = cert;
 	(*auths)[*authsz].fn = strdup(fn);
 	if ((*auths)[*authsz].fn == NULL)
 		err(EXIT_FAILURE, NULL);
 	(*authsz)++;
 	return 1;
-
-err:
-	EVP_PKEY_free(pkey);
-	return 0;
 }
 
 /*
