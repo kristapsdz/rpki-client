@@ -403,7 +403,6 @@ valid_ta(X509 *x, const char *fn,
 			if ((aki = x509_get_aki(ext, fn)) == NULL)
 				goto out;
 			break;
-		return 0;
 		case NID_subject_key_identifier:
 			if (ski != NULL) {
 				warnx("%s: RFC 6487 (trust anchor): "
@@ -479,7 +478,7 @@ x509_auth_cert(X509 *x, const char *fn,
 	int	 	 i, extsz;
 	ssize_t		 rc = -1;
 	size_t		 j;
-	char		*ski = NULL;
+	char		*ski = NULL, *aki = NULL;
 	X509_EXTENSION	*ext;
 	ASN1_OBJECT	*obj;
 
@@ -496,8 +495,15 @@ x509_auth_cert(X509 *x, const char *fn,
 		assert(ext != NULL);
 		obj = X509_EXTENSION_get_object(ext);
 		assert(obj != NULL);
-
 		switch (OBJ_obj2nid(obj)) {
+		case NID_authority_key_identifier:
+			if (aki != NULL) {
+				warnx("%s: RFC 6487: repeat AKI", fn);
+				goto out;
+			}
+			if ((aki = x509_get_aki(ext, fn)) == NULL)
+				goto out;
+			break;
 		case NID_subject_key_identifier:
 			if (ski != NULL) {
 				warnx("%s: RFC 6487: repeat SKI", fn);
@@ -529,6 +535,15 @@ x509_auth_cert(X509 *x, const char *fn,
 			goto out;
 		}
 
+	for (j = 0; j < authsz; j++)
+		if (strcmp(auths[j].ski, aki) == 0)
+			break;
+
+	if (j == authsz) {
+		warnx("%s: RFC 6487: unknown AKI", fn);
+		goto out;
+	}
+
 	/* Success: assign SKI and AKI index. */
 
 	if (skip != NULL) {
@@ -538,6 +553,7 @@ x509_auth_cert(X509 *x, const char *fn,
 	rc = j;
 out:
 	free(ski);
+	free(aki);
 	return rc;
 }
 
