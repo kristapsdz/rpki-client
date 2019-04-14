@@ -721,39 +721,39 @@ proc_parser_mft(struct entry *entp, int force, X509_STORE *store,
 	struct mft	  *mft;
 	X509		  *x509;
 	int		   c;
-	X509_VERIFY_PARAM *param;
-	unsigned int	   fl, nfl;
+	/*X509_VERIFY_PARAM *param;
+	unsigned int	   fl, nfl;*/
 
 	assert(!entp->has_dgst);
 	if ((mft = mft_parse(&x509, entp->uri, force)) == NULL)
 		return NULL;
-	nfl = X509_V_FLAG_CRL_CHECK | X509_V_FLAG_CRL_CHECK_ALL;
+	/*nfl = X509_V_FLAG_CRL_CHECK | X509_V_FLAG_CRL_CHECK_ALL;*/
 
 	/* 
 	 * Do this twice: once with the assumption that we have a valid
 	 * CRL (mandatory for all MFTs not inheriting directly from the
 	 * root certificate), then again, without.
 	 */
-again:
+/*again:*/
 	if (!X509_STORE_CTX_init(ctx, store, x509, NULL))
 		cryptoerrx("X509_STORE_CTX_init");
-	if ((param = X509_STORE_CTX_get0_param(ctx)) == NULL)
+	/*if ((param = X509_STORE_CTX_get0_param(ctx)) == NULL)
 		cryptoerrx("X509_STORE_CTX_get0_param");
 	fl = X509_VERIFY_PARAM_get_flags(param);
 	if (!X509_VERIFY_PARAM_set_flags(param, fl | nfl))
 		cryptoerrx("X509_VERIFY_PARAM_set_flags");
-	nfl = 0;
+	nfl = 0;*/
 
 	if (X509_verify_cert(ctx) <= 0) {
 		c = X509_STORE_CTX_get_error(ctx);
 		X509_STORE_CTX_cleanup(ctx);
 		warnx("%s: %s", entp->uri,
 			X509_verify_cert_error_string(c));
-		if (X509_V_ERR_UNABLE_TO_GET_CRL == c) {
+		/*if (X509_V_ERR_UNABLE_TO_GET_CRL == c) {
 			warnx("%s: trying again "
 				"without CRL...", entp->uri);
 			goto again;
-		}
+		}*/
 		mft_free(mft);
 		X509_free(x509);
 		return NULL;
