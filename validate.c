@@ -81,8 +81,8 @@ valid_as(uint32_t min, uint32_t max,
 			as[idx].cert->as, as[idx].cert->asz);
 		if (c > 0)
 			return idx;
-		else if (c < 0)
-			return -1;
+		/*else if (c < 0)
+			return -1;*/
 	}
 
 	/* If it doesn't, walk up the chain. */
