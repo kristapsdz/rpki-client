@@ -286,7 +286,5 @@ void		 io_buf_write(int, const void *, size_t);
 void		 io_str_buffer(char **, size_t *, size_t *, const char *);
 void		 io_str_read(int, char **);
 void		 io_str_write(int, const char *);
-void		 io_integer_buffer(char **, size_t *, size_t *, ASN1_INTEGER *);
-void		 io_integer_read(int, ASN1_INTEGER **);
 
 #endif /* ! EXTERN_H */
