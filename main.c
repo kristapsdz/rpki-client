@@ -24,6 +24,7 @@
 #include <fts.h>
 #include <inttypes.h>
 #include <poll.h>
+#include <search.h>
 #include <signal.h>
 #include <stdio.h>
 #include <stdlib.h>
@@ -83,12 +84,12 @@ struct	repotab {
 };
 
 /*
- * An entry (MFT, ROA, certificate, etc.) that needs to be downloaded
+ * An entity (MFT, ROA, certificate, etc.) that needs to be downloaded
  * and parsed.
  */
-struct	entry {
+struct	entity {
 	size_t		 id; /* unique identifier */
-	enum rtype	 type; /* type of entry (not RTYPE_EOF) */
+	enum rtype	 type; /* type of entity (not RTYPE_EOF) */
 	char		*uri; /* file or rsync:// URI */
 	int		 has_dgst; /* whether dgst is specified */
 	unsigned char	 dgst[SHA256_DIGEST_LENGTH]; /* optional */
@@ -96,10 +97,10 @@ struct	entry {
 	int		 has_pkey; /* whether pkey/sz is specified */
 	unsigned char	*pkey; /* public key (optional) */
 	size_t		 pkeysz; /* public key length (optional) */
-	TAILQ_ENTRY(entry) entries;
+	TAILQ_ENTRY(entity) entries;
 };
 
-TAILQ_HEAD(entryq, entry);
+TAILQ_HEAD(entityq, entity);
 
 /*
  * Mark that our subprocesses will never return.
@@ -144,7 +145,7 @@ rtype_resolve(const char *uri)
 }
 
 static void
-entry_free(struct entry *ent)
+entity_free(struct entity *ent)
 {
 
 	if (ent == NULL)
@@ -156,12 +157,12 @@ entry_free(struct entry *ent)
 }
 
 /*
- * Read a queue entry from the descriptor.
- * Matched by entry_buffer_req().
- * The pointer must be passed entry_free().
+ * Read a queue entity from the descriptor.
+ * Matched by entity_buffer_req().
+ * The pointer must be passed entity_free().
  */
 static void
-entry_read_req(int fd, struct entry *ent)
+entity_read_req(int fd, struct entity *ent)
 {
 
 	io_simple_read(fd, &ent->id, sizeof(size_t));
@@ -226,15 +227,15 @@ repo_lookup(int fd, struct repotab *rt, const char *uri)
 }
 
 /*
- * Read the next entry from the parser process, removing it from the
+ * Read the next entity from the parser process, removing it from the
  * queue of pending requests in the process.
- * This always returns a valid entry.
+ * This always returns a valid entity.
  */
-static struct entry *
-entryq_next(int fd, struct entryq *q)
+static struct entity *
+entityq_next(int fd, struct entityq *q)
 {
 	size_t		 id;
-	struct entry	*entp;
+	struct entity	*entp;
 
 	io_simple_read(fd, &id, sizeof(size_t));
 
@@ -248,20 +249,20 @@ entryq_next(int fd, struct entryq *q)
 }
 
 static void
-entry_buffer_resp(char **b, size_t *bsz,
-	size_t *bmax, const struct entry *ent)
+entity_buffer_resp(char **b, size_t *bsz,
+	size_t *bmax, const struct entity *ent)
 {
 
 	io_simple_buffer(b, bsz, bmax, &ent->id, sizeof(size_t));
 }
 
 /*
- * Like entry_write_req() but into a buffer.
- * Matched by entry_read_req().
+ * Like entity_write_req() but into a buffer.
+ * Matched by entity_read_req().
  */
 static void
-entry_buffer_req(char **b, size_t *bsz,
-	size_t *bmax, const struct entry *ent)
+entity_buffer_req(char **b, size_t *bsz,
+	size_t *bmax, const struct entity *ent)
 {
 
 	io_simple_buffer(b, bsz, bmax, &ent->id, sizeof(size_t));
@@ -276,16 +277,16 @@ entry_buffer_req(char **b, size_t *bsz,
 }
 
 /*
- * Write the queue entry.
- * Simply a wrapper around entry_buffer_req().
+ * Write the queue entity.
+ * Simply a wrapper around entity_buffer_req().
  */
 static void
-entry_write_req(int fd, const struct entry *ent)
+entity_write_req(int fd, const struct entity *ent)
 {
 	char	*b = NULL;
 	size_t	 bsz = 0, bmax = 0;
 
-	entry_buffer_req(&b, &bsz, &bmax, ent);
+	entity_buffer_req(&b, &bsz, &bmax, ent);
 	io_simple_write(fd, b, bsz);
 	free(b);
 }
@@ -295,14 +296,14 @@ entry_write_req(int fd, const struct entry *ent)
  * repo, then flush those into the parser process.
  */
 static void
-entryq_flush(int fd, struct entryq *q, const struct repo *repo)
+entityq_flush(int fd, struct entityq *q, const struct repo *repo)
 {
-	struct entry	*p;
+	struct entity	*p;
 
 	TAILQ_FOREACH(p, q, entries) {
 		if (p->repo < 0 || repo->id != (size_t)p->repo)
 			continue;
-		entry_write_req(fd, p);
+		entity_write_req(fd, p);
 	}
 }
 
@@ -310,13 +311,13 @@ entryq_flush(int fd, struct entryq *q, const struct repo *repo)
  * Add the heap-allocated file to the queue for processing.
  */
 static void
-entryq_add(int fd, struct entryq *q, char *file, enum rtype type, 
+entityq_add(int fd, struct entityq *q, char *file, enum rtype type, 
 	const struct repo *rp, const unsigned char *dgst, 
 	const unsigned char *pkey, size_t pkeysz, size_t *eid)
 {
-	struct entry	*p;
+	struct entity	*p;
 
-	if ((p = calloc(1, sizeof(struct entry))) == NULL)
+	if ((p = calloc(1, sizeof(struct entity))) == NULL)
 		err(EXIT_FAILURE, NULL);
 
 	p->id = (*eid)++;
@@ -341,7 +342,7 @@ entryq_add(int fd, struct entryq *q, char *file, enum rtype type,
 	 */
 
 	if (NULL == rp || rp->loaded)
-		entry_write_req(fd, p);
+		entity_write_req(fd, p);
 }
 
 /*
@@ -349,7 +350,7 @@ entryq_add(int fd, struct entryq *q, char *file, enum rtype type,
  * These are always relative to the directory in which "mft" sits.
  */
 static void
-queue_add_from_mft(int fd, struct entryq *q, const char *mft, 
+queue_add_from_mft(int fd, struct entityq *q, const char *mft, 
 	const struct mftfile *file, enum rtype type, size_t *eid)
 {
 	size_t	 	 sz;
@@ -377,7 +378,7 @@ queue_add_from_mft(int fd, struct entryq *q, const char *mft,
 	 * that the repository has already been loaded.
 	 */
 
-	entryq_add(fd, q, nfile, type,
+	entityq_add(fd, q, nfile, type,
 		NULL, file->hash, NULL, 0, eid);
 }
 
@@ -390,7 +391,7 @@ queue_add_from_mft(int fd, struct entryq *q, const char *mft,
  * check the suffix anyway).
  */
 static void
-queue_add_from_mft_set(int fd, struct entryq *q,
+queue_add_from_mft_set(int fd, struct entityq *q,
 	const struct mft *mft, size_t *eid)
 {
 	size_t			 i, sz;
@@ -431,7 +432,7 @@ queue_add_from_mft_set(int fd, struct entryq *q,
  * Add a local TAL file (RFC 7730) to the queue of files to fetch.
  */
 static void
-queue_add_tal(int fd, struct entryq *q, const char *file, size_t *eid)
+queue_add_tal(int fd, struct entityq *q, const char *file, size_t *eid)
 {
 	char		*nfile;
 
@@ -440,7 +441,7 @@ queue_add_tal(int fd, struct entryq *q, const char *file, size_t *eid)
 
 	/* Not in a repository, so directly add to queue. */
 
-	entryq_add(fd, q, nfile, RTYPE_TAL, 
+	entityq_add(fd, q, nfile, RTYPE_TAL, 
 		NULL, NULL, NULL, 0, eid);
 }
 
@@ -449,7 +450,7 @@ queue_add_tal(int fd, struct entryq *q, const char *file, size_t *eid)
  * Only use the first URI of the set.
  */
 static void
-queue_add_from_tal(int proc, int rsync, struct entryq *q,
+queue_add_from_tal(int proc, int rsync, struct entityq *q,
 	const struct tal *tal, struct repotab *rt, size_t *eid)
 {
 	char		  *nfile;
@@ -469,7 +470,7 @@ queue_add_from_tal(int proc, int rsync, struct entryq *q,
 	    BASE_DIR, repo->host, repo->module, uri) < 0)
 		err(EXIT_FAILURE, NULL);
 
-	entryq_add(proc, q, nfile, RTYPE_CER,
+	entityq_add(proc, q, nfile, RTYPE_CER,
 		repo, NULL, tal->pkey, tal->pkeysz, eid);
 }
 
@@ -477,7 +478,7 @@ queue_add_from_tal(int proc, int rsync, struct entryq *q,
  * Add a manifest (MFT) or CRL found in an X509 certificate, RFC 6487.
  */
 static void
-queue_add_from_cert(int proc, int rsync, struct entryq *q,
+queue_add_from_cert(int proc, int rsync, struct entityq *q,
 	const char *uri, struct repotab *rt, size_t *eid)
 {
 	char		  *nfile;
@@ -498,7 +499,7 @@ queue_add_from_cert(int proc, int rsync, struct entryq *q,
 	    BASE_DIR, repo->host, repo->module, uri) < 0)
 		err(EXIT_FAILURE, NULL);
 
-	entryq_add(proc, q, nfile, type, repo, NULL, NULL, 0, eid);
+	entityq_add(proc, q, nfile, type, repo, NULL, NULL, 0, eid);
 }
 
 static void
@@ -674,7 +675,7 @@ out:
  * Returns the roa on success, NULL on failure.
  */
 static struct roa *
-proc_parser_roa(struct entry *entp, int norev,
+proc_parser_roa(struct entity *entp, int norev,
 	X509_STORE *store, X509_STORE_CTX *ctx, 
 	const struct auth *auths, size_t authsz)
 {
@@ -734,7 +735,7 @@ proc_parser_roa(struct entry *entp, int norev,
  * Return the mft on success or NULL on failure.
  */
 static struct mft *
-proc_parser_mft(struct entry *entp, int force, X509_STORE *store,
+proc_parser_mft(struct entity *entp, int force, X509_STORE *store,
 	X509_STORE_CTX *ctx, const struct auth *auths, size_t authsz)
 {
 	struct mft	*mft;
@@ -770,7 +771,7 @@ proc_parser_mft(struct entry *entp, int force, X509_STORE *store,
  * unless "norev" has been specified), then validate the RPKI content.
  */
 static struct cert *
-proc_parser_cert(const struct entry *entp, int norev, 
+proc_parser_cert(const struct entity *entp, int norev, 
 	X509_STORE *store, X509_STORE_CTX *ctx, 
 	struct auth **auths, size_t *authsz)
 {
@@ -854,7 +855,7 @@ proc_parser_cert(const struct entry *entp, int norev,
  * Return zero on failure, non-zero on success.
  */
 static int
-proc_parser_crl(struct entry *entp, int norev, X509_STORE *store,
+proc_parser_crl(struct entity *entp, int norev, X509_STORE *store,
 	X509_STORE_CTX *ctx, const struct auth *auths, size_t authsz)
 {
 	X509_CRL	    *x509;
@@ -885,8 +886,8 @@ proc_parser(int fd, int force, int norev)
 	struct cert	*cert;
 	struct mft	*mft;
 	struct roa	*roa;
-	struct entry	*entp;
-	struct entryq	 q;
+	struct entity	*entp;
+	struct entityq	 q;
 	int		 rc = 0;
 	struct pollfd	 pfd;
 	char		*b = NULL;
@@ -895,6 +896,9 @@ proc_parser(int fd, int force, int norev)
 	X509_STORE	*store;
 	X509_STORE_CTX	*ctx;
 	struct auth	*auths = NULL;
+
+	if (!hcreate(1024))
+		err(EXIT_FAILURE, NULL);
 
 	if ((store = X509_STORE_new()) == NULL)
 		cryptoerrx("X509_STORE_new");
@@ -929,10 +933,10 @@ proc_parser(int fd, int force, int norev)
 
 		if ((pfd.revents & POLLIN)) {
 			io_socket_blocking(fd);
-			entp = calloc(1, sizeof(struct entry));
+			entp = calloc(1, sizeof(struct entity));
 			if (entp == NULL)
 				err(EXIT_FAILURE, NULL);
-			entry_read_req(fd, entp);
+			entity_read_req(fd, entp);
 			TAILQ_INSERT_TAIL(&q, entp, entries);
 			pfd.events |= POLLOUT;
 			io_socket_nonblocking(fd);
@@ -972,7 +976,7 @@ proc_parser(int fd, int force, int norev)
 		entp = TAILQ_FIRST(&q);
 		assert(entp != NULL);
 
-		entry_buffer_resp(&b, &bsz, &bmax, entp);
+		entity_buffer_resp(&b, &bsz, &bmax, entp);
 
 		switch (entp->type) {
 		case RTYPE_TAL:
@@ -1021,14 +1025,14 @@ proc_parser(int fd, int force, int norev)
 		}
 
 		TAILQ_REMOVE(&q, entp, entries);
-		entry_free(entp);
+		entity_free(entp);
 	}
 
 	rc = 1;
 out:
 	while ((entp = TAILQ_FIRST(&q)) != NULL) {
 		TAILQ_REMOVE(&q, entp, entries);
-		entry_free(entp);
+		entity_free(entp);
 	}
 
 	for (i = 0; i < authsz; i++) {
@@ -1037,6 +1041,7 @@ out:
 		cert_free(auths[i].cert);
 	}
 
+	hdestroy();
 	X509_STORE_CTX_free(ctx);
 	X509_STORE_free(store);
 	free(auths);
@@ -1049,8 +1054,8 @@ out:
  * For ROAs, we want to extract the valid/invalid info.
  */
 static void
-entry_process(int norev, int proc, int rsync, struct stats *st,
-	struct entryq *q, const struct entry *ent, struct repotab *rt,
+entity_process(int norev, int proc, int rsync, struct stats *st,
+	struct entityq *q, const struct entity *ent, struct repotab *rt,
 	size_t *eid)
 {
 	struct tal	*tal = NULL;
@@ -1138,8 +1143,8 @@ main(int argc, char *argv[])
 	size_t		 i, j, eid = 1;
 	pid_t		 procpid, rsyncpid;
 	int		 fd[2];
-	struct entryq	 q;
-	struct entry	*ent;
+	struct entityq	 q;
+	struct entity	*ent;
 	struct pollfd	 pfd[2];
 	struct repotab	 rt;
 	struct stats	 stats;
@@ -1312,7 +1317,7 @@ main(int argc, char *argv[])
 			logx("%s/%s/%s: loaded", BASE_DIR,
 				rt.repos[i].host, rt.repos[i].module);
 			stats.repos++;
-			entryq_flush(proc, &q, &rt.repos[i]);
+			entityq_flush(proc, &q, &rt.repos[i]);
 		}
 
 		/* 
@@ -1321,12 +1326,12 @@ main(int argc, char *argv[])
 		 */
 
 		if ((pfd[1].revents & POLLIN)) {
-			ent = entryq_next(proc, &q);
-			entry_process(norev, proc, rsync,
+			ent = entityq_next(proc, &q);
+			entity_process(norev, proc, rsync,
 				&stats, &q, ent, &rt, &eid);
 			if (verbose > 1)
 				fprintf(stderr, "%s\n", ent->uri);
-			entry_free(ent);
+			entity_free(ent);
 		}
 	}
 
