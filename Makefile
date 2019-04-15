@@ -6,6 +6,7 @@ OBJS	 = as.o \
 	   ip.o \
 	   log.o \
 	   mft.o \
+	   output-bgpd.o \
 	   roa.o \
 	   rsync.o \
 	   tal.o \

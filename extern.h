@@ -287,4 +287,6 @@ void		 io_str_buffer(char **, size_t *, size_t *, const char *);
 void		 io_str_read(int, char **);
 void		 io_str_write(int, const char *);
 
+void		 output_bgpd(const struct roa **, size_t);
+
 #endif /* ! EXTERN_H */
