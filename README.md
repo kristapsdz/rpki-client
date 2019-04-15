@@ -158,6 +158,10 @@ TAL (trust anchor locator) file.
 The validation algorithm is a breadth-first (though whether depth or
 breadth first is irrelevant) tree walk.
 
+Most of the certificate validation in RPKI comes from the `X509_STORE`
+functionality of OpenSSL.  This covers CRL revocation, expiration dates,
+and so on.
+
 ## TAL validation
 
 It begins by parsing a TAL file, [RFC
@@ -178,11 +182,9 @@ Beyond the usual certificate parsing in [cert.c](cert.c), the trust
 anchor files also have a number of additional constraints imposed in
 [validate.c](validate.c):
 
-- the certificate must be self-signed (attached public key must also be
-  the signing key)
+- the certificate must be self-signed
 - the public key must match the one given in the TAL file
-- it must have an SKI (subject key identifier) and either an empty or
-  matching AKI (authority key identifier)
+- it must have an SKI (subject key identifier)
 - the SKI must be unique in the set of all parsed certificates (trust
   anchors and otherwise)
 - must not specify a CRL resource
@@ -233,13 +235,15 @@ They are parsed in [roa.c](roa.c), with the CMS ([RFC
 - self-signed CMS envelope
 - CMS envelope self-signed certificate is signed by the AKI's
   certificate
-- AS identifier must be within the range allocated by any certificate in
-  the chain to the trust anchor (see [TODO](TODO.md) for notes)
-- IP blocks must be within the ranges allocated by the nearest
+- AS identifier must be within the range allocated by *any* certificate
+  in the chain to the trust anchor (see [TODO](TODO.md) for notes)
+- IP blocks must be within the ranges allocated by the *nearest*
   non-inheriting certificate in the chain to the trust anchor
 
 An ROA may technically contain zero IP prefixes.
 If this is the case, it is merely skipped.
+
+A "stale" ROA (time validity has elapsed) is also ignored.
 
 ## Certificate validation
 
@@ -248,7 +252,7 @@ are the mainstay of RPKI's validation.
 They are parsed in [cert.c](cert.c) with further validation being
 performed in [validate.c](validate.c).
 
-- computed digest matches that given by the manifest
+- computed digest matches that given by the manifest (if applicable)
 - the certificate must be signed by the AKI's certificate
 - the SKI must be unique in the set of all parsed certificates (trust
   anchors and otherwise)
@@ -261,7 +265,13 @@ performed in [validate.c](validate.c).
 
 ## Revocation list validation
 
-TODO.
+**rpki-client** imposes no specific checks on CRL than those provided by
+OpenSSL's `X509_STORE` functionality.
+
+Some repositories, however, contain enormous CRL files with thousands
+and thousands of entries.
+Since these take quite some time to parse, the **-r** flag disables CRL
+checking.
 
 # Portability
 
@@ -283,3 +293,4 @@ Several other portability issues relate to OpenSSL:
 In general, the use of `ASN1_INTEGER_get` needs to be audited to make
 sure that the possible numbers don't exceed `long`.  Ideally, these
 should not be used at all and the native `ASN1_INTEGER` type retained.
+
