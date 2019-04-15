@@ -1057,19 +1057,18 @@ out:
 /*
  * Process parsed content.
  * For non-ROAs, we grok for more data.
- * For ROAs, we want to extract the valid/invalid info.
+ * For ROAs, we want to extract the valid info.
+ * In all cases, we gather statistics.
  */
 static void
-entity_process(int norev, int proc, int rsync, struct stats *st,
+entity_process(int proc, int rsync, struct stats *st,
 	struct entityq *q, const struct entity *ent, struct repotab *rt,
-	size_t *eid)
+	size_t *eid, struct roa ***out, size_t *outsz)
 {
-	struct tal	*tal = NULL;
-	struct cert	*cert = NULL;
-	struct mft	*mft = NULL;
-	struct roa	*roa = NULL;
-	char		 buf[64];
-	size_t		 i;
+	struct tal	*tal;
+	struct cert	*cert;
+	struct mft	*mft;
+	struct roa	*roa;
 	int		 c;
 
 	switch (ent->type) {
@@ -1099,6 +1098,7 @@ entity_process(int norev, int proc, int rsync, struct stats *st,
 		if (cert->mft != NULL)
 			queue_add_from_cert(proc, rsync, 
 				q, cert->mft, rt, eid);
+		cert_free(cert);
 		break;
 	case RTYPE_MFT:
 		st->mfts++;
@@ -1106,61 +1106,47 @@ entity_process(int norev, int proc, int rsync, struct stats *st,
 		if (mft->stale)
 			st->mfts_stale++;
 		queue_add_from_mft_set(proc, q, mft, eid);
+		mft_free(mft);
 		break;
 	case RTYPE_CRL:
-		if (norev)
-			break;
 		st->crls++;
 		break;
 	case RTYPE_ROA:
 		st->roas++;
 		roa = roa_read(proc);
-		if (roa->invalid) {
+		if (!roa->invalid) {
+			*out = reallocarray(*out,
+				*outsz + 1, sizeof(struct roa *));
+			if (*out == NULL)
+				err(EXIT_FAILURE, NULL);
+			(*out)[*outsz] = roa;
+			(*outsz)++;
+		} else {
 			st->roas_invalid++;
-			break;
-		}
-
-		/* 
-		 * FIXME: obviously this should be in its own output
-		 * module and not stuffed right in here.
-		 */
-
-		for (i = 0; i < roa->ipsz; i++) {
-			ip_addr_print(&roa->ips[i].addr, 
-				roa->ips[i].afi, buf, sizeof(buf));
-			printf("%s ", buf);
-			if (roa->ips[i].maxlength >
-			    (roa->ips[i].addr.sz * 8 - 
-			     roa->ips[i].addr.unused))
-				printf("maxlen %zu ", roa->ips[i].maxlength);
-			printf("source-as %" PRIu32 "\n", roa->asid);
+			roa_free(roa);
 		}
 		break;
 	default:
 		abort();
 	}
-
-	tal_free(tal);
-	mft_free(mft);
-	roa_free(roa);
-	cert_free(cert);
 }
 
 int
 main(int argc, char *argv[])
 {
-	int		 rc = 0, c, proc, st, rsync,
-			 fl = SOCK_STREAM | SOCK_CLOEXEC, noop = 0,
-			 force = 0, norev = 0;
-	size_t		 i, j, eid = 1;
-	pid_t		 procpid, rsyncpid;
-	int		 fd[2];
-	struct entityq	 q;
-	struct entity	*ent;
-	struct pollfd	 pfd[2];
-	struct repotab	 rt;
-	struct stats	 stats;
-	const char	*rsync_prog = "openrsync";
+	int		  rc = 0, c, proc, st, rsync,
+			  fl = SOCK_STREAM | SOCK_CLOEXEC, noop = 0,
+			  force = 0, norev = 0;
+	size_t		  i, j, eid = 1, outsz = 0;
+	pid_t		  procpid, rsyncpid;
+	int		  fd[2];
+	struct entityq	  q;
+	struct entity	 *ent;
+	struct pollfd	  pfd[2];
+	struct repotab	  rt;
+	struct stats	  stats;
+	struct roa	**out = NULL;
+	const char	 *rsync_prog = "openrsync";
 
 	/* Main pledge. */
 
@@ -1339,8 +1325,8 @@ main(int argc, char *argv[])
 
 		if ((pfd[1].revents & POLLIN)) {
 			ent = entityq_next(proc, &q);
-			entity_process(norev, proc, rsync,
-				&stats, &q, ent, &rt, &eid);
+			entity_process(proc, rsync, &stats,
+				&q, ent, &rt, &eid, &out, &outsz);
 			if (verbose > 1)
 				fprintf(stderr, "%s\n", ent->uri);
 			entity_free(ent);
@@ -1373,6 +1359,9 @@ main(int argc, char *argv[])
 		rc = 0;
 	}
 
+	/* Output and statistics. */
+
+	output_bgpd((const struct roa **)out, outsz);
 	logx("Routes: %zu (%zu invalid)", stats.roas, stats.roas_invalid);
 	logx("Certificates: %zu (%zu failed parse)", 
 		stats.certs, stats.certs_fail);
@@ -1388,6 +1377,11 @@ main(int argc, char *argv[])
 		free(rt.repos[i].module);
 	}
 	free(rt.repos);
+
+	for (i = 0; i < outsz; i++)
+		roa_free(out[i]);
+	free(out);
+
 	ERR_free_strings();
 	return rc ? EXIT_SUCCESS : EXIT_FAILURE;
 
