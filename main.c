@@ -770,6 +770,8 @@ proc_parser_mft(struct entity *entp, int force, X509_STORE *store,
  * another certificate) or TALs (has a pkey and is self-signed).
  * Parse the certificate, make sure its signatures are valid (with CRLs
  * unless "norev" has been specified), then validate the RPKI content.
+ * This returns a certificate (which must not be freed) or NULL on parse
+ * failure.
  */
 static struct cert *
 proc_parser_cert(const struct entity *entp, int norev, 
@@ -820,6 +822,7 @@ proc_parser_cert(const struct entity *entp, int norev,
 				X509_verify_cert_error_string(c));
 			X509_STORE_CTX_cleanup(ctx);
 			X509_free(x509);
+			cert_free(cert);
 			return NULL;
 		}
 	}
@@ -831,6 +834,7 @@ proc_parser_cert(const struct entity *entp, int norev,
 		valid_ta(x509, entp->uri, auths, authsz, 
 			entp->pkey, entp->pkeysz, cert) :
 		valid_cert(x509, entp->uri, auths, authsz, cert);
+
 	if (!c) {
 		cert_free(cert);
 		X509_free(x509);
