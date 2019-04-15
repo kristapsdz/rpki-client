@@ -667,9 +667,16 @@ out:
 	/* NOTREACHED */
 }
 
+/*
+ * Parse and validate a ROA, not parsing the CRL bits of "norev" has
+ * been set.
+ * This is standard stuff.
+ * Returns the roa on success, NULL on failure.
+ */
 static struct roa *
-proc_parser_roa(struct entry *entp, X509_STORE *store,
-	X509_STORE_CTX *ctx, const struct auth *auths, size_t authsz)
+proc_parser_roa(struct entry *entp, int norev,
+	X509_STORE *store, X509_STORE_CTX *ctx, 
+	const struct auth *auths, size_t authsz)
 {
 	struct roa	  *roa;
 	X509		  *x509;
@@ -680,24 +687,19 @@ proc_parser_roa(struct entry *entp, X509_STORE *store,
 	assert(entp->has_dgst);
 	if ((roa = roa_parse(&x509, entp->uri, entp->dgst)) == NULL)
 		return NULL;
-	
-	/*
-	 * If the ROA isn't valid, we accept it anyway and depend upon
-	 * the code around roa_read() to check the "invalid" field
-	 * itself.
-	 */
 
 	assert(x509 != NULL);
-	valid_roa(x509, entp->uri, auths, authsz, roa);
-
 	if (!X509_STORE_CTX_init(ctx, store, x509, NULL))
 		cryptoerrx("X509_STORE_CTX_init");
-	if ((param = X509_STORE_CTX_get0_param(ctx)) == NULL)
-		cryptoerrx("X509_STORE_CTX_get0_param");
-	fl = X509_VERIFY_PARAM_get_flags(param);
-	nfl = X509_V_FLAG_CRL_CHECK | X509_V_FLAG_CRL_CHECK_ALL;
-	if (!X509_VERIFY_PARAM_set_flags(param, fl | nfl))
-		cryptoerrx("X509_VERIFY_PARAM_set_flags");
+
+	if (!norev) {
+		if ((param = X509_STORE_CTX_get0_param(ctx)) == NULL)
+			cryptoerrx("X509_STORE_CTX_get0_param");
+		fl = X509_VERIFY_PARAM_get_flags(param);
+		nfl = X509_V_FLAG_CRL_CHECK | X509_V_FLAG_CRL_CHECK_ALL;
+		if (!X509_VERIFY_PARAM_set_flags(param, fl | nfl))
+			cryptoerrx("X509_VERIFY_PARAM_set_flags");
+	}
 
 	if (X509_verify_cert(ctx) <= 0) {
 		c = X509_STORE_CTX_get_error(ctx);
@@ -708,52 +710,49 @@ proc_parser_roa(struct entry *entp, X509_STORE *store,
 		roa_free(roa);
 		return NULL;
 	}
-
 	X509_STORE_CTX_cleanup(ctx);
+	
+	/*
+	 * If the ROA isn't valid, we accept it anyway and depend upon
+	 * the code around roa_read() to check the "invalid" field
+	 * itself.
+	 */
+
+	valid_roa(x509, entp->uri, auths, authsz, roa);
 	X509_free(x509);
 	return roa;
 }
 
+/*
+ * Parse and validate a manifest file.
+ * Here we *don't* validate against the list of CRLs, because the
+ * certificate used to sign the manifest may specify a CRL that the root
+ * certificate didn't, and we haven't scanned for it yet.
+ * This chicken-and-egg isn't important, however, because we'll catch
+ * the revocation list by the time we scan for any contained resources
+ * (ROA, CER) and will see it then.
+ * Return the mft on success or NULL on failure.
+ */
 static struct mft *
 proc_parser_mft(struct entry *entp, int force, X509_STORE *store,
 	X509_STORE_CTX *ctx, const struct auth *auths, size_t authsz)
 {
-	struct mft	  *mft;
-	X509		  *x509;
-	int		   c;
-	/*X509_VERIFY_PARAM *param;
-	unsigned int	   fl, nfl;*/
+	struct mft	*mft;
+	X509		*x509;
+	int		 c;
 
 	assert(!entp->has_dgst);
 	if ((mft = mft_parse(&x509, entp->uri, force)) == NULL)
 		return NULL;
-	/*nfl = X509_V_FLAG_CRL_CHECK | X509_V_FLAG_CRL_CHECK_ALL;*/
 
-	/* 
-	 * Do this twice: once with the assumption that we have a valid
-	 * CRL (mandatory for all MFTs not inheriting directly from the
-	 * root certificate), then again, without.
-	 */
-/*again:*/
 	if (!X509_STORE_CTX_init(ctx, store, x509, NULL))
 		cryptoerrx("X509_STORE_CTX_init");
-	/*if ((param = X509_STORE_CTX_get0_param(ctx)) == NULL)
-		cryptoerrx("X509_STORE_CTX_get0_param");
-	fl = X509_VERIFY_PARAM_get_flags(param);
-	if (!X509_VERIFY_PARAM_set_flags(param, fl | nfl))
-		cryptoerrx("X509_VERIFY_PARAM_set_flags");
-	nfl = 0;*/
 
 	if (X509_verify_cert(ctx) <= 0) {
 		c = X509_STORE_CTX_get_error(ctx);
 		X509_STORE_CTX_cleanup(ctx);
 		warnx("%s: %s", entp->uri,
 			X509_verify_cert_error_string(c));
-		/*if (X509_V_ERR_UNABLE_TO_GET_CRL == c) {
-			warnx("%s: trying again "
-				"without CRL...", entp->uri);
-			goto again;
-		}*/
 		mft_free(mft);
 		X509_free(x509);
 		return NULL;
@@ -765,46 +764,51 @@ proc_parser_mft(struct entry *entp, int force, X509_STORE *store,
 }
 
 /* 
- * Certificates are from manifests or TALs.
- * In the former case, the certificates have digests and infer the
- * signer from the SKI record of the certificate.
- * In the latter case, we're given the public key from the TAL itself.
+ * Certificates are from manifests (has a digest and is signed with
+ * another certificate) or TALs (has a pkey and is self-signed).
+ * Parse the certificate, make sure its signatures are valid (with CRLs
+ * unless "norev" has been specified), then validate the RPKI content.
  */
 static struct cert *
-proc_parser_cert(struct entry *entp, int norev, X509_STORE *store,
-	X509_STORE_CTX *ctx, struct auth **auths, size_t *authsz)
+proc_parser_cert(const struct entry *entp, int norev, 
+	X509_STORE *store, X509_STORE_CTX *ctx, 
+	struct auth **auths, size_t *authsz)
 {
-	struct cert	  *cert;
-	X509		  *x509;
-	int		   c;
-	X509_VERIFY_PARAM *param;
-	unsigned int	   fl, nfl;
+	struct cert	    *cert;
+	X509		    *x509;
+	int		     c;
+	X509_VERIFY_PARAM   *param;
+	unsigned int	     fl, nfl;
+	const unsigned char *dgst;
 
-	assert(entp->has_dgst || entp->has_pkey);
-	cert = cert_parse(&x509, entp->uri, 
-		entp->has_dgst ? entp->dgst : NULL);
-	if (cert == NULL)
+	/* Extract certificate data and X509. */
+
+	dgst = entp->has_dgst ? entp->dgst : NULL;
+	if ((cert = cert_parse(&x509, entp->uri, dgst)) == NULL)
 		return NULL;
+
+	/* 
+	 * Validate certificate chain w/CRLs.
+	 * Only check the CRLs if specifically asked.
+	 */
 
 	assert(x509 != NULL);
-	c = entp->has_pkey ?
-		valid_ta(x509, entp->uri, auths, authsz, 
-			entp->pkey, entp->pkeysz, cert) :
-		valid_cert(x509, entp->uri, auths, authsz, cert);
-	if (!c) {
-		cert_free(cert);
-		X509_free(x509);
-		return NULL;
-	}
-
 	if (!X509_STORE_CTX_init(ctx, store, x509, NULL))
 		cryptoerrx("X509_STORE_CTX_init");
-	if ((param = X509_STORE_CTX_get0_param(ctx)) == NULL)
-		cryptoerrx("X509_STORE_CTX_get0_param");
-	fl = X509_VERIFY_PARAM_get_flags(param);
-	nfl = X509_V_FLAG_CRL_CHECK | X509_V_FLAG_CRL_CHECK_ALL;
-	if (!X509_VERIFY_PARAM_set_flags(param, fl | nfl))
-		cryptoerrx("X509_VERIFY_PARAM_set_flags");
+	
+	if (!norev) {
+		if ((param = X509_STORE_CTX_get0_param(ctx)) == NULL)
+			cryptoerrx("X509_STORE_CTX_get0_param");
+		fl = X509_VERIFY_PARAM_get_flags(param);
+		nfl = X509_V_FLAG_CRL_CHECK | X509_V_FLAG_CRL_CHECK_ALL;
+		if (!X509_VERIFY_PARAM_set_flags(param, fl | nfl))
+			cryptoerrx("X509_VERIFY_PARAM_set_flags");
+	}
+
+	/* 
+	 * FIXME: can we pass any options to the verification that make
+	 * the depth-zero self-signed bits verify properly?
+	 */
 
 	if (X509_verify_cert(ctx) <= 0) {
 		c = X509_STORE_CTX_get_error(ctx);
@@ -817,22 +821,50 @@ proc_parser_cert(struct entry *entp, int norev, X509_STORE *store,
 			return NULL;
 		}
 	}
-
 	X509_STORE_CTX_cleanup(ctx);
+
+	/* Semantic validation of RPKI content. */
+
+	c = entp->has_pkey ?
+		valid_ta(x509, entp->uri, auths, authsz, 
+			entp->pkey, entp->pkeysz, cert) :
+		valid_cert(x509, entp->uri, auths, authsz, cert);
+	if (!c) {
+		cert_free(cert);
+		X509_free(x509);
+		return NULL;
+	}
+
+	/* 
+	 * Only on success of all do we add the certificate to the store
+	 * of trusted certificates.
+	 */
+
 	X509_STORE_add_cert(store, x509);
 	X509_free(x509);
 	return cert;
 }
 
+/*
+ * Parse a certificate revocation list (unless "norev", in which case
+ * this is a noop that returns success).
+ * This simply parses the CRL content itself, optionally validating it
+ * within the digest if it comes from a manifest, then adds it to the
+ * store of CRLs.
+ * Return zero on failure, non-zero on success.
+ */
 static int
-proc_parser_crl(struct entry *entp, X509_STORE *store,
+proc_parser_crl(struct entry *entp, int norev, X509_STORE *store,
 	X509_STORE_CTX *ctx, const struct auth *auths, size_t authsz)
 {
-	X509_CRL	*x509;
+	X509_CRL	    *x509;
+	const unsigned char *dgst;
 
-	x509 = crl_parse(entp->uri,
-		entp->has_dgst ? entp->dgst : NULL);
-	if (x509 == NULL)
+	if (norev)
+		return 1;
+
+	dgst = entp->has_dgst ? entp->dgst : NULL;
+	if ((x509 = crl_parse(entp->uri, dgst)) == NULL)
 		return 0;
 	X509_STORE_add_crl(store, x509);
 	X509_CRL_free(x509);
@@ -866,10 +898,6 @@ proc_parser(int fd, int force, int norev)
 
 	if ((store = X509_STORE_new()) == NULL)
 		cryptoerrx("X509_STORE_new");
-
-	/*if (!X509_STORE_set_flags(store, X509_V_FLAG_CRL_CHECK | X509_V_FLAG_CRL_CHECK_ALL))
-		cryptoerrx("X509_STORE_set_flags");*/
-
 	if ((ctx = X509_STORE_CTX_new()) == NULL)
 		cryptoerrx("X509_STORE_CTX_new");
 
@@ -960,6 +988,11 @@ proc_parser(int fd, int force, int norev)
 			if (cert == NULL)
 				goto out;
 			cert_buffer(&b, &bsz, &bmax, cert);
+			/* 
+			 * The parsed certificate data "cert" is now
+			 * managed in the "auths" table, so don't free
+			 * it here (see the loop after "out").
+			 */
 			break;
 		case RTYPE_MFT:
 			mft = proc_parser_mft(entp, force,
@@ -970,15 +1003,13 @@ proc_parser(int fd, int force, int norev)
 			mft_free(mft);
 			break;
 		case RTYPE_CRL:
-			if (norev)
-				break;
-			if (!proc_parser_crl
-			    (entp, store, ctx, auths, authsz))
+			if (!proc_parser_crl(entp, 
+			    norev, store, ctx, auths, authsz))
 				goto out;
 			break;
 		case RTYPE_ROA:
 			assert(entp->has_dgst);
-			roa = proc_parser_roa(entp, 
+			roa = proc_parser_roa(entp, norev,
 				store, ctx, auths, authsz);
 			if (roa == NULL)
 				goto out;

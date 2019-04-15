@@ -1086,10 +1086,11 @@ out:
 }
 
 /*
- * Parse and optionally validate a signed X509 certificate.
- * Then parse the X509v3 extensions as defined in RFC 6487.
- * Returns the parse results or NULL on failure.
- * On success, free the pointer with cert_free().
+ * Parse and partially validate an RPKI X509 certificate (either a trust
+ * anchor or a certificate) as defined in RFC 6487.
+ * Returns the parse results or NULL on failure ("xp" will be NULL too).
+ * On success, free the pointer with cert_free() and make sure that "xp"
+ * is also dereferenced.
  */
 struct cert *
 cert_parse(X509 **xp, const char *fn, const unsigned char *dgst)
@@ -1215,6 +1216,10 @@ out:
 	return (rc == 0) ? NULL : p.res;
 }
 
+/*
+ * Free parsed certificate contents.
+ * Passing NULL is a noop.
+ */
 void
 cert_free(struct cert *p)
 {
@@ -1262,7 +1267,7 @@ cert_as_buffer(char **b, size_t *bsz,
 }
 
 /*
- * Write certificate parsed content.
+ * Write certificate parsed content into buffer.
  * See cert_read() for the other side of the pipe.
  */
 void
@@ -1318,8 +1323,9 @@ cert_as_read(int fd, struct cert_as *p)
 }
 
 /*
- * Read parsed certificate content.
+ * Allocate and read parsed certificate content from descriptor.
  * The pointer must be freed with cert_free().
+ * Always returns a valid pointer.
  */
 struct cert *
 cert_read(int fd)
