@@ -49,6 +49,7 @@ struct	stats {
 	size_t	 mfts; /* total number of manifests */
 	size_t	 mfts_stale; /* stale manifests */
 	size_t	 certs; /* certificates */
+	size_t	 certs_fail; /* failing syntactic parse */
 	size_t	 roas; /* route announcements */
 	size_t	 roas_invalid; /* invalid routes */
 	size_t	 repos; /* repositories */
@@ -888,7 +889,7 @@ proc_parser(int fd, int force, int norev)
 	struct roa	*roa;
 	struct entity	*entp;
 	struct entityq	 q;
-	int		 rc = 0;
+	int		 c, rc = 0;
 	struct pollfd	 pfd;
 	char		*b = NULL;
 	size_t		 i, bsz = 0, bmax = 0, bpos = 0, authsz = 0;
@@ -989,9 +990,10 @@ proc_parser(int fd, int force, int norev)
 		case RTYPE_CER:
 			cert = proc_parser_cert(entp, norev,
 				store, ctx, &auths, &authsz);
-			if (cert == NULL)
-				goto out;
-			cert_buffer(&b, &bsz, &bmax, cert);
+			c = (cert != NULL);
+			io_simple_buffer(&b, &bsz, &bmax, &c, sizeof(int));
+			if (cert != NULL)
+				cert_buffer(&b, &bsz, &bmax, cert);
 			/* 
 			 * The parsed certificate data "cert" is now
 			 * managed in the "auths" table, so don't free
@@ -1064,6 +1066,7 @@ entity_process(int norev, int proc, int rsync, struct stats *st,
 	struct roa	*roa = NULL;
 	char		 buf[64];
 	size_t		 i;
+	int		 c;
 
 	switch (ent->type) {
 	case RTYPE_TAL:
@@ -1073,7 +1076,11 @@ entity_process(int norev, int proc, int rsync, struct stats *st,
 		break;
 	case RTYPE_CER:
 		st->certs++;
-		cert = cert_read(proc);
+		io_simple_read(proc, &c, sizeof(int));
+		if (c == 0) {
+			st->certs_fail++;
+			break;
+		}
 
 		/*
 		 * Process the revocation list from the certificate
@@ -1081,6 +1088,7 @@ entity_process(int norev, int proc, int rsync, struct stats *st,
 		 * then we don't want to process the MFT.
 		 */
 
+		cert = cert_read(proc);
 		if (cert->crl != NULL)
 			queue_add_from_cert(proc, rsync, 
 				q, cert->crl, rt, eid);
@@ -1362,7 +1370,8 @@ main(int argc, char *argv[])
 	}
 
 	logx("Routes: %zu (%zu invalid)", stats.roas, stats.roas_invalid);
-	logx("Certificates: %zu", stats.certs);
+	logx("Certificates: %zu (%zu failed parse)", 
+		stats.certs, stats.certs_fail);
 	logx("Trust anchor locators: %zu", stats.tals);
 	logx("Manifests: %zu (%zu stale)", stats.mfts, stats.mfts_stale);
 	logx("Certificate revocation lists: %zu", stats.crls);
