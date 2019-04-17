@@ -28,13 +28,14 @@
 #include "extern.h"
 
 static void
-tal_print(const struct tal *tal)
+tal_print(const struct tal *p)
 {
 	size_t	 i;
 
-	assert(tal != NULL);
-	for (i = 0; i < tal->urisz; i++)
-		fprintf(stderr, "%5zu: URI: %s\n", i + 1, tal->uri[i]);
+	assert(p != NULL);
+
+	for (i = 0; i < p->urisz; i++)
+		printf("%5zu: URI: %s\n", i + 1, p->uri[i]);
 }
 
 int
