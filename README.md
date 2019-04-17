@@ -287,16 +287,3 @@ However, the system depends heavily on OpenBSD's security mechanisms to
 safely and securely parse untrusted content.
 A port of the system without equivalent security measures is not
 complete and should not be trusted.
-
-Several other portability issues relate to OpenSSL:
-
-- `long` needs to be >32 bits to encompass all possible AS number
-  values as specified by RFC 6793.  Anything less will require special
-  conversion from the `ASN1_INTEGER` values, as the standard way of
-  extracting via a `long` will truncate.
-- it's not clear how OpenSSL will handle the 32-bit time expiration
-
-In general, the use of `ASN1_INTEGER_get` needs to be audited to make
-sure that the possible numbers don't exceed `long`.  Ideally, these
-should not be used at all and the native `ASN1_INTEGER` type retained.
-
