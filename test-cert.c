@@ -109,7 +109,10 @@ main(int argc, char *argv[])
 	argc -= optind;
 
 	for (i = 0; i < (size_t)argc; i++) {
-		if ((p = cert_parse(&xp, argv[i], NULL, ta)) == NULL)
+		p = ta ?
+			ta_parse(&xp, argv[i], NULL, 0) :
+			cert_parse(&xp, argv[i], NULL);
+		if (p == NULL)
 			break;
 		if (verb)
 			cert_print(p);

@@ -781,12 +781,14 @@ proc_parser_cert(const struct entity *entp, int norev,
 	int		     c;
 	X509_VERIFY_PARAM   *param;
 	unsigned int	     fl, nfl;
-	const unsigned char *dgst;
+
+	assert(!entp->has_dgst != !entp->has_pkey);
 
 	/* Extract certificate data and X509. */
 
-	dgst = entp->has_dgst ? entp->dgst : NULL;
-	cert = cert_parse(&x509, entp->uri, dgst, entp->has_pkey);
+	cert = entp->has_pkey ?
+		cert_parse(&x509, entp->uri, entp->dgst) :
+		ta_parse(&x509, entp->uri, entp->pkey, entp->pkeysz);
 	if (cert == NULL)
 		return NULL;
 
@@ -830,8 +832,7 @@ proc_parser_cert(const struct entity *entp, int norev,
 	/* Semantic validation of RPKI content. */
 
 	c = entp->has_pkey ?
-		valid_ta(x509, entp->uri, auths, authsz, 
-			entp->pkey, entp->pkeysz, cert) :
+		valid_ta(entp->uri, auths, authsz, cert) :
 		valid_cert(entp->uri, auths, authsz, cert);
 
 	if (!c) {

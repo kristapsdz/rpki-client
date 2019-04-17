@@ -1093,8 +1093,8 @@ out:
  * On success, free the pointer with cert_free() and make sure that "xp"
  * is also dereferenced.
  */
-struct cert *
-cert_parse(X509 **xp, const char *fn, const unsigned char *dgst, int ta)
+static struct cert *
+cert_parse_inner(X509 **xp, const char *fn, const unsigned char *dgst, int ta)
 {
 	int	 	 rc = 0, extsz, c, sz;
 	size_t		 i;
@@ -1253,6 +1253,52 @@ out:
 		*xp = NULL;
 	}
 	return (rc == 0) ? NULL : p.res;
+}
+
+struct cert *
+cert_parse(X509 **xp, const char *fn, const unsigned char *dgst)
+{
+
+	return cert_parse_inner(xp, fn, dgst, 0);
+}
+
+struct cert *
+ta_parse(X509 **xp, const char *fn, const unsigned char *pkey, size_t pkeysz)
+{
+	EVP_PKEY	*pk = NULL, *opk = NULL;
+	struct cert	*p;
+	int		 rc = 0;
+
+	if ((p = cert_parse_inner(xp, fn, NULL, 1)) == NULL)
+		return NULL;
+
+	if (pkey != NULL) {
+		assert(*xp != NULL);
+		pk = d2i_PUBKEY(NULL, &pkey, pkeysz);
+		assert(pk != NULL);
+
+		if ((opk = X509_get_pubkey(*xp)) == NULL)
+			cryptowarnx("%s: RFC 6487 (trust anchor): "
+				"missing pubkey", fn);
+		else if (!EVP_PKEY_cmp(pk, opk))
+			cryptowarnx("%s: RFC 6487 (trust anchor): "
+				"pubkey does not match TAL pubkey", fn);
+		else
+			rc = 1;
+
+		EVP_PKEY_free(pk);
+		EVP_PKEY_free(opk);
+	} else
+		rc = 1;
+
+	if (rc == 0) {
+		cert_free(p);
+		p = NULL;
+		X509_free(*xp);
+		*xp = NULL;
+	}
+
+	return p;
 }
 
 /*
