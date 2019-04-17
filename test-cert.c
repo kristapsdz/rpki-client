@@ -39,24 +39,24 @@ cert_print(const struct cert *p)
 
 	assert(p != NULL);
 
-	fprintf(stderr, "Manifest: %s\n", p->mft);
+	printf("Manifest: %s\n", p->mft);
 	if (p->crl != NULL)
-		fprintf(stderr, "Revocation list: %s\n", p->crl);
-	fprintf(stderr, "Subject key identifier: %s\n", p->ski);
+		printf("Revocation list: %s\n", p->crl);
+	printf("Subject key identifier: %s\n", p->ski);
 	if (p->aki != NULL)
-		fprintf(stderr, "Authority key identifier: %s\n", p->aki);
+		printf("Authority key identifier: %s\n", p->aki);
 
 	for (i = 0; i < p->asz; i++)
 		switch (p->as[i].type) {
 		case CERT_AS_ID:
-			fprintf(stderr, "%5zu: AS: %" 
+			printf("%5zu: AS: %" 
 				PRIu32 "\n", i + 1, p->as[i].id);
 			break;
 		case CERT_AS_INHERIT:
-			fprintf(stderr, "%5zu: AS: inherit\n", i + 1);
+			printf("%5zu: AS: inherit\n", i + 1);
 			break;
 		case CERT_AS_RANGE:
-			fprintf(stderr, "%5zu: AS: %" 
+			printf("%5zu: AS: %" 
 				PRIu32 "--%" PRIu32 "\n", i + 1, 
 				p->as[i].range.min, p->as[i].range.max);
 			break;
@@ -65,19 +65,19 @@ cert_print(const struct cert *p)
 	for (i = 0; i < p->ipsz; i++)
 		switch (p->ips[i].type) {
 		case CERT_IP_INHERIT:
-			fprintf(stderr, "%5zu: IP: inherit\n", i + 1);
+			printf("%5zu: IP: inherit\n", i + 1);
 			break;
 		case CERT_IP_ADDR:
 			ip_addr_print(&p->ips[i].ip, 
 				p->ips[i].afi, buf1, sizeof(buf1));
-			fprintf(stderr, "%5zu: IP: %s\n", i + 1, buf1);
+			printf("%5zu: IP: %s\n", i + 1, buf1);
 			break;
 		case CERT_IP_RANGE:
 			sockt = (p->ips[i].afi == AFI_IPV4) ? 
 				AF_INET : AF_INET6;
 			inet_ntop(sockt, p->ips[i].min, buf1, sizeof(buf1));
 			inet_ntop(sockt, p->ips[i].max, buf2, sizeof(buf2));
-			fprintf(stderr, "%5zu: IP: %s--%s\n", i + 1, buf1, buf2);
+			printf("%5zu: IP: %s--%s\n", i + 1, buf1, buf2);
 			break;
 		}
 }
