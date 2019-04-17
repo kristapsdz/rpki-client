@@ -686,7 +686,7 @@ proc_parser_roa(struct entity *entp, int norev,
 	X509		  *x509;
 	int		   c;
 	X509_VERIFY_PARAM *param;
-	unsigned int	   fl, nfl;
+	unsigned int	   fl, nfl = 0;
 
 	assert(entp->has_dgst);
 	if ((roa = roa_parse(&x509, entp->uri, entp->dgst)) == NULL)
@@ -696,14 +696,17 @@ proc_parser_roa(struct entity *entp, int norev,
 	if (!X509_STORE_CTX_init(ctx, store, x509, NULL))
 		cryptoerrx("X509_STORE_CTX_init");
 
-	if (!norev) {
-		if ((param = X509_STORE_CTX_get0_param(ctx)) == NULL)
-			cryptoerrx("X509_STORE_CTX_get0_param");
-		fl = X509_VERIFY_PARAM_get_flags(param);
-		nfl = X509_V_FLAG_CRL_CHECK | X509_V_FLAG_CRL_CHECK_ALL;
-		if (!X509_VERIFY_PARAM_set_flags(param, fl | nfl))
-			cryptoerrx("X509_VERIFY_PARAM_set_flags");
-	}
+	if ((param = X509_STORE_CTX_get0_param(ctx)) == NULL)
+		cryptoerrx("X509_STORE_CTX_get0_param");
+	fl = X509_VERIFY_PARAM_get_flags(param);
+	if (!norev)
+		nfl |= X509_V_FLAG_CRL_CHECK | 
+		       X509_V_FLAG_CRL_CHECK_ALL;
+#ifdef UNSAFE_i386
+	nfl |= X509_V_FLAG_IGNORE_CRITICAL;
+#endif
+	if (!X509_VERIFY_PARAM_set_flags(param, fl | nfl))
+		cryptoerrx("X509_VERIFY_PARAM_set_flags");
 
 	if (X509_verify_cert(ctx) <= 0) {
 		c = X509_STORE_CTX_get_error(ctx);
@@ -740,9 +743,11 @@ static struct mft *
 proc_parser_mft(struct entity *entp, int force, X509_STORE *store,
 	X509_STORE_CTX *ctx, const struct auth *auths, size_t authsz)
 {
-	struct mft	*mft;
-	X509		*x509;
-	int		 c;
+	struct mft	    *mft;
+	X509		    *x509;
+	int		     c;
+	unsigned int	     fl, nfl = 0;
+	X509_VERIFY_PARAM   *param;
 
 	assert(!entp->has_dgst);
 	if ((mft = mft_parse(&x509, entp->uri, force)) == NULL)
@@ -750,6 +755,15 @@ proc_parser_mft(struct entity *entp, int force, X509_STORE *store,
 
 	if (!X509_STORE_CTX_init(ctx, store, x509, NULL))
 		cryptoerrx("X509_STORE_CTX_init");
+
+	if ((param = X509_STORE_CTX_get0_param(ctx)) == NULL)
+		cryptoerrx("X509_STORE_CTX_get0_param");
+	fl = X509_VERIFY_PARAM_get_flags(param);
+#ifdef UNSAFE_i386
+	nfl |= X509_V_FLAG_IGNORE_CRITICAL;
+#endif
+	if (!X509_VERIFY_PARAM_set_flags(param, fl | nfl))
+		cryptoerrx("X509_VERIFY_PARAM_set_flags");
 
 	if (X509_verify_cert(ctx) <= 0) {
 		c = X509_STORE_CTX_get_error(ctx);
@@ -783,7 +797,7 @@ proc_parser_cert(const struct entity *entp, int norev,
 	X509		    *x509;
 	int		     c;
 	X509_VERIFY_PARAM   *param;
-	unsigned int	     fl, nfl;
+	unsigned int	     fl, nfl = 0;
 	ssize_t		     id;
 
 	assert(!entp->has_dgst != !entp->has_pkey);
@@ -804,15 +818,17 @@ proc_parser_cert(const struct entity *entp, int norev,
 	assert(x509 != NULL);
 	if (!X509_STORE_CTX_init(ctx, store, x509, NULL))
 		cryptoerrx("X509_STORE_CTX_init");
-	
-	if (!norev) {
-		if ((param = X509_STORE_CTX_get0_param(ctx)) == NULL)
-			cryptoerrx("X509_STORE_CTX_get0_param");
-		fl = X509_VERIFY_PARAM_get_flags(param);
-		nfl = X509_V_FLAG_CRL_CHECK | X509_V_FLAG_CRL_CHECK_ALL;
-		if (!X509_VERIFY_PARAM_set_flags(param, fl | nfl))
-			cryptoerrx("X509_VERIFY_PARAM_set_flags");
-	}
+	if ((param = X509_STORE_CTX_get0_param(ctx)) == NULL)
+		cryptoerrx("X509_STORE_CTX_get0_param");
+	fl = X509_VERIFY_PARAM_get_flags(param);
+	if (!norev)
+		nfl |= X509_V_FLAG_CRL_CHECK | 
+		       X509_V_FLAG_CRL_CHECK_ALL;
+#ifdef UNSAFE_i386
+	nfl |= X509_V_FLAG_IGNORE_CRITICAL;
+#endif
+	if (!X509_VERIFY_PARAM_set_flags(param, fl | nfl))
+		cryptoerrx("X509_VERIFY_PARAM_set_flags");
 
 	/* 
 	 * FIXME: can we pass any options to the verification that make
