@@ -94,6 +94,13 @@ roa_parse_addr(const ASN1_OCTET_STRING *os,
 			goto out;
 		}
 		maxlength = t->value.integer;
+
+		/*
+		 * It's safe to use ASN1_INTEGER_get() here
+		 * because we're not going to have more than signed 32
+		 * bit maximum of length.
+		 */
+
 		if (ASN1_INTEGER_get(maxlength) < 0) {
 			warnx("%s: RFC 6482 section 3.2: maxLength: "
 				"want positive integer, have %ld",
@@ -246,7 +253,6 @@ roa_parse_econtent(const unsigned char *d, size_t dsz, struct parse *p)
 	ASN1_SEQUENCE_ANY 	*seq;
 	int		         i = 0, rc = 0, sz;
 	const ASN1_TYPE		*t;
-	long			 id;
 
 	/* RFC 6482, section 3. */
 
@@ -269,6 +275,13 @@ roa_parse_econtent(const unsigned char *d, size_t dsz, struct parse *p)
 
 	if (sz == 3) {
 		t = sk_ASN1_TYPE_value(seq, i++);
+
+		/*
+		 * This check with ASN1_INTEGER_get() is fine since
+		 * we're looking for a value of zero anyway, so any
+		 * overflowing number will be definition be wrong.
+		 */
+
 		if (t->type != V_ASN1_INTEGER) {
 			warnx("%s: RFC 6482 section 3.1: version: "
 				"want ASN.1 integer, have %s (NID %d)", 
@@ -294,12 +307,11 @@ roa_parse_econtent(const unsigned char *d, size_t dsz, struct parse *p)
 			"want ASN.1 integer, have %s (NID %d)", 
 			p->fn, ASN1_tag2str(t->type), t->type);
 		goto out;
-	} else if ((id = ASN1_INTEGER_get(t->value.integer)) < 0) {
-		warnx("%s: RFC 6482 section 3.2: asID: want "
-			"positive integer, have %ld", p->fn, id);
+	} else if (!as_id_parse(t->value.integer, &p->res->asid)) {
+		warnx("%s: RFC 6482 section 3.2: asID: "
+			"malformed AS identifier", p->fn);
 		goto out;
 	}
-	p->res->asid = id;
 
 	/* RFC 6482, section 3.3. */
 
