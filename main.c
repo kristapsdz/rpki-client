@@ -716,11 +716,10 @@ proc_parser_roa(struct entity *entp, int norev,
 	
 	/*
 	 * If the ROA isn't valid, we accept it anyway and depend upon
-	 * the code around roa_read() to check the "invalid" field
-	 * itself.
+	 * the code around roa_read() to check the "valid" field itself.
 	 */
 
-	valid_roa(entp->uri, auths, authsz, roa);
+	roa->valid = valid_roa(entp->uri, auths, authsz, roa);
 	return roa;
 }
 
@@ -1109,7 +1108,7 @@ entity_process(int proc, int rsync, struct stats *st,
 	case RTYPE_ROA:
 		st->roas++;
 		roa = roa_read(proc);
-		if (!roa->invalid) {
+		if (roa->valid) {
 			*out = reallocarray(*out,
 				*outsz + 1, sizeof(struct roa *));
 			if (*out == NULL)
