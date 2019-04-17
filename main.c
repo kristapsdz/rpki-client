@@ -24,7 +24,6 @@
 #include <fts.h>
 #include <inttypes.h>
 #include <poll.h>
-#include <search.h>
 #include <signal.h>
 #include <stdio.h>
 #include <stdlib.h>
@@ -713,6 +712,7 @@ proc_parser_roa(struct entity *entp, int norev,
 		return NULL;
 	}
 	X509_STORE_CTX_cleanup(ctx);
+	X509_free(x509);
 	
 	/*
 	 * If the ROA isn't valid, we accept it anyway and depend upon
@@ -720,8 +720,7 @@ proc_parser_roa(struct entity *entp, int norev,
 	 * itself.
 	 */
 
-	valid_roa(x509, entp->uri, auths, authsz, roa);
-	X509_free(x509);
+	valid_roa(entp->uri, auths, authsz, roa);
 	return roa;
 }
 
@@ -788,7 +787,8 @@ proc_parser_cert(const struct entity *entp, int norev,
 	/* Extract certificate data and X509. */
 
 	dgst = entp->has_dgst ? entp->dgst : NULL;
-	if ((cert = cert_parse(&x509, entp->uri, dgst)) == NULL)
+	cert = cert_parse(&x509, entp->uri, dgst, entp->has_pkey);
+	if (cert == NULL)
 		return NULL;
 
 	/* 
@@ -833,7 +833,7 @@ proc_parser_cert(const struct entity *entp, int norev,
 	c = entp->has_pkey ?
 		valid_ta(x509, entp->uri, auths, authsz, 
 			entp->pkey, entp->pkeysz, cert) :
-		valid_cert(x509, entp->uri, auths, authsz, cert);
+		valid_cert(entp->uri, auths, authsz, cert);
 
 	if (!c) {
 		cert_free(cert);
@@ -901,9 +901,6 @@ proc_parser(int fd, int force, int norev)
 	X509_STORE	*store;
 	X509_STORE_CTX	*ctx;
 	struct auth	*auths = NULL;
-
-	if (!hcreate(1024))
-		err(EXIT_FAILURE, NULL);
 
 	if ((store = X509_STORE_new()) == NULL)
 		cryptoerrx("X509_STORE_new");
@@ -1043,11 +1040,9 @@ out:
 
 	for (i = 0; i < authsz; i++) {
 		free(auths[i].fn);
-		free(auths[i].ski);
 		cert_free(auths[i].cert);
 	}
 
-	hdestroy();
 	X509_STORE_CTX_free(ctx);
 	X509_STORE_free(store);
 	free(auths);
@@ -1271,7 +1266,7 @@ main(int argc, char *argv[])
 		io_socket_nonblocking(pfd[0].fd);
 		io_socket_nonblocking(pfd[1].fd);
 
-		if ((c = poll(pfd, 2, 10000)) < 0)
+		if ((c = poll(pfd, 2, verbose ? 10000 : INFTIM)) < 0)
 			err(EXIT_FAILURE, "poll");
 		
 		/* Debugging: print some statistics if we stall. */
@@ -1280,11 +1275,11 @@ main(int argc, char *argv[])
 			for (i = j = 0; i < rt.reposz; i++)
 				if (!rt.repos[i].loaded)
 					j++;
-			logx("timeout: %zu pending repos", j);
+			logx("period stats: %zu pending repos", j);
 			j = 0;
 			TAILQ_FOREACH(ent, &q, entries)
 				j++;
-			logx("timeout: %zu pending entries", j);
+			logx("period stats: %zu pending entries", j);
 			continue;
 		}
 

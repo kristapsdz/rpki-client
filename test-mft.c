@@ -33,8 +33,11 @@ mft_print(const struct mft *p)
 	size_t	 i;
 
 	assert(p != NULL);
+
+	printf("Subject key identifier: %s\n", p->ski);
+	printf("Authority key identifier: %s\n", p->aki);
 	for (i = 0; i < p->filesz; i++)
-		fprintf(stderr, "%5zu: %s\n", i + 1, p->files[i].file);
+		printf("%5zu: %s\n", i + 1, p->files[i].file);
 }
 
 

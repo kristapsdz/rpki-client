@@ -1088,12 +1088,13 @@ out:
 /*
  * Parse and partially validate an RPKI X509 certificate (either a trust
  * anchor or a certificate) as defined in RFC 6487.
+ * If "ta" is set, this is a trust anchor and must be self-signed.
  * Returns the parse results or NULL on failure ("xp" will be NULL too).
  * On success, free the pointer with cert_free() and make sure that "xp"
  * is also dereferenced.
  */
 struct cert *
-cert_parse(X509 **xp, const char *fn, const unsigned char *dgst)
+cert_parse(X509 **xp, const char *fn, const unsigned char *dgst, int ta)
 {
 	int	 	 rc = 0, extsz, c, sz;
 	size_t		 i;
@@ -1179,6 +1180,16 @@ cert_parse(X509 **xp, const char *fn, const unsigned char *dgst)
 		case NID_crl_distribution_points:
 			c = sbgp_crl(&p, ext);
 			break;
+		case NID_authority_key_identifier:
+			free(p.res->aki);
+			p.res->aki = x509_get_aki_ext(ext, p.fn);
+			c = (p.res->aki != NULL);
+			break;
+		case NID_subject_key_identifier:
+			free(p.res->ski);
+			p.res->ski = x509_get_ski_ext(ext, p.fn);
+			c = (p.res->ski != NULL);
+			break;
 		default:
 			c = 1;
 			/* {
@@ -1193,15 +1204,43 @@ cert_parse(X509 **xp, const char *fn, const unsigned char *dgst)
 			goto out;
 	}
 
-	/* Make sure we have the correct extensions. */
+	/* Validation on required fields. */
+
+	if (p.res->ski == NULL) {
+		warnx("%s: RFC 6487 section 8.4.2: missing SKI", p.fn);
+		goto out;
+	}
+
+	if (ta && p.res->aki != NULL && strcmp(p.res->aki, p.res->ski)) {
+		warnx("%s: RFC 6487 section 8.4.2: trust anchor "
+			"AKI, if specified, must match SKI", p.fn);
+		goto out;
+	}
+
+	if (!ta && p.res->aki == NULL) {
+		warnx("%s: RFC 6487 section 8.4.2: non-trust "
+			"anchor missing AKI", p.fn);
+		goto out;
+	} else if (!ta && strcmp(p.res->aki, p.res->ski) == 0) {
+		warnx("%s: RFC 6487 section 8.4.2: non-trust "
+			"anchor AKI may not match SKI", p.fn);
+		goto out;
+	}
+
+	if (ta && p.res->crl != NULL) {
+		warnx("%s: RFC 6487 section 8.4.2: trust anchor "
+			"may not specify CRL resource", p.fn);
+		goto out;
+	}
 
 	if (p.res->asz == 0 && p.res->ipsz == 0) {
-		warnx("%s: RFC 6487 section 4.8.10, 4.8.11: "
-			"must have IP or AS resources", p.fn);
+		warnx("%s: RFC 6487 section 4.8.10 and 4.8.11: "
+			"missing IP or AS resources", p.fn);
 		goto out;
-	} else if (p.res->mft == NULL) {
-		warnx("%s: RFC 6487 section 4.8.8: "
-			"must specify a manifest", p.fn);
+	}
+	
+	if (p.res->mft == NULL) {
+		warnx("%s: RFC 6487 section 4.8.8: missing SIA", p.fn);
 		goto out;
 	}
 
@@ -1231,6 +1270,8 @@ cert_free(struct cert *p)
 	free(p->mft);
 	free(p->ips);
 	free(p->as);
+	free(p->aki);
+	free(p->ski);
 	free(p);
 }
 
@@ -1274,7 +1315,7 @@ void
 cert_buffer(char **b, size_t *bsz, size_t *bmax, const struct cert *p)
 {
 	size_t	 i;
-	int	 has_crl;
+	int	 has_crl, has_aki;
 
 	io_simple_buffer(b, bsz, bmax, &p->ipsz, sizeof(size_t));
 	for (i = 0; i < p->ipsz; i++)
@@ -1290,6 +1331,11 @@ cert_buffer(char **b, size_t *bsz, size_t *bmax, const struct cert *p)
 	io_simple_buffer(b, bsz, bmax, &has_crl, sizeof(int));
 	if (has_crl)
 		io_str_buffer(b, bsz, bmax, p->crl);
+	has_aki = (p->aki != NULL);
+	io_simple_buffer(b, bsz, bmax, &has_aki, sizeof(int));
+	if (has_aki)
+		io_str_buffer(b, bsz, bmax, p->aki);
+	io_str_buffer(b, bsz, bmax, p->ski);
 }
 
 static void
@@ -1332,7 +1378,7 @@ cert_read(int fd)
 {
 	struct cert	*p;
 	size_t		 i;
-	int		 has_crl;
+	int		 has_crl, has_aki;
 
 	if ((p = calloc(1, sizeof(struct cert))) == NULL)
 		err(EXIT_FAILURE, NULL);
@@ -1355,6 +1401,10 @@ cert_read(int fd)
 	io_simple_read(fd, &has_crl, sizeof(int));
 	if (has_crl)
 		io_str_read(fd, &p->crl);
+	io_simple_read(fd, &has_aki, sizeof(int));
+	if (has_aki)
+		io_str_read(fd, &p->aki);
+	io_str_read(fd, &p->ski);
 
 	return p;
 }

@@ -29,27 +29,6 @@
 
 #include "extern.h"
 
-/*
- * Wrapper around ASN1_get_object() that preserves the current start
- * state and returns a more meaningful value.
- * Return zero on failure, non-zero on success.
- */
-static int
-ASN1_frame(const char *fn, size_t sz,
-	const unsigned char **cnt, long *cntsz, int *tag)
-{
-	int	 ret, pcls;
-
-	assert(cnt != NULL && *cnt != NULL);
-	assert(sz > 0);
-	ret = ASN1_get_object(cnt, cntsz, tag, &pcls, sz);
-	if ((ret & 0x80)) {
-		cryptowarnx("%s: ASN1_get_object", fn);
-		return 0;
-	} 
-	return ASN1_object_size((ret & 0x01) ? 2 : 0, *cntsz, *tag);
-}
-
 static void
 tracewarn(size_t idx, const struct auth *auths, size_t authsz)
 {
@@ -124,200 +103,6 @@ valid_ip(size_t idx, enum afi afi,
 }
 
 /*
- * Parse X509v3 authority key identifier, RFC 6487 sec. 4.8.3.
- * Returns the AKI or NULL if it could not be parsed.
- */
-static char *
-x509_get_aki(X509_EXTENSION *ext, const char *fn)
-{
-	unsigned char		*sv = NULL;
-	const unsigned char 	*d;
-	const ASN1_TYPE		*t;
-	ASN1_SEQUENCE_ANY	*seq = NULL, *sseq = NULL;
-	int			 dsz, ptag;
-	long			 i, plen;
-	char			 buf[4];
-	char			*res = NULL;
-
-	if ((dsz = i2d_X509_EXTENSION(ext, &sv)) < 0) {
-		cryptowarnx("%s: RFC 6487 section 4.8.3: AKI: "
-			"failed extension parse", fn);
-		goto out;
-	} 
-	d = sv;
-
-	if ((seq = d2i_ASN1_SEQUENCE_ANY(NULL, &d, dsz)) == NULL) {
-		cryptowarnx("%s: RFC 6487 section 4.8.3: AKI: "
-			"failed ASN.1 sequence parse", fn);
-		goto out;
-	} else if (sk_ASN1_TYPE_num(seq) != 2) {
-		warnx("%s: RFC 6487 section 4.8.3: AKI: "
-			"want 2 elements, have %d", fn, 
-			sk_ASN1_TYPE_num(seq));
-		goto out;
-	}
-
-	t = sk_ASN1_TYPE_value(seq, 0);
-	if (t->type != V_ASN1_OBJECT) {
-		warnx("%s: RFC 6487 section 4.8.3: AKI: "
-			"want ASN.1 object, have %s (NID %d)", 
-			fn, ASN1_tag2str(t->type), t->type);
-		goto out;
-	}
-	if (OBJ_obj2nid(t->value.object) != NID_authority_key_identifier) {
-		warnx("%s: RFC 6487 section 4.8.3: AKI: "
-			"incorrect OID, have %s (NID %d)", fn, 
-			ASN1_tag2str(OBJ_obj2nid(t->value.object)), 
-			OBJ_obj2nid(t->value.object));
-		goto out;
-	}
-
-	t = sk_ASN1_TYPE_value(seq, 1);
-	if (t->type != V_ASN1_OCTET_STRING) {
-		warnx("%s: RFC 6487 section 4.8.3: AKI: "
-			"want ASN.1 octet string, have %s (NID %d)", 
-			fn, ASN1_tag2str(t->type), t->type);
-		goto out;
-	}
-
-	/* Data is really a sub-sequence...? */
-
-	d = t->value.octet_string->data;
-	dsz = t->value.octet_string->length;
-
-	if ((sseq = d2i_ASN1_SEQUENCE_ANY(NULL, &d, dsz)) == NULL) {
-		cryptowarnx("%s: RFC 6487 section 4.8.2: AKI: "
-			"failed ASN.1 sub-sequence parse", fn);
-		goto out;
-	} else if (sk_ASN1_TYPE_num(sseq) != 1) {
-		warnx("%s: RFC 6487 section 4.8.3: AKI: "
-			"want 1 element, have %d", fn, 
-			sk_ASN1_TYPE_num(seq));
-		goto out;
-	} 
-
-	t = sk_ASN1_TYPE_value(sseq, 0);
-	if (t->type != V_ASN1_OTHER) {
-		warnx("%s: RFC 6487 section 4.8.3: AKI: "
-			"want ASN.1 external, have %s (NID %d)", 
-			fn, ASN1_tag2str(t->type), t->type);
-		goto out;
-	}
-
-	d = t->value.asn1_string->data;
-	dsz = t->value.asn1_string->length;
-	if (!ASN1_frame(fn, dsz, &d, &plen, &ptag))
-		goto out;
-
-	/* Make room for [hex1, hex2, ":"]*, NUL. */
-
-	if ((res = calloc(plen * 3 + 1, 1)) == NULL)
-		err(EXIT_FAILURE, NULL);
-
-	for (i = 0; i < plen; i++) {
-		snprintf(buf, sizeof(buf), "%0.2X:", d[i]);
-		strlcat(res, buf, plen * 3 + 1);
-	}
-	res[plen * 3 - 1] = '\0';
-out:
-	sk_ASN1_TYPE_pop_free(seq, ASN1_TYPE_free);
-	sk_ASN1_TYPE_pop_free(sseq, ASN1_TYPE_free);
-	free(sv);
-	return res;
-}
-
-/*
- * Parse X509v3 subject authority key identifier, RFC 6487 sec. 4.8.2.
- * Returns the SKI or NULL if it could not be parsed.
- */
-static char *
-x509_get_ski(X509_EXTENSION *ext, const char *fn)
-{
-	const unsigned char 	*d;
-	ASN1_SEQUENCE_ANY	*seq = NULL;
-	const ASN1_TYPE		*t;
-	int			 dsz, ptag;
-	unsigned char		*sv = NULL;
-	char			 buf[4];
-	char			*res = NULL;
-	long			 j, plen;
-
-	if ((dsz = i2d_X509_EXTENSION(ext, &sv)) < 0) {
-		cryptowarnx("%s: RFC 6487 section 4.8.2: SKI: "
-			"failed extension parse", fn);
-		goto out;
-	} 
-	d = sv;
-
-	if ((seq = d2i_ASN1_SEQUENCE_ANY(NULL, &d, dsz)) == NULL) {
-		cryptowarnx("%s: RFC 6487 section 4.8.2: SKI: "
-			"failed ASN.1 sequence parse", fn);
-		goto out;
-	} else if (sk_ASN1_TYPE_num(seq) != 2) {
-		warnx("%s: RFC 6487 section 4.8.2: SKI: "
-			"want 2 elements, have %d", fn, 
-			sk_ASN1_TYPE_num(seq));
-		goto out;
-	}
-
-	t = sk_ASN1_TYPE_value(seq, 0);
-	if (t->type != V_ASN1_OBJECT) {
-		warnx("%s: RFC 6487 section 4.8.2: SKI: "
-			"want ASN.1 object, have %s (NID %d)", 
-			fn, ASN1_tag2str(t->type), t->type);
-		goto out;
-	}
-	if (OBJ_obj2nid(t->value.object) != NID_subject_key_identifier) {
-		warnx("%s: RFC 6487 section 4.8.2: SKI: "
-			"incorrect OID, have %s (NID %d)", fn, 
-			ASN1_tag2str(OBJ_obj2nid(t->value.object)), 
-			OBJ_obj2nid(t->value.object));
-		goto out;
-	}
-
-	t = sk_ASN1_TYPE_value(seq, 1);
-	if (t->type != V_ASN1_OCTET_STRING) {
-		warnx("%s: RFC 6487 section 4.8.2: SKI: "
-			"want ASN.1 octet string, have %s (NID %d)", 
-			fn, ASN1_tag2str(t->type), t->type);
-		goto out;
-	}
-
-	/* 
-	 * Parse the frame out of the ASN.1 octet string.
-	 * The content is always a 20 B (160 bit) hash.
-	 */
-
-	d = t->value.octet_string->data;
-	dsz = t->value.octet_string->length;
-
-	if (!ASN1_frame(fn, dsz, &d, &plen, &ptag))
-		goto out;
-
-	if (plen != 20) {
-		warnx("%s: RFC 6487 section 4.8.2: SKI: want 20 B "
-			"SHA1 hash, have %ld B", fn, plen);
-		goto out;
-	} 
-	assert(V_ASN1_OCTET_STRING == ptag);
-
-	/* Make room for [hex1, hex2, ":"]*, NUL. */
-
-	if ((res = calloc(plen * 3 + 1, 1)) == NULL)
-		err(EXIT_FAILURE, NULL);
-
-	for (j = 0; j < plen; j++) {
-		snprintf(buf, sizeof(buf), "%0.2X:", d[j]);
-		strlcat(res, buf, dsz * 3 + 1);
-	}
-	res[plen * 3 - 1] = '\0';
-out:
-	sk_ASN1_TYPE_pop_free(seq, ASN1_TYPE_free);
-	free(sv);
-	return res;
-}
-
-/*
  * Authenticate a trust anchor with the given public key.
  * This conforms to RFC 6487 in the case where the public key is given
  * in the TAL file and is self-signed---that is, it does not specify a
@@ -332,11 +117,8 @@ valid_ta(X509 *x, const char *fn,
 	const unsigned char *pkey, size_t pkeysz, struct cert *cert)
 {
 	EVP_PKEY	*pk = NULL, *opk = NULL;
-	int		 rc = 0, extsz, i;
-	char		*ski = NULL, *aki = NULL;
-	size_t		 j;
-	X509_EXTENSION	*ext;
-	ASN1_OBJECT	*obj;
+	int		 rc = 0;
+	size_t		 i;
 
 	assert(cert != NULL);
 	assert(pkeysz);
@@ -356,18 +138,12 @@ valid_ta(X509 *x, const char *fn,
 		goto out;
 	}
 
-	for (j = 0; j < cert->ipsz; j++) 
-		if (cert->ips[j].type == CERT_IP_INHERIT) {
+	for (i = 0; i < cert->ipsz; i++) 
+		if (cert->ips[i].type == CERT_IP_INHERIT) {
 			warnx("%s: RFC 6487 (trust anchor): "
 				"inheriting IP resources", fn);
 			goto out;
 		}
-
-	if (cert->crl != NULL) {
-		warnx("%s: RFC 6487 (trust anchor): "
-			"CRL location not allowed", fn);
-		goto out;
-	}
 
 	if ((opk = X509_get_pubkey(x)) == NULL) {
 		cryptowarnx("%s: RFC 6487 (trust anchor): "
@@ -379,57 +155,14 @@ valid_ta(X509 *x, const char *fn,
 		goto out;
 	}
 
-	/* Extract SKI and AKI from X509. */
-
-	if ((extsz = X509_get_ext_count(x)) < 0)
-		cryptoerrx("X509_get_ext_count");
-
-	for (i = 0; i < extsz; i++) {
-		ext = X509_get_ext(x, i);
-		assert(ext != NULL);
-		obj = X509_EXTENSION_get_object(ext);
-		assert(obj != NULL);
-		switch (OBJ_obj2nid(obj)) {
-		case NID_authority_key_identifier:
-			if (aki != NULL) {
-				warnx("%s: RFC 6487 (trust anchor): "
-					"repeat AKI", fn);
-				goto out;
-			}
-			if ((aki = x509_get_aki(ext, fn)) == NULL)
-				goto out;
-			break;
-		case NID_subject_key_identifier:
-			if (ski != NULL) {
-				warnx("%s: RFC 6487 (trust anchor): "
-					"repeat SKI", fn);
-				goto out;
-			}
-			if ((ski = x509_get_ski(ext, fn)) == NULL)
-				goto out;
-			break;
-		default:
-			break;
-		}
-	}
-
 	/* 
 	 * Post-validation: the AKI, if provided, should match the SKI.
 	 * The SKI must not exist.
 	 */
 
-	if (ski == NULL) {
-		warnx("%s: RFC 6487 (trust anchor): missing SKI", fn);
-		goto out;
-	} else if (aki != NULL && strcmp(aki, ski)) {
-		warnx("%s: RFC 6487 (trust anchor): "
-			"non-matching SKI and AKI", fn);
-		goto out;
-	}
-	for (j = 0; j < *authsz; j++)
-		if (strcmp((*auths)[j].ski, ski) == 0) {
-			warnx("%s: RFC 6487 (trust anchor): "
-				"re-registering SKI", fn);
+	for (i = 0; i < *authsz; i++)
+		if (strcmp((*auths)[i].cert->ski, cert->ski) == 0) {
+			warnx("%s: RFC 6487: duplicate SKI", fn);
 			goto out;
 		}
 
@@ -441,7 +174,6 @@ valid_ta(X509 *x, const char *fn,
 		err(EXIT_FAILURE, NULL);
 	(*auths)[*authsz].id = *authsz;
 	(*auths)[*authsz].parent = *authsz;
-	(*auths)[*authsz].ski = ski;
 	(*auths)[*authsz].cert = cert;
 	(*auths)[*authsz].fn = strdup(fn);
 	if ((*auths)[*authsz].fn == NULL)
@@ -449,108 +181,31 @@ valid_ta(X509 *x, const char *fn,
 	(*authsz)++;
 
 	opk = NULL;
-	ski = NULL;
 	rc = 1;
 out:
-	free(ski);
-	free(aki);
 	EVP_PKEY_free(pk);
 	EVP_PKEY_free(opk);
 	return rc;
 }
 
-/*
- * Take a signed certificate or certificate revocation list (exclusive
- * OR) as specified in RFC 6487, look up the referenced certificate
- * (AKI) in the key cache, and verify the signature.
- * This behaves slightly differently between certificate and revocation
- * list: the latter does not enact any SKI checks.
- * Returns zero on failure, non-zero on success.
- */
 static ssize_t
-x509_auth_cert(X509 *x, const char *fn,
-	const struct auth *auths, size_t authsz, char **skip)
+x509_auth_cert(const char *fn, const struct auth *auths, 
+	size_t authsz, const char *ski, const char *aki)
 {
-	int	 	 i, extsz;
-	ssize_t		 rc = -1;
-	size_t		 j;
-	char		*ski = NULL, *aki = NULL;
-	X509_EXTENSION	*ext;
-	ASN1_OBJECT	*obj;
+	size_t		 i;
 
-	if (skip != NULL)
-		*skip = NULL;
-
-	/* Extract AKI and SKI (only if X509) from certificate. */
-
-	if ((extsz = X509_get_ext_count(x)) < 0)
-		cryptoerrx("X509_get_ext_count");
-
-	for (i = 0; i < extsz; i++) {
-		ext = X509_get_ext(x, i);
-		assert(ext != NULL);
-		obj = X509_EXTENSION_get_object(ext);
-		assert(obj != NULL);
-		switch (OBJ_obj2nid(obj)) {
-		case NID_authority_key_identifier:
-			if (aki != NULL) {
-				warnx("%s: RFC 6487: repeat AKI", fn);
-				goto out;
-			}
-			if ((aki = x509_get_aki(ext, fn)) == NULL)
-				goto out;
-			break;
-		case NID_subject_key_identifier:
-			if (ski != NULL) {
-				warnx("%s: RFC 6487: repeat SKI", fn);
-				goto out;
-			}
-			if ((ski = x509_get_ski(ext, fn)) == NULL)
-				goto out;
-			break;
-		default:
-			break;
-		}
-	}
-
-	/*
-	 * Validation (mostly only for certificate, not for revocation):
-	 * AKI and SKI must exist and match, SKI must not aleady be
-	 * registered, AKI must be registered, key verification with AKI
-	 * key must succeed.
-	 */
-
-	if (ski == NULL) {
-		warnx("%s: RFC 6487: missing SKI", fn);
-		goto out;
-	}	
-
-	for (j = 0; j < authsz; j++)
-		if (strcmp(auths[j].ski, ski) == 0) {
+	for (i = 0; i < authsz; i++)
+		if (strcmp(auths[i].cert->ski, ski) == 0) {
 			warnx("%s: RFC 6487: re-registering SKI", fn);
-			goto out;
+			return -1;
 		}
 
-	for (j = 0; j < authsz; j++)
-		if (strcmp(auths[j].ski, aki) == 0)
-			break;
+	for (i = 0; i < authsz; i++)
+		if (strcmp(auths[i].cert->ski, aki) == 0)
+			return i;
 
-	if (j == authsz) {
-		warnx("%s: RFC 6487: unknown AKI", fn);
-		goto out;
-	}
-
-	/* Success: assign SKI and AKI index. */
-
-	if (skip != NULL) {
-		*skip = ski;
-		ski = NULL;
-	}
-	rc = j;
-out:
-	free(ski);
-	free(aki);
-	return rc;
+	warnx("%s: RFC 6487: unknown AKI", fn);
+	return -1;
 }
 
 /*
@@ -559,21 +214,15 @@ out:
  * On success, adds the certificate to the cache.
  */
 int
-valid_cert(X509 *x, const char *fn,
-	struct auth **auths, size_t *authsz, struct cert *cert)
+valid_cert(const char *fn, struct auth **auths, 
+	size_t *authsz, struct cert *cert)
 {
 	ssize_t	 	 c, pp;
 	size_t		 i;
 	uint32_t	 min, max;
-	char		*ski;
 	char		 buf1[64], buf2[64];
 
-	if (cert->crl == NULL) {
-		warnx("%s: RFC 6487: missing CRL", fn);
-		return 0;
-	}
-
-	c = x509_auth_cert(x, fn, *auths, *authsz, &ski);
+	c = x509_auth_cert(fn, *auths, *authsz, cert->ski, cert->aki);
 	if (c < 0)
 		return 0;
 
@@ -629,7 +278,6 @@ valid_cert(X509 *x, const char *fn,
 
 	(*auths)[*authsz].id = *authsz;
 	(*auths)[*authsz].parent = c;
-	(*auths)[*authsz].ski = ski;
 	(*auths)[*authsz].cert = cert;
 	(*auths)[*authsz].fn = strdup(fn);
 	if ((*auths)[*authsz].fn == NULL)
@@ -646,8 +294,8 @@ valid_cert(X509 *x, const char *fn,
  * Sets the "invalid" field if any of these fail.
  */
 void
-valid_roa(X509 *x, const char *fn,
-	const struct auth *auths, size_t authsz, struct roa *roa)
+valid_roa(const char *fn, const struct auth *auths, 
+	size_t authsz, struct roa *roa)
 {
 	ssize_t	 c, pp;
 	size_t	 i;
@@ -655,7 +303,8 @@ valid_roa(X509 *x, const char *fn,
 
 	roa->invalid = 1;
 
-	if ((c = x509_auth_cert(x, fn, auths, authsz, NULL)) < 0)
+	c = x509_auth_cert(fn, auths, authsz, roa->ski, roa->aki);
+	if (c < 0)
 		return;
 
 	/*
