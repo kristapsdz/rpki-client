@@ -50,8 +50,9 @@ ASN1_frame(const char *fn, size_t sz,
 }
 
 /*
- * See x509_get_aki().
- * This is used for a prior parse of the X509_EXTENSION.
+ * Parse X509v3 authority key identifier (AKI), RFC 6487 sec. 4.8.3.
+ * Returns the AKI or NULL if it could not be parsed.
+ * The AKI is formatted as aa:bb:cc:dd, with each being a hex value.
  */
 char *
 x509_get_aki_ext(X509_EXTENSION *ext, const char *fn)
@@ -113,40 +114,9 @@ out:
 }
 
 /*
- * Parse X509v3 authority key identifier (AKI), RFC 6487 sec. 4.8.3.
- * Returns the AKI or NULL if it could not be parsed.
- * The AKI is formatted as aa:bb:cc:dd, with each being a hex value.
- */
-char *
-x509_get_aki(X509 *x, const char *fn)
-{
-	X509_EXTENSION		*ext = NULL;
-	const ASN1_OBJECT	*obj;
-	int			 extsz, i;
-
-	if ((extsz = X509_get_ext_count(x)) < 0)
-		cryptoerrx("X509_get_ext_count");
-
-	for (i = 0; i < extsz; i++) {
-		ext = X509_get_ext(x, i);
-		assert(ext != NULL);
-		obj = X509_EXTENSION_get_object(ext);
-		if (OBJ_obj2nid(obj) == NID_authority_key_identifier)
-			break;
-	}
-
-	if (i == extsz) {
-		cryptowarnx("%s: RFC 6487 section 4.8.3: "
-			"AKI: missing AKI X509 extension", fn);
-		return NULL;
-	}
-
-	return x509_get_aki_ext(ext, fn);
-}
-
-/*
- * See x509_get_ski().
- * This operates on a pre-scanned extension.
+ * Parse X509v3 subject key identifier (SKI), RFC 6487 sec. 4.8.2.
+ * Returns the SKI or NULL if it could not be parsed.
+ * The SKI is formatted as aa:bb:cc:dd, with each being a hex value.
  */
 char *
 x509_get_ski_ext(X509_EXTENSION *ext, const char *fn)
@@ -197,16 +167,18 @@ out:
 }
 
 /*
- * Parse X509v3 subject key identifier (SKI), RFC 6487 sec. 4.8.2.
- * Returns the SKI or NULL if it could not be parsed.
- * The SKI is formatted as aa:bb:cc:dd, with each being a hex value.
+ * Wraps around x509_get_ski_ext and x509_get_aki_ext.
+ * Returns zero on failure (out pointers are NULL) or non-zero on
+ * success (out pointers must be freed).
  */
-char *
-x509_get_ski(X509 *x, const char *fn)
+int
+x509_get_ski_aki(X509 *x, const char *fn, char **ski, char **aki)
 {
 	X509_EXTENSION		*ext = NULL;
 	const ASN1_OBJECT	*obj;
 	int			 extsz, i;
+
+	*ski = *aki = NULL;
 
 	if ((extsz = X509_get_ext_count(x)) < 0)
 		cryptoerrx("X509_get_ext_count");
@@ -215,15 +187,31 @@ x509_get_ski(X509 *x, const char *fn)
 		ext = X509_get_ext(x, i);
 		assert(ext != NULL);
 		obj = X509_EXTENSION_get_object(ext);
-		if (OBJ_obj2nid(obj) == NID_subject_key_identifier)
+		assert(obj != NULL);
+		switch (OBJ_obj2nid(obj)) {
+		case NID_subject_key_identifier:
+			free(*ski);
+			*ski = x509_get_ski_ext(ext, fn);
 			break;
+		case NID_authority_key_identifier:
+			free(*aki);
+			*aki = x509_get_aki_ext(ext, fn);
+			break;
+		}
 	}
 
-	if (i == extsz) {
+	if (*aki == NULL) {
+		cryptowarnx("%s: RFC 6487 section 4.8.3: "
+			"AKI: missing AKI X509 extension", fn);
+		free(*ski);
+		return 0;
+	} else if (*ski == NULL) {
 		cryptowarnx("%s: RFC 6487 section 4.8.2: "
 			"AKI: missing SKI X509 extension", fn);
-		return NULL;
+		free(*aki);
+		return 0;
 	}
 
-	return x509_get_ski_ext(ext, fn);
+	assert(*ski != NULL && *aki != NULL);
+	return 1;
 }

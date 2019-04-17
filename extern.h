@@ -292,10 +292,9 @@ void		 io_str_write(int, const char *);
 
 /* X509 helpers. */
 
-char		*x509_get_aki(X509 *, const char *);
 char		*x509_get_aki_ext(X509_EXTENSION *, const char *);
-char		*x509_get_ski(X509 *, const char *);
 char		*x509_get_ski_ext(X509_EXTENSION *, const char *);
+int		 x509_get_ski_aki(X509 *, const char *, char **, char **);
 
 /* Output! */
 

@@ -364,7 +364,7 @@ struct mft *
 mft_parse(X509 **x509, const char *fn, int force)
 {
 	struct parse	 p;
-	int		 rc = 0;
+	int		 c, rc = 0;
 	size_t		 i, cmsz;
 	unsigned char	*cms;
 
@@ -381,21 +381,15 @@ mft_parse(X509 **x509, const char *fn, int force)
 		err(EXIT_FAILURE, NULL);
 	if ((p.res->file = strdup(fn)) == NULL)
 		err(EXIT_FAILURE, NULL);
-
-	if ((p.res->aki = x509_get_aki(*x509, fn)) == NULL) {
-		warnx("%s: RFC 6487 section 8.4.2: missing AKI", fn);
+	if (!x509_get_ski_aki(*x509, fn, &p.res->ski, &p.res->aki))
 		goto out;
-	} else if ((p.res->ski = x509_get_ski(*x509, fn)) == NULL) {
-		warnx("%s: RFC 6487 section 8.4.3: missing SKI", fn);
-		goto out;
-	}
 
 	/* 
 	 * If we're stale, then remove all of the files that the MFT
 	 * references as well as marking it as stale.
 	 */
 
-	if ((rc = mft_parse_econtent(cms, cmsz, &p, force)) == 0) {
+	if ((c = mft_parse_econtent(cms, cmsz, &p, force)) == 0) {
 		p.res->stale = 1;
 		if (p.res->files != NULL)
 			for (i = 0; i < p.res->filesz; i++)
@@ -403,7 +397,7 @@ mft_parse(X509 **x509, const char *fn, int force)
 		free(p.res->files);
 		p.res->filesz = 0;
 		p.res->files = NULL;
-	} else if (rc > 0)
+	} else if (c < 0)
 		goto out;
 
 	rc = 1;
