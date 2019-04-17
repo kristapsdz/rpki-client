@@ -103,49 +103,38 @@ valid_ip(size_t idx, enum afi afi,
 }
 
 /*
- * Authenticate a trust anchor with the given public key.
- * This conforms to RFC 6487 in the case where the public key is given
- * in the TAL file and is self-signed---that is, it does not specify a
- * different authority key identifier.
- * Augments the key cache with the certificate's SKI, public key, and
- * parsed data.
+ * Authenticate a trust anchor by making sure its resources are not
+ * inheriting and that the SKI is unique.
  * Returns zero on failure, non-zero on success.
+ * On success, adds the certificate to the cache.
  */
 int
 valid_ta(const char *fn, struct auth **auths,
 	size_t *authsz, struct cert *cert)
 {
-	int		 rc = 0;
-	size_t		 i;
+	size_t	 i;
 
-	/* 
-	 * Pre-validation: AS and IP resources must not inherit.  The
-	 * CRL must not be specified.  The pubkey must exist and must
-	 * match the given pubkey.
-	 */
+	/* AS and IP resources must not inherit. */
 
 	if (cert->asz && cert->as[0].type == CERT_AS_INHERIT) {
 		warnx("%s: RFC 6487 (trust anchor): "
 			"inheriting AS resources", fn);
-		goto out;
+		return 0;
 	}
 
 	for (i = 0; i < cert->ipsz; i++) 
 		if (cert->ips[i].type == CERT_IP_INHERIT) {
 			warnx("%s: RFC 6487 (trust anchor): "
 				"inheriting IP resources", fn);
-			goto out;
+			return 0;
 		}
 
-	/* 
-	 * Post-validation: the AKI, if provided, should match the SKI.
-	 * The SKI must not exist.
-	 */
+	/* SKI must not be a dupe. */
 
 	for (i = 0; i < *authsz; i++)
 		if (strcmp((*auths)[i].cert->ski, cert->ski) == 0) {
 			warnx("%s: RFC 6487: duplicate SKI", fn);
-			goto out;
+			return 0;
 		}
 
 	/* Success: append to the certificate cache. */
@@ -161,10 +150,7 @@ valid_ta(const char *fn, struct auth **auths,
 	if ((*auths)[*authsz].fn == NULL)
 		err(EXIT_FAILURE, NULL);
 	(*authsz)++;
-
-	rc = 1;
-out:
-	return rc;
+	return 1;
 }
 
 static ssize_t
@@ -175,7 +161,7 @@ x509_auth_cert(const char *fn, const struct auth *auths,
 
 	for (i = 0; i < authsz; i++)
 		if (strcmp(auths[i].cert->ski, ski) == 0) {
-			warnx("%s: RFC 6487: re-registering SKI", fn);
+			warnx("%s: RFC 6487: duplicate SKI", fn);
 			return -1;
 		}
 
