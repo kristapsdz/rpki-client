@@ -390,6 +390,13 @@ mft_parse(X509 **x509, const char *fn, int force)
 	 */
 
 	if ((c = mft_parse_econtent(cms, cmsz, &p, force)) == 0) {
+		/*
+		 * FIXME: it should suffice to just mark this as stale
+		 * and have the logic around mft_read() simply ignore
+		 * the contents of stale entries, just like it does for
+		 * invalid ROAs or certificates.
+		 */
+
 		p.res->stale = 1;
 		if (p.res->files != NULL)
 			for (i = 0; i < p.res->filesz; i++)

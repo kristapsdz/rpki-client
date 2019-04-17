@@ -28,6 +28,33 @@
 
 #include "extern.h"
 
+int
+as_id_parse(const ASN1_INTEGER *v, uint32_t *out)
+{
+	int	 i;
+	uint32_t res = 0;
+
+	/* If the negative bit is set, this is wrong. */
+
+	if (v->type & V_ASN1_NEG)
+		return 0;
+
+	/* Too many bytes for us to consider. */
+
+	if ((size_t)v->length > sizeof(uint32_t))
+		return 0;
+
+	/* Stored as big-endian bytes. */
+
+	for (i = 0; i < v->length; i++) {
+		res <<= 8;
+		res |= v->data[i];
+	}
+
+	*out = res;
+	return 1;
+}
+
 /*
  * Given a newly-parsed AS number or range "a", make sure that "a" does
  * not overlap with any other numbers or ranges in the "as" array.

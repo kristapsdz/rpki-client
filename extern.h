@@ -257,6 +257,7 @@ void		 ip_roa_compose_ranges(struct roa_ip *);
 
 /* Work with RFC 3779 AS numbers, ranges. */
 
+int		 as_id_parse(const ASN1_INTEGER *, uint32_t *);
 int		 as_check_overlap(const struct cert_as *, const char *,
 			const struct cert_as *, size_t);
 int		 as_check_covered(uint32_t, uint32_t,
