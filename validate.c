@@ -112,19 +112,11 @@ valid_ip(size_t idx, enum afi afi,
  * Returns zero on failure, non-zero on success.
  */
 int
-valid_ta(X509 *x, const char *fn,
-	struct auth **auths, size_t *authsz,
-	const unsigned char *pkey, size_t pkeysz, struct cert *cert)
+valid_ta(const char *fn, struct auth **auths,
+	size_t *authsz, struct cert *cert)
 {
-	EVP_PKEY	*pk = NULL, *opk = NULL;
 	int		 rc = 0;
 	size_t		 i;
-
-	assert(cert != NULL);
-	assert(pkeysz);
-	assert(pkey != NULL);
-	pk = d2i_PUBKEY(NULL, &pkey, pkeysz);
-	assert(pk != NULL);
 
 	/* 
 	 * Pre-validation: AS and IP resources must not inherit.  The
@@ -144,16 +136,6 @@ valid_ta(X509 *x, const char *fn,
 				"inheriting IP resources", fn);
 			goto out;
 		}
-
-	if ((opk = X509_get_pubkey(x)) == NULL) {
-		cryptowarnx("%s: RFC 6487 (trust anchor): "
-			"missing pubkey", fn);
-		goto out;
-	} else if (!EVP_PKEY_cmp(pk, opk)) {
-		cryptowarnx("%s: RFC 6487 (trust anchor): "
-			"pubkey does not match TAL pubkey", fn);
-		goto out;
-	}
 
 	/* 
 	 * Post-validation: the AKI, if provided, should match the SKI.
@@ -180,11 +162,8 @@ valid_ta(X509 *x, const char *fn,
 		err(EXIT_FAILURE, NULL);
 	(*authsz)++;
 
-	opk = NULL;
 	rc = 1;
 out:
-	EVP_PKEY_free(pk);
-	EVP_PKEY_free(opk);
 	return rc;
 }
 
@@ -209,7 +188,8 @@ x509_auth_cert(const char *fn, const struct auth *auths,
 }
 
 /*
- * Validate a non-TA certificate.
+ * Validate a non-TA certificate: make sure its IP and AS resources are
+ * fully covered by those in the authority key (which must exist).
  * Returns zero on failure, non-zero on success.
  * On success, adds the certificate to the cache.
  */

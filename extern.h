@@ -209,7 +209,8 @@ struct tal	*tal_read(int);
 
 void		 cert_buffer(char **, size_t *, size_t *, const struct cert *);
 void		 cert_free(struct cert *);
-struct cert	*cert_parse(X509 **, const char *, const unsigned char *, int);
+struct cert	*cert_parse(X509 **, const char *, const unsigned char *);
+struct cert	*ta_parse(X509 **, const char *, const unsigned char *, size_t);
 struct cert	*cert_read(int);
 
 void		 mft_buffer(char **, size_t *, size_t *, const struct mft *);
@@ -228,9 +229,7 @@ X509_CRL 	*crl_parse(const char *, const unsigned char *);
 
 int		 valid_cert(const char *, struct auth **, size_t *, struct cert *);
 int		 valid_roa(const char *, const struct auth *, size_t, const struct roa *);
-int		 valid_ta(X509 *, const char *,
-			struct auth **, size_t *, const unsigned char *,
-			size_t, struct cert *);
+int		 valid_ta(const char *, struct auth **, size_t *, struct cert *);
 
 /* Working with CMS files. */
 
