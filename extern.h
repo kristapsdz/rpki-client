@@ -299,6 +299,6 @@ int		 x509_get_ski_aki(X509 *, const char *, char **, char **);
 
 /* Output! */
 
-void		 output_bgpd(const struct roa **, size_t);
+void		 output_bgpd(const struct roa **, size_t, size_t *, size_t *);
 
 #endif /* ! EXTERN_H */
