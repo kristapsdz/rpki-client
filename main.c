@@ -781,6 +781,7 @@ proc_parser_cert(const struct entity *entp, int norev,
 	int		     c;
 	X509_VERIFY_PARAM   *param;
 	unsigned int	     fl, nfl;
+	ssize_t		     id;
 
 	assert(!entp->has_dgst != !entp->has_pkey);
 
@@ -831,11 +832,11 @@ proc_parser_cert(const struct entity *entp, int norev,
 
 	/* Semantic validation of RPKI content. */
 
-	c = entp->has_pkey ?
-		valid_ta(entp->uri, auths, authsz, cert) :
-		valid_cert(entp->uri, auths, authsz, cert);
+	id = entp->has_pkey ?
+		valid_ta(entp->uri, *auths, *authsz, cert) :
+		valid_cert(entp->uri, *auths, *authsz, cert);
 
-	if (!c) {
+	if (id < 0) {
 		cert_free(cert);
 		X509_free(x509);
 		return NULL;
@@ -843,8 +844,21 @@ proc_parser_cert(const struct entity *entp, int norev,
 
 	/* 
 	 * Only on success of all do we add the certificate to the store
-	 * of trusted certificates.
+	 * of trusted certificates, both X509 and RPKI semantic.
 	 */
+
+	*auths = reallocarray(*auths,
+		*authsz + 1, sizeof(struct auth));
+	if (*auths == NULL)
+		err(EXIT_FAILURE, NULL);
+
+	(*auths)[*authsz].id = *authsz;
+	(*auths)[*authsz].parent = id;
+	(*auths)[*authsz].cert = cert;
+	(*auths)[*authsz].fn = strdup(entp->uri);
+	if ((*auths)[*authsz].fn == NULL)
+		err(EXIT_FAILURE, NULL);
+	(*authsz)++;
 
 	X509_STORE_add_cert(store, x509);
 	X509_free(x509);

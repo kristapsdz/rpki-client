@@ -105,12 +105,11 @@ valid_ip(size_t idx, enum afi afi,
 /*
  * Authenticate a trust anchor by making sure its resources are not
  * inheriting and that the SKI is unique.
- * Returns zero on failure, non-zero on success.
- * On success, adds the certificate to the cache.
+ * Returns *authsz -1 on failure.
  */
-int
-valid_ta(const char *fn, struct auth **auths,
-	size_t *authsz, struct cert *cert)
+ssize_t
+valid_ta(const char *fn, const struct auth *auths,
+	size_t authsz, const struct cert *cert)
 {
 	size_t	 i;
 
@@ -119,42 +118,33 @@ valid_ta(const char *fn, struct auth **auths,
 	if (cert->asz && cert->as[0].type == CERT_AS_INHERIT) {
 		warnx("%s: RFC 6487 (trust anchor): "
 			"inheriting AS resources", fn);
-		return 0;
+		return -1;
 	}
-
 	for (i = 0; i < cert->ipsz; i++) 
 		if (cert->ips[i].type == CERT_IP_INHERIT) {
 			warnx("%s: RFC 6487 (trust anchor): "
 				"inheriting IP resources", fn);
-			return 0;
+			return -1;
 		}
 
 	/* SKI must not be a dupe. */
 
-	for (i = 0; i < *authsz; i++)
-		if (strcmp((*auths)[i].cert->ski, cert->ski) == 0) {
+	for (i = 0; i < authsz; i++)
+		if (strcmp(auths[i].cert->ski, cert->ski) == 0) {
 			warnx("%s: RFC 6487: duplicate SKI", fn);
-			return 0;
+			return -1;
 		}
 
-	/* Success: append to the certificate cache. */
-
-	*auths = reallocarray(*auths,
-		*authsz + 1, sizeof(struct auth));
-	if (*auths == NULL)
-		err(EXIT_FAILURE, NULL);
-	(*auths)[*authsz].id = *authsz;
-	(*auths)[*authsz].parent = *authsz;
-	(*auths)[*authsz].cert = cert;
-	(*auths)[*authsz].fn = strdup(fn);
-	if ((*auths)[*authsz].fn == NULL)
-		err(EXIT_FAILURE, NULL);
-	(*authsz)++;
-	return 1;
+	return authsz;
 }
 
+/*
+ * Make sure that the SKI doesn't already exist and return the parent by
+ * its AKI.
+ * Returns the parent index or -1 on failure.
+ */
 static ssize_t
-x509_auth_cert(const char *fn, const struct auth *auths, 
+valid_ski_aki(const char *fn, const struct auth *auths, 
 	size_t authsz, const char *ski, const char *aki)
 {
 	size_t		 i;
@@ -176,21 +166,20 @@ x509_auth_cert(const char *fn, const struct auth *auths,
 /*
  * Validate a non-TA certificate: make sure its IP and AS resources are
  * fully covered by those in the authority key (which must exist).
- * Returns zero on failure, non-zero on success.
- * On success, adds the certificate to the cache.
+ * Returns the parent certificate or -1 on failure.
  */
-int
-valid_cert(const char *fn, struct auth **auths, 
-	size_t *authsz, struct cert *cert)
+ssize_t
+valid_cert(const char *fn, const struct auth *auths,
+	size_t authsz, const struct cert *cert)
 {
 	ssize_t	 	 c, pp;
 	size_t		 i;
 	uint32_t	 min, max;
 	char		 buf1[64], buf2[64];
 
-	c = x509_auth_cert(fn, *auths, *authsz, cert->ski, cert->aki);
+	c = valid_ski_aki(fn, auths, authsz, cert->ski, cert->aki);
 	if (c < 0)
-		return 0;
+		return -1;
 
 	for (i = 0; i < cert->asz; i++) {
 		if (cert->as[i].type == CERT_AS_INHERIT)
@@ -199,19 +188,19 @@ valid_cert(const char *fn, struct auth **auths,
 			cert->as[i].id : cert->as[i].range.min;
 		max = cert->as[i].type == CERT_AS_ID ?
 			cert->as[i].id : cert->as[i].range.max;
-		pp = valid_as(min, max, c, *auths, *authsz);
+		pp = valid_as(min, max, c, auths, authsz);
 		if (pp >= 0)
 			continue;
 		warnx("%s: RFC 6487: uncovered AS: %" 
 			PRIu32 "--%" PRIu32, fn, min, max);
-		tracewarn(c, *auths, *authsz);
-		return 0;
+		tracewarn(c, auths, authsz);
+		return -1;
 	}
 
 	for (i = 0; i < cert->ipsz; i++) {
 		pp = valid_ip
 			(c, cert->ips[i].afi, cert->ips[i].min, 
-			 cert->ips[i].max, *auths, *authsz);
+			 cert->ips[i].max, auths, authsz);
 		if (pp >= 0)
 			continue;
 		switch (cert->ips[i].type) {
@@ -233,23 +222,11 @@ valid_cert(const char *fn, struct auth **auths,
 				"(inherit)", fn);
 			break;
 		}
-		tracewarn(c, *auths, *authsz);
-		return 0;
+		tracewarn(c, auths, authsz);
+		return -1;
 	}
 
-	*auths = reallocarray(*auths,
-		*authsz + 1, sizeof(struct auth));
-	if (*auths == NULL)
-		err(EXIT_FAILURE, NULL);
-
-	(*auths)[*authsz].id = *authsz;
-	(*auths)[*authsz].parent = c;
-	(*auths)[*authsz].cert = cert;
-	(*auths)[*authsz].fn = strdup(fn);
-	if ((*auths)[*authsz].fn == NULL)
-		err(EXIT_FAILURE, NULL);
-	(*authsz)++;
-	return 1;
+	return c;
 }
 
 /*
@@ -266,7 +243,7 @@ valid_roa(const char *fn, const struct auth *auths,
 	size_t	 i;
 	char	 buf[64];
 
-	c = x509_auth_cert(fn, auths, authsz, roa->ski, roa->aki);
+	c = valid_ski_aki(fn, auths, authsz, roa->ski, roa->aki);
 	if (c < 0)
 		return 0;
 
