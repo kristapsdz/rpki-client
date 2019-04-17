@@ -287,25 +287,22 @@ valid_cert(const char *fn, struct auth **auths,
 }
 
 /*
- * Validate our ROA.
- * Beyond the usual, this means checking that the AS number is covered
- * by one of the parent certificates and the IP prefix is also
- * contained.
- * Sets the "invalid" field if any of these fail.
+ * Validate our ROA: check that the SKI is unique, the AKI exists, and
+ * that the AS number is covered by one of the parent certificates and
+ * the IP prefix is also contained.
+ * Returns zero if not valid, non-zero if valid.
  */
-void
+int
 valid_roa(const char *fn, const struct auth *auths, 
-	size_t authsz, struct roa *roa)
+	size_t authsz, const struct roa *roa)
 {
 	ssize_t	 c, pp;
 	size_t	 i;
 	char	 buf[64];
 
-	roa->invalid = 1;
-
 	c = x509_auth_cert(fn, auths, authsz, roa->ski, roa->aki);
 	if (c < 0)
-		return;
+		return 0;
 
 	/*
 	 * According to RFC 6483 section 4, AS 0 in an ROA means that
@@ -319,7 +316,7 @@ valid_roa(const char *fn, const struct auth *auths,
 			warnx("%s: RFC 6482: uncovered AS: "
 				"%" PRIu32, fn, roa->asid);
 			tracewarn(c, auths, authsz);
-			return;
+			return 0;
 		}
 	}
 
@@ -333,8 +330,8 @@ valid_roa(const char *fn, const struct auth *auths,
 			roa->ips[i].afi, buf, sizeof(buf));
 		warnx("%s: RFC 6482: uncovered IP: %s", fn, buf);
 		tracewarn(c, auths, authsz);
-		return;
+		return 0;
 	}
 
-	roa->invalid = 0;
+	return 1;
 }
