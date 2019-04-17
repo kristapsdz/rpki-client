@@ -28,6 +28,15 @@
 
 #include "extern.h"
 
+/*
+ * Parse a uint32_t AS identifier from an ASN1_INTEGER.
+ * This relies on the specification for ASN1_INTEGER itself, which is
+ * essentially a series of big-endian bytes in the unsigned case.
+ * All we do here is check if the number is negative then start copying
+ * over bytes.
+ * This is necessary because ASN1_INTEGER_get() on a 32-bit machine
+ * (e.g., i386) will fail for AS numbers of UINT32_MAX.
+ */
 int
 as_id_parse(const ASN1_INTEGER *v, uint32_t *out)
 {
