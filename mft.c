@@ -364,7 +364,7 @@ struct mft *
 mft_parse(X509 **x509, const char *fn, int force)
 {
 	struct parse	 p;
-	int		 rc;
+	int		 rc = 0;
 	size_t		 i, cmsz;
 	unsigned char	*cms;
 
@@ -375,12 +375,21 @@ mft_parse(X509 **x509, const char *fn, int force)
 		"1.2.840.113549.1.9.16.1.26", NULL, &cmsz);
 	if (cms == NULL)
 		return NULL;
+	assert(*x509 != NULL);
 
 	if ((p.res = calloc(1, sizeof(struct mft))) == NULL)
 		err(EXIT_FAILURE, NULL);
 	if ((p.res->file = strdup(fn)) == NULL)
 		err(EXIT_FAILURE, NULL);
-	
+
+	if ((p.res->aki = x509_get_aki(*x509, fn)) == NULL) {
+		warnx("%s: RFC 6487 section 8.4.2: missing AKI", fn);
+		goto out;
+	} else if ((p.res->ski = x509_get_ski(*x509, fn)) == NULL) {
+		warnx("%s: RFC 6487 section 8.4.3: missing SKI", fn);
+		goto out;
+	}
+
 	/* 
 	 * If we're stale, then remove all of the files that the MFT
 	 * references as well as marking it as stale.
@@ -394,15 +403,17 @@ mft_parse(X509 **x509, const char *fn, int force)
 		free(p.res->files);
 		p.res->filesz = 0;
 		p.res->files = NULL;
-	} else if (rc < 0) {
+	} else if (rc > 0)
+		goto out;
+
+	rc = 1;
+out:
+	if (rc == 0) {
 		mft_free(p.res);
 		p.res = NULL;
-		if (x509 != NULL) {
-			X509_free(*x509);
-			*x509 = NULL;
-		}
+		X509_free(*x509);
+		*x509 = NULL;
 	}
-
 	free(cms);
 	return p.res;
 }
@@ -423,6 +434,8 @@ mft_free(struct mft *p)
 		for (i = 0; i < p->filesz; i++)
 			free(p->files[i].file);
 
+	free(p->aki);
+	free(p->ski);
 	free(p->file);
 	free(p->files);
 	free(p);
@@ -446,6 +459,9 @@ mft_buffer(char **b, size_t *bsz, size_t *bmax, const struct mft *p)
 		io_simple_buffer(b, bsz, bmax,
 			p->files[i].hash, SHA256_DIGEST_LENGTH);
 	}
+
+	io_str_buffer(b, bsz, bmax, p->aki);
+	io_str_buffer(b, bsz, bmax, p->ski);
 }
 
 /*
@@ -473,5 +489,7 @@ mft_read(int fd)
 		io_simple_read(fd, p->files[i].hash, SHA256_DIGEST_LENGTH);
 	}
 
+	io_str_read(fd, &p->aki);
+	io_str_read(fd, &p->ski);
 	return p;
 }

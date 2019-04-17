@@ -34,11 +34,14 @@ roa_print(const struct roa *p)
 	size_t	 i;
 
 	assert(p != NULL);
-	fprintf(stderr, "asID: %" PRIu32 "\n", p->asid);
+
+	printf("Subject key identifier: %s\n", p->ski);
+	printf("Authority key identifier: %s\n", p->aki);
+	printf("asID: %" PRIu32 "\n", p->asid);
 	for (i = 0; i < p->ipsz; i++) {
 		ip_addr_print(&p->ips[i].addr, 
 			p->ips[i].afi, buf, sizeof(buf));
-		fprintf(stderr, "%5zu: %s (max: %zu)\n", i + 1, 
+		printf("%5zu: %s (max: %zu)\n", i + 1, 
 			buf, p->ips[i].maxlength);
 	}
 }

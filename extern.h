@@ -109,6 +109,8 @@ struct	cert {
 	size_t		 asz; /* length of "asz" */
 	char		*mft; /* manifest (rsync:// uri) */
 	char		*crl; /* CRL location (rsync:// or NULL) */
+	char		*aki; /* AKI (or NULL, for trust anchor) */
+	char		*ski; /* SKI */
 };
 
 /*
@@ -143,6 +145,8 @@ struct	mft {
 	struct mftfile	*files; /* file and hash */
 	size_t		 filesz; /* number of filenames */
 	int		 stale; /* if a stale manifest */
+	char		*ski; /* SKI */
+	char		*aki; /* AKI */
 };
 
 /*
@@ -167,6 +171,8 @@ struct	roa {
 	struct roa_ip	*ips; /* IP prefixes */
 	size_t		 ipsz; /* number of IP prefixes */
 	int		 invalid; /* did not validate */
+	char		*ski; /* SKI */
+	char		*aki; /* AKI */
 };
 
 /*
@@ -175,7 +181,6 @@ struct	roa {
  * verify children nodes in the tree of entities.
  */
 struct	auth {
-	char		*ski; /* subject key identifier */
 	struct cert	*cert; /* owner information */
 	size_t		 id; /* self-index */
 	size_t		 parent; /* index of parent pair (or self) */
@@ -204,7 +209,7 @@ struct tal	*tal_read(int);
 
 void		 cert_buffer(char **, size_t *, size_t *, const struct cert *);
 void		 cert_free(struct cert *);
-struct cert	*cert_parse(X509 **, const char *, const unsigned char *);
+struct cert	*cert_parse(X509 **, const char *, const unsigned char *, int);
 struct cert	*cert_read(int);
 
 void		 mft_buffer(char **, size_t *, size_t *, const struct mft *);
@@ -221,10 +226,8 @@ X509_CRL 	*crl_parse(const char *, const unsigned char *);
 
 /* Validation of our objects. */
 
-int		 valid_cert(X509 *, const char *,
-			struct auth **, size_t *, struct cert *);
-void		 valid_roa(X509 *, const char *,
-			const struct auth *, size_t, struct roa *);
+int		 valid_cert(const char *, struct auth **, size_t *, struct cert *);
+void		 valid_roa(const char *, const struct auth *, size_t, struct roa *);
 int		 valid_ta(X509 *, const char *,
 			struct auth **, size_t *, const unsigned char *,
 			size_t, struct cert *);
@@ -286,6 +289,15 @@ void		 io_buf_write(int, const void *, size_t);
 void		 io_str_buffer(char **, size_t *, size_t *, const char *);
 void		 io_str_read(int, char **);
 void		 io_str_write(int, const char *);
+
+/* X509 helpers. */
+
+char		*x509_get_aki(X509 *, const char *);
+char		*x509_get_aki_ext(X509_EXTENSION *, const char *);
+char		*x509_get_ski(X509 *, const char *);
+char		*x509_get_ski_ext(X509_EXTENSION *, const char *);
+
+/* Output! */
 
 void		 output_bgpd(const struct roa **, size_t);
 

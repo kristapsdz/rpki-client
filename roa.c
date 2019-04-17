@@ -330,6 +330,7 @@ roa_parse(X509 **x509, const char *fn, const unsigned char *dgst)
 	struct parse	 p;
 	size_t		 cmsz;
 	unsigned char	*cms;
+	int		 rc = 0;
 
 	memset(&p, 0, sizeof(struct parse));
 	p.fn = fn;
@@ -343,13 +344,25 @@ roa_parse(X509 **x509, const char *fn, const unsigned char *dgst)
 
 	if ((p.res = calloc(1, sizeof(struct roa))) == NULL)
 		err(EXIT_FAILURE, NULL);
-	if (!roa_parse_econtent(cms, cmsz, &p)) {
+
+	if ((p.res->aki = x509_get_aki(*x509, fn)) == NULL) {
+		warnx("%s: RFC 6487 section 8.4.2: missing AKI", fn);
+		goto out;
+	} else if ((p.res->ski = x509_get_ski(*x509, fn)) == NULL) {
+		warnx("%s: RFC 6487 section 8.4.3: missing SKI", fn);
+		goto out;
+	}
+
+	if (!roa_parse_econtent(cms, cmsz, &p))
+		goto out;
+
+	rc = 1;
+out:
+	if (rc == 0) {
 		roa_free(p.res);
 		p.res = NULL;
-		if (x509 != NULL) {
-			X509_free(*x509);
-			*x509 = NULL;
-		}
+		X509_free(*x509);
+		*x509 = NULL;
 	}
 	free(cms);
 	return p.res;
@@ -366,6 +379,8 @@ roa_free(struct roa *p)
 
 	if (p == NULL)
 		return;
+	free(p->aki);
+	free(p->ski);
 	free(p->ips);
 	free(p);
 }
@@ -394,6 +409,9 @@ roa_buffer(char **b, size_t *bsz, size_t *bmax, const struct roa *p)
 			p->ips[i].max, sizeof(p->ips[i].max));
 		ip_addr_buffer(b, bsz, bmax, &p->ips[i].addr);
 	}
+	
+	io_str_buffer(b, bsz, bmax, p->aki);
+	io_str_buffer(b, bsz, bmax, p->ski);
 }
 
 /*
@@ -425,5 +443,7 @@ roa_read(int fd)
 		ip_addr_read(fd, &p->ips[i].addr);
 	}
 
+	io_str_read(fd, &p->aki);
+	io_str_read(fd, &p->ski);
 	return p;
 }

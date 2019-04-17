@@ -10,7 +10,8 @@ OBJS	 = as.o \
 	   roa.o \
 	   rsync.o \
 	   tal.o \
-	   validate.o
+	   validate.o \
+	   x509.o
 ALLOBJS	 = $(OBJS) \
 	   main.o \
 	   test-cert.o \

@@ -42,6 +42,9 @@ cert_print(const struct cert *p)
 	fprintf(stderr, "Manifest: %s\n", p->mft);
 	if (p->crl != NULL)
 		fprintf(stderr, "Revocation list: %s\n", p->crl);
+	fprintf(stderr, "Subject key identifier: %s\n", p->ski);
+	if (p->aki != NULL)
+		fprintf(stderr, "Authority key identifier: %s\n", p->aki);
 
 	for (i = 0; i < p->asz; i++)
 		switch (p->as[i].type) {
@@ -82,7 +85,7 @@ cert_print(const struct cert *p)
 int
 main(int argc, char *argv[])
 {
-	int		 c, verb = 0;
+	int		 c, verb = 0, ta = 0;
 	size_t		 i;
 	X509		*xp = NULL;
 	struct cert	*p;
@@ -90,8 +93,11 @@ main(int argc, char *argv[])
 	SSL_library_init();
 	SSL_load_error_strings();
 
-	while ((c = getopt(argc, argv, "v")) != -1) 
+	while ((c = getopt(argc, argv, "tv")) != -1) 
 		switch (c) {
+		case 't':
+			ta = 1;
+			break;
 		case 'v':
 			verb++;
 			break;
@@ -103,7 +109,7 @@ main(int argc, char *argv[])
 	argc -= optind;
 
 	for (i = 0; i < (size_t)argc; i++) {
-		if ((p = cert_parse(&xp, argv[i], NULL)) == NULL)
+		if ((p = cert_parse(&xp, argv[i], NULL, ta)) == NULL)
 			break;
 		if (verb)
 			cert_print(p);
