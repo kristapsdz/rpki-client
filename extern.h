@@ -111,6 +111,7 @@ struct	cert {
 	char		*crl; /* CRL location (rsync:// or NULL) */
 	char		*aki; /* AKI (or NULL, for trust anchor) */
 	char		*ski; /* SKI */
+	int		 valid; /* validated resources */
 };
 
 /*

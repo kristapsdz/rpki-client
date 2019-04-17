@@ -49,8 +49,9 @@ struct	stats {
 	size_t	 mfts_stale; /* stale manifests */
 	size_t	 certs; /* certificates */
 	size_t	 certs_fail; /* failing syntactic parse */
+	size_t	 certs_invalid; /* invalid resources */
 	size_t	 roas; /* route announcements */
-	size_t	 roas_invalid; /* invalid routes */
+	size_t	 roas_invalid; /* invalid resources */
 	size_t	 repos; /* repositories */
 	size_t	 crls; /* revocation lists */
 };
@@ -837,9 +838,8 @@ proc_parser_cert(const struct entity *entp, int norev,
 		valid_cert(entp->uri, *auths, *authsz, cert);
 
 	if (id < 0) {
-		cert_free(cert);
 		X509_free(x509);
-		return NULL;
+		return cert;
 	}
 
 	/* 
@@ -847,6 +847,7 @@ proc_parser_cert(const struct entity *entp, int norev,
 	 * of trusted certificates, both X509 and RPKI semantic.
 	 */
 
+	cert->valid = 1;
 	*auths = reallocarray(*auths,
 		*authsz + 1, sizeof(struct auth));
 	if (*auths == NULL)
@@ -1093,20 +1094,22 @@ entity_process(int proc, int rsync, struct stats *st,
 			st->certs_fail++;
 			break;
 		}
-
-		/*
-		 * Process the revocation list from the certificate
-		 * *first*, since it might mark that we're revoked and
-		 * then we don't want to process the MFT.
-		 */
-
 		cert = cert_read(proc);
-		if (cert->crl != NULL)
-			queue_add_from_cert(proc, rsync, 
-				q, cert->crl, rt, eid);
-		if (cert->mft != NULL)
-			queue_add_from_cert(proc, rsync, 
-				q, cert->mft, rt, eid);
+		if (cert->valid) {
+			/*
+			 * Process the revocation list from the
+			 * certificate *first*, since it might mark that
+			 * we're revoked and then we don't want to
+			 * process the MFT.
+			 */
+			if (cert->crl != NULL)
+				queue_add_from_cert(proc, rsync, 
+					q, cert->crl, rt, eid);
+			if (cert->mft != NULL)
+				queue_add_from_cert(proc, rsync, 
+					q, cert->mft, rt, eid);
+		} else 
+			st->certs_invalid++;
 		cert_free(cert);
 		break;
 	case RTYPE_MFT:
@@ -1130,6 +1133,7 @@ entity_process(int proc, int rsync, struct stats *st,
 				err(EXIT_FAILURE, NULL);
 			(*out)[*outsz] = roa;
 			(*outsz)++;
+			/* We roa_free() on exit. */
 		} else {
 			st->roas_invalid++;
 			roa_free(roa);
@@ -1371,9 +1375,10 @@ main(int argc, char *argv[])
 	/* Output and statistics. */
 
 	output_bgpd((const struct roa **)out, outsz);
-	logx("Routes: %zu (%zu invalid)", stats.roas, stats.roas_invalid);
-	logx("Certificates: %zu (%zu failed parse)", 
-		stats.certs, stats.certs_fail);
+	logx("Routes: %zu (%zu invalid)",
+		stats.roas, stats.roas_invalid);
+	logx("Certificates: %zu (%zu failed parse, %zu invalid)", 
+		stats.certs, stats.certs_fail, stats.certs_invalid);
 	logx("Trust anchor locators: %zu", stats.tals);
 	logx("Manifests: %zu (%zu stale)", stats.mfts, stats.mfts_stale);
 	logx("Certificate revocation lists: %zu", stats.crls);

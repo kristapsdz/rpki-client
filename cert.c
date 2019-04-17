@@ -1363,6 +1363,7 @@ cert_buffer(char **b, size_t *bsz, size_t *bmax, const struct cert *p)
 	size_t	 i;
 	int	 has_crl, has_aki;
 
+	io_simple_buffer(b, bsz, bmax, &p->valid, sizeof(int));
 	io_simple_buffer(b, bsz, bmax, &p->ipsz, sizeof(size_t));
 	for (i = 0; i < p->ipsz; i++)
 		cert_ip_buffer(b, bsz, bmax, &p->ips[i]);
@@ -1429,6 +1430,7 @@ cert_read(int fd)
 	if ((p = calloc(1, sizeof(struct cert))) == NULL)
 		err(EXIT_FAILURE, NULL);
 
+	io_simple_read(fd, &p->valid, sizeof(int));
 	io_simple_read(fd, &p->ipsz, sizeof(size_t));
 	p->ips = calloc(p->ipsz, sizeof(struct cert_ip));
 	if (p->ips == NULL)
