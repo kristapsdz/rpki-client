@@ -344,15 +344,8 @@ roa_parse(X509 **x509, const char *fn, const unsigned char *dgst)
 
 	if ((p.res = calloc(1, sizeof(struct roa))) == NULL)
 		err(EXIT_FAILURE, NULL);
-
-	if ((p.res->aki = x509_get_aki(*x509, fn)) == NULL) {
-		warnx("%s: RFC 6487 section 8.4.2: missing AKI", fn);
+	if (!x509_get_ski_aki(*x509, fn, &p.res->ski, &p.res->aki))
 		goto out;
-	} else if ((p.res->ski = x509_get_ski(*x509, fn)) == NULL) {
-		warnx("%s: RFC 6487 section 8.4.3: missing SKI", fn);
-		goto out;
-	}
-
 	if (!roa_parse_econtent(cms, cmsz, &p))
 		goto out;
 
