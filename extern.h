@@ -227,9 +227,9 @@ X509_CRL 	*crl_parse(const char *, const unsigned char *);
 
 /* Validation of our objects. */
 
-int		 valid_cert(const char *, struct auth **, size_t *, struct cert *);
+ssize_t		 valid_cert(const char *, const struct auth *, size_t, const struct cert *);
 int		 valid_roa(const char *, const struct auth *, size_t, const struct roa *);
-int		 valid_ta(const char *, struct auth **, size_t *, struct cert *);
+ssize_t		 valid_ta(const char *, const struct auth *, size_t, const struct cert *);
 
 /* Working with CMS files. */
 
