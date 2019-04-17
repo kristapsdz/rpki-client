@@ -46,11 +46,13 @@
 struct	stats {
 	size_t	 tals; /* total number of locators */
 	size_t	 mfts; /* total number of manifests */
+	size_t	 mfts_fail; /* failing syntactic parse */
 	size_t	 mfts_stale; /* stale manifests */
 	size_t	 certs; /* certificates */
 	size_t	 certs_fail; /* failing syntactic parse */
 	size_t	 certs_invalid; /* invalid resources */
 	size_t	 roas; /* route announcements */
+	size_t	 roas_fail; /* failing syntactic parse */
 	size_t	 roas_invalid; /* invalid resources */
 	size_t	 repos; /* repositories */
 	size_t	 crls; /* revocation lists */
@@ -1019,9 +1021,10 @@ proc_parser(int fd, int force, int norev)
 		case RTYPE_MFT:
 			mft = proc_parser_mft(entp, force,
 				store, ctx, auths, authsz);
-			if (mft == NULL)
-				goto out;
-			mft_buffer(&b, &bsz, &bmax, mft);
+			c = (mft != NULL);
+			io_simple_buffer(&b, &bsz, &bmax, &c, sizeof(int));
+			if (mft != NULL)
+				mft_buffer(&b, &bsz, &bmax, mft);
 			mft_free(mft);
 			break;
 		case RTYPE_CRL:
@@ -1033,9 +1036,10 @@ proc_parser(int fd, int force, int norev)
 			assert(entp->has_dgst);
 			roa = proc_parser_roa(entp, norev,
 				store, ctx, auths, authsz);
-			if (roa == NULL)
-				goto out;
-			roa_buffer(&b, &bsz, &bmax, roa);
+			c = (roa != NULL);
+			io_simple_buffer(&b, &bsz, &bmax, &c, sizeof(int));
+			if (roa != NULL)
+				roa_buffer(&b, &bsz, &bmax, roa);
 			roa_free(roa);
 			break;
 		default:
@@ -1081,6 +1085,13 @@ entity_process(int proc, int rsync, struct stats *st,
 	struct roa	*roa;
 	int		 c;
 
+	/*
+	 * For most of these, we first read whether there's any content
+	 * at all---this means that the syntactic parse failed (X509
+	 * certificate, for example).
+	 * We follow that up with whether the resources didn't parse.
+	 */
+
 	switch (ent->type) {
 	case RTYPE_TAL:
 		st->tals++;
@@ -1114,6 +1125,11 @@ entity_process(int proc, int rsync, struct stats *st,
 		break;
 	case RTYPE_MFT:
 		st->mfts++;
+		io_simple_read(proc, &c, sizeof(int));
+		if (c == 0) {
+			st->mfts_fail++;
+			break;
+		}
 		mft = mft_read(proc);
 		if (mft->stale)
 			st->mfts_stale++;
@@ -1125,6 +1141,11 @@ entity_process(int proc, int rsync, struct stats *st,
 		break;
 	case RTYPE_ROA:
 		st->roas++;
+		io_simple_read(proc, &c, sizeof(int));
+		if (c == 0) {
+			st->roas_fail++;
+			break;
+		}
 		roa = roa_read(proc);
 		if (roa->valid) {
 			*out = reallocarray(*out,
@@ -1375,12 +1396,13 @@ main(int argc, char *argv[])
 	/* Output and statistics. */
 
 	output_bgpd((const struct roa **)out, outsz);
-	logx("Routes: %zu (%zu invalid)",
-		stats.roas, stats.roas_invalid);
+	logx("Routes: %zu (%zu failed parse, %zu invalid)",
+		stats.roas, stats.roas_fail, stats.roas_invalid);
 	logx("Certificates: %zu (%zu failed parse, %zu invalid)", 
 		stats.certs, stats.certs_fail, stats.certs_invalid);
 	logx("Trust anchor locators: %zu", stats.tals);
-	logx("Manifests: %zu (%zu stale)", stats.mfts, stats.mfts_stale);
+	logx("Manifests: %zu (%zu failed parse, %zu stale)", 
+		stats.mfts, stats.mfts_fail, stats.mfts_stale);
 	logx("Certificate revocation lists: %zu", stats.crls);
 	logx("Repositories: %zu", stats.repos);
 
