@@ -786,7 +786,7 @@ proc_parser_cert(const struct entity *entp, int norev,
 
 	/* Extract certificate data and X509. */
 
-	cert = entp->has_pkey ?
+	cert = entp->has_dgst ?
 		cert_parse(&x509, entp->uri, entp->dgst) :
 		ta_parse(&x509, entp->uri, entp->pkey, entp->pkeysz);
 	if (cert == NULL)
