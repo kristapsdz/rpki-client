@@ -24,26 +24,62 @@
 
 #include "extern.h"
 
-/*
- * FIXME: sort output.
- */
-void
-output_bgpd(const struct roa **roas, size_t roasz)
+static int
+cmp(const void *p1, const void *p2)
 {
-	size_t	  i, j;
-	char	  buf[64];
+	const char *a1 = *(const char **)p1, *a2 = *(const char **)p2;
 
-	puts("roa-set {");
+	return strcmp(a1, a2);
+}
+
+void
+output_bgpd(const struct roa **roas,
+	size_t roasz, size_t *routes, size_t *unique)
+{
+	char	  buf1[64], buf2[32], linebuf[128];
+	char	**lines = NULL;
+	size_t	  i, j, k;
+
+	*routes = *unique = 0;
+
 	for (i = 0; i < roasz; i++)
+		for (j = 0; j < roas[i]->ipsz; j++)
+			(*routes)++;
+
+	if ((lines = calloc(*routes, sizeof(char *))) == NULL)
+		err(EXIT_FAILURE, NULL);
+
+	for (i = k = 0; i < roasz; i++)
 		for (j = 0; j < roas[i]->ipsz; j++) {
 			ip_addr_print(&roas[i]->ips[j].addr, 
-				roas[i]->ips[j].afi, buf, sizeof(buf));
-			printf("    %s ", buf);
+				roas[i]->ips[j].afi, buf1, sizeof(buf1));
 			if (roas[i]->ips[j].maxlength >
 			    (roas[i]->ips[j].addr.sz * 8 - 
 			     roas[i]->ips[j].addr.unused))
-				printf("maxlen %zu ", roas[i]->ips[j].maxlength);
-			printf("source-as %" PRIu32 "\n", roas[i]->asid);
+				snprintf(buf2, sizeof(buf2),
+					"maxlen %zu ", 
+					roas[i]->ips[j].maxlength);
+			else
+				buf2[0] = '\0';
+			snprintf(linebuf, sizeof(linebuf),
+				"%s %ssource-as %" PRIu32, 
+				buf1, buf2, roas[i]->asid);
+			if ((lines[k++] = strdup(linebuf)) == NULL)
+				err(EXIT_FAILURE, NULL);
+		}
+
+	assert(k == *routes);
+	qsort(lines, *routes, sizeof(char *), cmp);
+
+	puts("roa-set {");
+	for (i = 0; i < *routes; i++)
+		if (i == 0 || strcmp(lines[i], lines[i - 1])) {
+			printf("    %s\n", lines[i]);
+			(*unique)++;
 		}
 	puts("}");
+
+	for (i = 0; i < *routes; i++)
+		free(lines[i]);
+	free(lines);
 }
