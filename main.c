@@ -1435,6 +1435,9 @@ main(int argc, char *argv[])
 		roa_free(out[i]);
 	free(out);
 
+	EVP_cleanup();
+	CRYPTO_cleanup_all_ex_data();
+	ERR_remove_state(0);
 	ERR_free_strings();
 	return rc ? EXIT_SUCCESS : EXIT_FAILURE;
 
