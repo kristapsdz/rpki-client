@@ -1085,6 +1085,8 @@ out:
 	X509_STORE_free(store);
 	free(auths);
 
+	free(b);
+
 	EVP_cleanup();
 	CRYPTO_cleanup_all_ex_data();
 	ERR_remove_state(0);
