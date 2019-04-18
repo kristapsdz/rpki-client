@@ -1214,7 +1214,7 @@ main(int argc, char *argv[])
 {
 	int		  rc = 0, c, proc, st, rsync,
 			  fl = SOCK_STREAM | SOCK_CLOEXEC, noop = 0,
-			  force = 0, norev = 0;
+			  force = 0, norev = 0, quiet = 0;
 	size_t		  i, j, eid = 1, outsz = 0, routes, uniqs;
 	pid_t		  procpid, rsyncpid;
 	int		  fd[2];
@@ -1231,7 +1231,7 @@ main(int argc, char *argv[])
 	if (pledge("stdio rpath proc exec cpath", NULL) == -1)
 		err(EXIT_FAILURE, "pledge");
 
-	while ((c = getopt(argc, argv, "e:fnrv")) != -1) 
+	while ((c = getopt(argc, argv, "e:fnqrv")) != -1) 
 		switch (c) {
 		case 'e':
 			rsync_prog = optarg;
@@ -1241,6 +1241,9 @@ main(int argc, char *argv[])
 			break;
 		case 'n':
 			noop = 1;
+			break;
+		case 'q':
+			quiet = 1;
 			break;
 		case 'r':
 			norev = 1;
@@ -1439,7 +1442,8 @@ main(int argc, char *argv[])
 
 	/* Output and statistics. */
 
-	output_bgpd((const struct roa **)out, outsz, &routes, &uniqs);
+	output_bgpd((const struct roa **)out, 
+		outsz, quiet, &routes, &uniqs);
 	logx("Route origins: %zu (%zu failed parse, %zu invalid)",
 		stats.roas, stats.roas_fail, stats.roas_invalid);
 	logx("Certificates: %zu (%zu failed parse, %zu invalid)", 
@@ -1470,7 +1474,7 @@ main(int argc, char *argv[])
 	return rc ? EXIT_SUCCESS : EXIT_FAILURE;
 
 usage:
-	fprintf(stderr, "usage: %s [-fnrv] "
+	fprintf(stderr, "usage: %s [-fnqrv] "
 		"[-e rsync_prog] tal ...\n", getprogname());
 	return EXIT_FAILURE;
 }
