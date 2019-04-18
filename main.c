@@ -16,6 +16,7 @@
  */
 #include <sys/queue.h>
 #include <sys/socket.h>
+#include <sys/stat.h>
 #include <sys/wait.h>
 
 #include <assert.h>
@@ -605,10 +606,23 @@ proc_rsync(const char *prog, int fd, int noop)
 			continue;
 		}
 
-		/* Create source and destination locations. */
+		/* 
+		 * Create source and destination locations.
+		 * Build up the tree to this point because GPL rsync(1)
+		 * will not build the destination for us.
+		 */
+
+		if (asprintf(&dst, "%s/%s", BASE_DIR, host) < 0)
+			err(EXIT_FAILURE, NULL);
+		if (mkdir(dst, 0700) < 0 && EEXIST != errno)
+			err(EXIT_FAILURE, "%s", dst);
+		free(dst);
 
 		if (asprintf(&dst, "%s/%s/%s", BASE_DIR, host, mod) < 0)
 			err(EXIT_FAILURE, NULL);
+		if (mkdir(dst, 0700) < 0 && EEXIST != errno)
+			err(EXIT_FAILURE, "%s", dst);
+
 		if (asprintf(&uri, "rsync://%s/%s", host, mod) < 0)
 			err(EXIT_FAILURE, NULL);
 
@@ -618,6 +632,8 @@ proc_rsync(const char *prog, int fd, int noop)
 			err(EXIT_FAILURE, "fork");
 
 		if (pid == 0) {
+			if (pledge("stdio exec", NULL) == -1)
+				err(EXIT_FAILURE, "pledge");
 			i = 0;
 			args[i++] = (char *)prog;
 			args[i++] = "-r";
@@ -1212,7 +1228,7 @@ main(int argc, char *argv[])
 
 	/* Main pledge. */
 
-	if (pledge("stdio rpath proc exec", NULL) == -1)
+	if (pledge("stdio rpath proc exec cpath", NULL) == -1)
 		err(EXIT_FAILURE, "pledge");
 
 	while ((c = getopt(argc, argv, "e:fnrv")) != -1) 
@@ -1280,10 +1296,10 @@ main(int argc, char *argv[])
 
 	if (rsyncpid == 0) {
 		close(fd[1]);
-		if (pledge("stdio proc exec", NULL) == -1)
+		if (pledge("stdio proc exec cpath", NULL) == -1)
 			err(EXIT_FAILURE, "pledge");
 
-		/* If -n, we don't exec. */
+		/* If -n, we don't exec or mkdir. */
 
 		if (noop && pledge("stdio", NULL) == -1)
 			err(EXIT_FAILURE, "pledge");
