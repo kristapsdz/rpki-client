@@ -277,6 +277,14 @@ ip6_addr2str(const struct ip_addr *addr, char *b, size_t bsz)
 		sz++;
 	assert(sz <= sizeof(buf));
 
+	/* Don't print trailing zeroes. */
+
+	for (i = sz - 2; i > 0; i -= 2)
+		if ((v = htons(*(uint16_t *)&buf[i])) == 0)
+			sz -= 2;
+		else
+			break;
+
 	b[0] = '\0';
 	for (i = 0; i < sz; i += 2) {
 		v = htons(*(uint16_t *)&buf[i]);
