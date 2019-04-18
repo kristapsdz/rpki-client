@@ -33,8 +33,8 @@ cmp(const void *p1, const void *p2)
 }
 
 void
-output_bgpd(const struct roa **roas,
-	size_t roasz, size_t *routes, size_t *unique)
+output_bgpd(const struct roa **roas, size_t roasz, 
+	int quiet, size_t *routes, size_t *unique)
 {
 	char	  buf1[64], buf2[32], linebuf[128];
 	char	**lines = NULL;
@@ -71,13 +71,16 @@ output_bgpd(const struct roa **roas,
 	assert(k == *routes);
 	qsort(lines, *routes, sizeof(char *), cmp);
 
-	puts("roa-set {");
+	if (!quiet)
+		puts("roa-set {");
 	for (i = 0; i < *routes; i++)
 		if (i == 0 || strcmp(lines[i], lines[i - 1])) {
-			printf("    %s\n", lines[i]);
+			if (!quiet)
+				printf("    %s\n", lines[i]);
 			(*unique)++;
 		}
-	puts("}");
+	if (!quiet)
+		puts("}");
 
 	for (i = 0; i < *routes; i++)
 		free(lines[i]);
