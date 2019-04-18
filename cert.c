@@ -773,7 +773,7 @@ sbgp_assysnum(struct parse *p, X509_EXTENSION *ext)
 		if (ptag > ASID_TYPE_MAX) {
 			warnx("%s: RFC 3779 section 3.2.3.1: "
 				"ASIdentifiers: unknown explicit "
-				"tag 0x%0.2x", p->fn, ptag);
+				"tag 0x%02x", p->fn, ptag);
 			goto out;
 		} else if (ptag == ASID_TYPE_RDI)
 			continue;
