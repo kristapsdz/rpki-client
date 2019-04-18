@@ -935,6 +935,9 @@ proc_parser(int fd, int force, int norev)
 	X509_STORE_CTX	*ctx;
 	struct auth	*auths = NULL;
 
+	SSL_library_init();
+	SSL_load_error_strings();
+
 	if ((store = X509_STORE_new()) == NULL)
 		cryptoerrx("X509_STORE_new");
 	if ((ctx = X509_STORE_CTX_new()) == NULL)
@@ -1081,6 +1084,12 @@ out:
 	X509_STORE_CTX_free(ctx);
 	X509_STORE_free(store);
 	free(auths);
+
+	EVP_cleanup();
+	CRYPTO_cleanup_all_ex_data();
+	ERR_remove_state(0);
+	ERR_free_strings();
+
 	exit(rc ? EXIT_SUCCESS : EXIT_FAILURE);
 }
 
@@ -1113,6 +1122,7 @@ entity_process(int proc, int rsync, struct stats *st,
 		st->tals++;
 		tal = tal_read(proc);
 		queue_add_from_tal(proc, rsync, q, tal, rt, eid);
+		tal_free(tal);
 		break;
 	case RTYPE_CER:
 		st->certs++;
@@ -1228,11 +1238,6 @@ main(int argc, char *argv[])
 	if ((argc -= optind) == 0)
 		goto usage;
 
-	/* Initialise SSL, errors, and our structures. */
-
-	SSL_library_init();
-	SSL_load_error_strings();
-
 	memset(&rt, 0, sizeof(struct repotab));
 	memset(&stats, 0, sizeof(struct stats));
 	TAILQ_INIT(&q);
@@ -1294,6 +1299,11 @@ main(int argc, char *argv[])
 	 * data downloaded by the rsync process and parsed by the
 	 * parsing process.
 	 */
+
+	/* Initialise SSL, errors, and our structures. */
+
+	SSL_library_init();
+	SSL_load_error_strings();
 
 	if (pledge("stdio", NULL) == -1)
 		err(EXIT_FAILURE, "pledge");
