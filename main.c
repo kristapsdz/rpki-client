@@ -906,9 +906,8 @@ proc_parser_cert(const struct entity *entp, int norev,
  * This simply parses the CRL content itself, optionally validating it
  * within the digest if it comes from a manifest, then adds it to the
  * store of CRLs.
- * Return zero on failure, non-zero on success.
  */
-static int
+static void
 proc_parser_crl(struct entity *entp, int norev, X509_STORE *store,
 	X509_STORE_CTX *ctx, const struct auth *auths, size_t authsz)
 {
@@ -916,14 +915,13 @@ proc_parser_crl(struct entity *entp, int norev, X509_STORE *store,
 	const unsigned char *dgst;
 
 	if (norev)
-		return 1;
+		return;
 
 	dgst = entp->has_dgst ? entp->dgst : NULL;
-	if ((x509 = crl_parse(entp->uri, dgst)) == NULL)
-		return 0;
-	X509_STORE_add_crl(store, x509);
-	X509_CRL_free(x509);
-	return 1;
+	if ((x509 = crl_parse(entp->uri, dgst)) != NULL) {
+		X509_STORE_add_crl(store, x509);
+		X509_CRL_free(x509);
+	}
 }
 
 /*
@@ -1063,9 +1061,8 @@ proc_parser(int fd, int force, int norev)
 			mft_free(mft);
 			break;
 		case RTYPE_CRL:
-			if (!proc_parser_crl(entp, 
-			    norev, store, ctx, auths, authsz))
-				goto out;
+			proc_parser_crl(entp, norev, 
+				store, ctx, auths, authsz);
 			break;
 		case RTYPE_ROA:
 			assert(entp->has_dgst);

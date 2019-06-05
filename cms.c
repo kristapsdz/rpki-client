@@ -50,8 +50,15 @@ cms_parse_validate(X509 **xp, const char *fn,
 	*rsz = 0;
 	*xp = NULL;
 
-	if ((bio = BIO_new_file(fn, "rb")) == NULL)
-		cryptoerrx("%s: BIO_new_file", fn);
+	/* 
+	 * This is usually fopen() failure, so let it pass through to
+	 * the handler, which will in turn ignore the entity.
+	 */
+
+	if ((bio = BIO_new_file(fn, "rb")) == NULL) {
+		cryptowarnx("%s: BIO_new_file", fn);
+		return NULL;
+	}
 
 	/*
 	 * If we have a digest specified, create an MD chain that will
