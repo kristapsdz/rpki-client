@@ -43,3 +43,6 @@ The following are unclear to me.
   and costs us the most in performance because it effectively
   re-validates the entire chain.  Instead, apply the immediate parent as
   the "trusted" certificate once it has been validated.
+
+- Stipulating `X509_V_FLAG_IGNORE_CRITICAL` might be dangerous.  Which
+  extensions are being ignored should be double-checked.

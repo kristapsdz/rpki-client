@@ -27,11 +27,6 @@ BINS	 = rpki-client \
 	   test-tal
 CFLAGS	+= -O0 -g -W -Wall -Wextra -Wno-unused-parameter
 
-# Only enable this on i386 and it does, in fact, make things less safe.
-# It's a hack until we can really find out what's going on.
-#
-#CFLAGS	+= -DUNSAFE_i386
-
 CFLAGS	+= -I/usr/local/include/eopenssl
 LDADD	 = /usr/local/lib/eopenssl/libssl.a \
 	   /usr/local/lib/eopenssl/libcrypto.a
