@@ -38,8 +38,10 @@ crl_parse(const char *fn, const unsigned char *dgst)
 	EVP_MD		*md;
 	char		 mdbuf[EVP_MAX_MD_SIZE];
 
-	if ((bio = BIO_new_file(fn, "rb")) == NULL)
-		cryptoerrx("%s: BIO_new_file", fn);
+	if ((bio = BIO_new_file(fn, "rb")) == NULL) {
+		cryptowarnx("%s: BIO_new_file", fn);
+		return NULL;
+	}
 
 	/*
 	 * If we have a digest specified, create an MD chain that will

@@ -1102,12 +1102,16 @@ cert_parse_inner(X509 **xp, const char *fn, const unsigned char *dgst, int ta)
 	char		 mdbuf[EVP_MAX_MD_SIZE];
 
 	*xp = NULL;
+
+	if ((bio = BIO_new_file(fn, "rb")) == NULL) {
+		cryptowarnx("%s: BIO_new_file", fn);
+		return NULL;
+	}
+
 	memset(&p, 0, sizeof(struct parse));
 	p.fn = fn;
 	if ((p.res = calloc(1, sizeof(struct cert))) == NULL)
 		err(EXIT_FAILURE, NULL);
-	if ((bio = BIO_new_file(fn, "rb")) == NULL)
-		cryptoerrx("%s: BIO_new_file", p.fn);
 
 	/*
 	 * If we have a digest specified, create an MD chain that will
