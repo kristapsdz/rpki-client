@@ -702,7 +702,7 @@ proc_parser_roa(struct entity *entp, int norev,
 	X509		  *x509;
 	int		   c;
 	X509_VERIFY_PARAM *param;
-	unsigned int	   fl, nfl = 0;
+	unsigned int	   fl, nfl;
 
 	assert(entp->has_dgst);
 	if ((roa = roa_parse(&x509, entp->uri, entp->dgst)) == NULL)
@@ -715,12 +715,10 @@ proc_parser_roa(struct entity *entp, int norev,
 	if ((param = X509_STORE_CTX_get0_param(ctx)) == NULL)
 		cryptoerrx("X509_STORE_CTX_get0_param");
 	fl = X509_VERIFY_PARAM_get_flags(param);
+	nfl = X509_V_FLAG_IGNORE_CRITICAL;
 	if (!norev)
 		nfl |= X509_V_FLAG_CRL_CHECK | 
 		       X509_V_FLAG_CRL_CHECK_ALL;
-#ifdef UNSAFE_i386
-	nfl |= X509_V_FLAG_IGNORE_CRITICAL;
-#endif
 	if (!X509_VERIFY_PARAM_set_flags(param, fl | nfl))
 		cryptoerrx("X509_VERIFY_PARAM_set_flags");
 
@@ -762,7 +760,7 @@ proc_parser_mft(struct entity *entp, int force, X509_STORE *store,
 	struct mft	    *mft;
 	X509		    *x509;
 	int		     c;
-	unsigned int	     fl, nfl = 0;
+	unsigned int	     fl, nfl;
 	X509_VERIFY_PARAM   *param;
 
 	assert(!entp->has_dgst);
@@ -775,9 +773,7 @@ proc_parser_mft(struct entity *entp, int force, X509_STORE *store,
 	if ((param = X509_STORE_CTX_get0_param(ctx)) == NULL)
 		cryptoerrx("X509_STORE_CTX_get0_param");
 	fl = X509_VERIFY_PARAM_get_flags(param);
-#ifdef UNSAFE_i386
-	nfl |= X509_V_FLAG_IGNORE_CRITICAL;
-#endif
+	nfl = X509_V_FLAG_IGNORE_CRITICAL;
 	if (!X509_VERIFY_PARAM_set_flags(param, fl | nfl))
 		cryptoerrx("X509_VERIFY_PARAM_set_flags");
 
@@ -813,7 +809,7 @@ proc_parser_cert(const struct entity *entp, int norev,
 	X509		    *x509;
 	int		     c;
 	X509_VERIFY_PARAM   *param;
-	unsigned int	     fl, nfl = 0;
+	unsigned int	     fl, nfl;
 	ssize_t		     id;
 
 	assert(!entp->has_dgst != !entp->has_pkey);
@@ -837,12 +833,10 @@ proc_parser_cert(const struct entity *entp, int norev,
 	if ((param = X509_STORE_CTX_get0_param(ctx)) == NULL)
 		cryptoerrx("X509_STORE_CTX_get0_param");
 	fl = X509_VERIFY_PARAM_get_flags(param);
+	nfl = X509_V_FLAG_IGNORE_CRITICAL;
 	if (!norev)
 		nfl |= X509_V_FLAG_CRL_CHECK | 
 		       X509_V_FLAG_CRL_CHECK_ALL;
-#ifdef UNSAFE_i386
-	nfl |= X509_V_FLAG_IGNORE_CRITICAL;
-#endif
 	if (!X509_VERIFY_PARAM_set_flags(param, fl | nfl))
 		cryptoerrx("X509_VERIFY_PARAM_set_flags");
 

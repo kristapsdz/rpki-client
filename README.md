@@ -59,12 +59,6 @@ If you have your OpenSSL installation in an alternative place
 (alternative to where `pkg_add` will install it), adjust the `LDADD` and
 `CFLAGS` variables in the *Makefile*.
 
-If you're running on an i386 system, you'll also need to uncomment the
-line adding `UNSAFE_i386` as a compile-time CPP flag.
-This is a yet-unexplained quirk of OpenSSL on i386.
-For the time being, I recommend only using i386 as a testing system for
-this reason---the compile-time flag loosens parsing restrictions.
-
 Next, you'll need the */var/cache/rpki-client* directory in place.
 It must be writable by the operator of **rpki-client**.
 
