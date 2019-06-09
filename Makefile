@@ -3,6 +3,7 @@ include Makefile.configure
 OBJS	 = as.o \
 	   cert.o \
 	   cms.o \
+	   compats.o \
 	   crl.o \
 	   io.o \
 	   ip.o \
@@ -28,11 +29,16 @@ BINS	 = rpki-client \
 	   test-roa \
 	   test-tal
 
+# Linux.
 #OPENSSL	 = openssl
+#LDADD	+= -lresolv
+
+# OpenBSD.
 OPENSSL = eopenssl
 
 CFLAGS	+= `pkg-config --cflags $(OPENSSL)`
-LDADD	 = `pkg-config --libs $(OPENSSL)`
+LDADD	+= `pkg-config --libs $(OPENSSL)`
+
 
 all: $(BINS)
 
@@ -57,4 +63,4 @@ test-cert: $(OBJS) test-cert.o
 clean:
 	rm -f $(BINS) $(ALLOBJS)
 
-$(ALLOBJS): extern.h
+$(ALLOBJS): extern.h config.h
