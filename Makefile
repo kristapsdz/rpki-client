@@ -1,3 +1,5 @@
+include Makefile.configure
+
 OBJS	 = as.o \
 	   cert.o \
 	   cms.o \
@@ -25,7 +27,6 @@ BINS	 = rpki-client \
 	   test-mft \
 	   test-roa \
 	   test-tal
-CFLAGS	+= -O0 -g -W -Wall -Wextra -Wno-unused-parameter
 
 CFLAGS	+= -I/usr/local/include/eopenssl
 LDADD	 = /usr/local/lib/eopenssl/libssl.a \
