@@ -28,9 +28,11 @@ BINS	 = rpki-client \
 	   test-roa \
 	   test-tal
 
-CFLAGS	+= -I/usr/local/include/eopenssl
-LDADD	 = /usr/local/lib/eopenssl/libssl.a \
-	   /usr/local/lib/eopenssl/libcrypto.a
+#OPENSSL	 = openssl
+OPENSSL = eopenssl
+
+CFLAGS	+= `pkg-config --cflags $(OPENSSL)`
+LDADD	 = `pkg-config --libs $(OPENSSL)`
 
 all: $(BINS)
 
