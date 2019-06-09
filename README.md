@@ -1,9 +1,5 @@
 # Introduction
 
-**This software is still not entirely functional.  Please do not use it
-unless doing so for specific testing.  Thank you!  If you'd like to
-participate in development or testing, please contact the author.**
-
 **rpki-client** is an implementation of RPKI (resource public key
 infrastructure) described in [RFC
 6480](https://tools.ietf.org/html/rfc6480).
@@ -16,20 +12,11 @@ To wit, it implements RPKI components necessary for validating route
 statements and omits superfluities (such as, for example, which X509
 certificate sections must be labelled "Critical").
 
-The system runs on current [OpenBSD](https://www.openbsd.org)
-installations with the the [OpenSSL](https://www.openssl.org) external
-library installed.
-See [Portability](#portability) for instructions on how to port the
-software.
-Non-current OpenBSD installations, or older versions, will need
-specification of an alternate **rsync** utility with the **-e** flag.
-
-At this time, **rpki-client** does not work with OpenBSD's native
-[libressl](https://www.libressl.org) due to requiring CMS parsing.
-According to 
-[this thread](http://openbsd-archive.7691.n7.nabble.com/LibreSSL-why-is-support-for-CMS-disabled-td253212.html),
-this omission from libressl is not for security purposes, but
-happenstance.
+The system runs on modern UNIX operating systems with the the
+[OpenSSL](https://www.openssl.org) external library installed.
+See [Portability](#portability) for details.
+The reference operating system is [OpenBSD](https://www.openbsd.org),
+which we strongly suggest for all installations for security reasons.
 
 See the [TODO](TODO.md) file for open questions regarding RPKI operation
 in general.
@@ -48,16 +35,18 @@ It was funded by [NetNod](https://www.netnod.se),
 # Installation
 
 First, you'll need a recent [OpenSSL](https://www.openssl.org/) library
-on your OpenBSD system.
+on your operating system.
 At this point, just run the following.
 
 ```
+% ./configure
 % make
 ```
 
-If you have your OpenSSL installation in an alternative place
-(alternative to where `pkg_add` will install it), adjust the `LDADD` and
-`CFLAGS` variables in the *Makefile*.
+If you have your OpenSSL installation by an alternative name
+(alternative to where `pkg-config` will find it), adjust the `OPENSSL`
+variable in the *Makefile*.
+Linux installations will need to uncomment the *-lresolve*.
 
 Next, you'll need the */var/cache/rpki-client* directory in place.
 It must be writable by the operator of **rpki-client**.
@@ -275,9 +264,13 @@ checking.
 
 # Portability
 
-For the most part, **rpki-client** is trivially portable to any system
-supporting OpenSSL or libressl.
-However, the system depends heavily on OpenBSD's security mechanisms to
-safely and securely parse untrusted content.
-A port of the system without equivalent security measures is not
-complete and should not be trusted.
+The **rpki-client** is portable to the extent that it will compile and
+run on most modern UNIX systems.
+It uses [oconfigure](https://github.com/kristapsdz/oconfigure) for its
+compatibility layer.
+
+However, the system depends heavily on OpenBSD's security mechanisms
+(only enabled on OpenBSD installations) to safely and securely parse
+untrusted content.
+Those running on a non-OpenBSD operating system should be aware that
+this additional protection is not available.
