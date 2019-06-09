@@ -634,10 +634,8 @@ proc_rsync(const char *prog, int fd, int noop)
 			err(EXIT_FAILURE, "fork");
 
 		if (pid == 0) {
-#if HAVE_PLEDGE
 			if (pledge("stdio exec", NULL) == -1)
 				err(EXIT_FAILURE, "pledge");
-#endif
 			i = 0;
 			args[i++] = (char *)prog;
 			args[i++] = "-r";
@@ -1221,10 +1219,8 @@ main(int argc, char *argv[])
 	struct roa	**out = NULL;
 	const char	 *rsync_prog = "openrsync";
 
-#if HAVE_PLEDGE
 	if (pledge("stdio rpath proc exec cpath", NULL) == -1)
 		err(EXIT_FAILURE, "pledge");
-#endif
 
 	while ((c = getopt(argc, argv, "e:fnqrv")) != -1) 
 		switch (c) {
@@ -1271,10 +1267,8 @@ main(int argc, char *argv[])
 
 	if (procpid == 0) {
 		close(fd[1]);
-#if HAVE_PLEDGE
 		if (pledge("stdio rpath", NULL) == -1)
 			err(EXIT_FAILURE, "pledge");
-#endif
 		proc_parser(fd[0], force, norev);
 		/* NOTREACHED */
 	} 
@@ -1296,17 +1290,13 @@ main(int argc, char *argv[])
 
 	if (rsyncpid == 0) {
 		close(fd[1]);
-#if HAVE_PLEDGE
 		if (pledge("stdio proc exec cpath", NULL) == -1)
 			err(EXIT_FAILURE, "pledge");
-#endif
 
 		/* If -n, we don't exec or mkdir. */
 
-#if HAVE_PLEDGE
 		if (noop && pledge("stdio", NULL) == -1)
 			err(EXIT_FAILURE, "pledge");
-#endif
 		proc_rsync(rsync_prog, fd[0], noop);
 		/* NOTREACHED */
 	}
@@ -1327,10 +1317,8 @@ main(int argc, char *argv[])
 	SSL_library_init();
 	SSL_load_error_strings();
 
-#if HAVE_PLEDGE
 	if (pledge("stdio", NULL) == -1)
 		err(EXIT_FAILURE, "pledge");
-#endif
 
 	/*
 	 * Prime the process with our TAL file.
