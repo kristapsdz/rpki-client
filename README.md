@@ -284,6 +284,9 @@ On FreeBSD, the same (or similar) may be effected by judicious use of
 Capsicum.
 On Linux, seccomp, although it's an unholy mess.
 
+This function is used in [main.c](main.c).
+On non-OpenBSD systems it is redefined to be empty in [extern.h](extern.h).
+
 ## Unveil
 
 Once TAL files have been parsed (these may sit anywhere on the
@@ -297,3 +300,6 @@ separate `fdopen` call.
 This descriptor would need to be opened with `openat` and the input
 paths stripped of their common prefix.
 This way, calls directly to `open` could be filtered.
+
+This function is used in [main.c](main.c).
+On non-OpenBSD systems it is redefined to be empty in [extern.h](extern.h).
