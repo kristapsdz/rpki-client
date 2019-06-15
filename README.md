@@ -274,3 +274,26 @@ However, the system depends heavily on OpenBSD's security mechanisms
 untrusted content.
 Those running on a non-OpenBSD operating system should be aware that
 this additional protection is not available.
+
+## Pledge
+
+**rpki-client** makes significant use of
+[pledge(2)](https://man.openbsd.org/pledge.2) to constrain resources
+available to the running process.
+On FreeBSD, the same (or similar) may be effected by judicious use of
+Capsicum.
+On Linux, seccomp, although it's an unholy mess.
+
+## Unveil
+
+Once TAL files have been parsed (these may sit anywhere on the
+file-system), the parsing process restricts file-system access to the
+local repository directory with
+[unveil(2)](https://man.openbsd.org/unveil.2).
+
+It's not trivial to port this to FreeBSD or Linux.
+First, calls to `BIO_new_file` would need to use `BIO_new_fp` with a
+separate `fdopen` call.
+This descriptor would need to be opened with `openat` and the input
+paths stripped of their common prefix.
+This way, calls directly to `open` could be filtered.
