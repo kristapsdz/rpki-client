@@ -30,15 +30,12 @@ BINS	 = rpki-client \
 	   test-tal
 
 # Linux.
-#OPENSSL	 = openssl
-#LDADD	+= -lresolv
+#LDADD += `pkg-config --libs openssl` -lresolv
+#CFLAGS += `pkg-config --cflags openssl`
 
 # OpenBSD.
-OPENSSL = eopenssl
-
-CFLAGS	+= `pkg-config --cflags $(OPENSSL)`
-LDADD	+= `pkg-config --libs $(OPENSSL)`
-
+CFLAGS += -I/usr/local/include/eopenssl
+LDADD += /usr/local/lib/eopenssl/libssl.a /usr/local/lib/eopenssl/libcrypto.a
 
 all: $(BINS)
 
