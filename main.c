@@ -944,6 +944,7 @@ proc_parser(int fd, int force, int norev)
 	X509_STORE	*store;
 	X509_STORE_CTX	*ctx;
 	struct auth	*auths = NULL;
+	int		 first_tals = 1;
 
 	SSL_library_init();
 	SSL_load_error_strings();
@@ -1023,6 +1024,25 @@ proc_parser(int fd, int force, int norev)
 
 		entp = TAILQ_FIRST(&q);
 		assert(entp != NULL);
+
+		/*
+		 * Extra security.
+		 * Our TAL files may be anywhere, but the repository
+		 * resources may only be in BASE_DIR.
+		 * When we've finished processing TAL files, make sure
+		 * that we can only see what's under that.
+		 */
+
+		if (entp->type != RTYPE_TAL && first_tals) {
+			if (unveil(BASE_DIR, "r") == -1)
+				err(EXIT_FAILURE, "unveil");
+			if (unveil(NULL, NULL) == -1)
+				err(EXIT_FAILURE, "unveil");
+			first_tals = 0;
+		} else if (entp->type != RTYPE_TAL) {
+			assert(!first_tals);
+		} else if (entp->type == RTYPE_TAL)
+			assert(first_tals);
 
 		entity_buffer_resp(&b, &bsz, &bmax, entp);
 
@@ -1219,7 +1239,7 @@ main(int argc, char *argv[])
 	struct roa	**out = NULL;
 	const char	 *rsync_prog = "openrsync";
 
-	if (pledge("stdio rpath proc exec cpath", NULL) == -1)
+	if (pledge("stdio rpath proc exec cpath unveil", NULL) == -1)
 		err(EXIT_FAILURE, "pledge");
 
 	while ((c = getopt(argc, argv, "e:fnqrv")) != -1) 
@@ -1267,7 +1287,7 @@ main(int argc, char *argv[])
 
 	if (procpid == 0) {
 		close(fd[1]);
-		if (pledge("stdio rpath", NULL) == -1)
+		if (pledge("stdio rpath unveil", NULL) == -1)
 			err(EXIT_FAILURE, "pledge");
 		proc_parser(fd[0], force, norev);
 		/* NOTREACHED */
