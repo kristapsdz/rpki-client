@@ -233,7 +233,6 @@ valid_cert(const char *fn, const struct auth *auths,
 
 /*
  * Validate our ROA: check that the SKI is unique, the AKI exists, and
- * that the AS number is covered by one of the parent certificates and
  * the IP prefix is also contained.
  * Returns zero if not valid, non-zero if valid.
  */
@@ -248,22 +247,6 @@ valid_roa(const char *fn, const struct auth *auths,
 	c = valid_ski_aki(fn, auths, authsz, roa->ski, roa->aki);
 	if (c < 0)
 		return 0;
-
-	/*
-	 * According to RFC 6483 section 4, AS 0 in an ROA means that
-	 * the prefix is specifically disallowed from being routed.
-	 */
-
-	if (roa->asid > 0) {
-		pp = valid_as(roa->asid,
-			roa->asid, c, auths, authsz);
-		if (pp < 0) {
-			warnx("%s: RFC 6482: uncovered AS: "
-				"%" PRIu32, fn, roa->asid);
-			tracewarn(c, auths, authsz);
-			return 0;
-		}
-	}
 
 	for (i = 0; i < roa->ipsz; i++) {
 		pp = valid_ip
