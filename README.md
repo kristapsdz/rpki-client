@@ -232,8 +232,6 @@ They are parsed in [roa.c](roa.c), with the CMS ([RFC
 - self-signed CMS envelope
 - CMS envelope self-signed certificate is signed by the AKI's
   certificate
-- AS identifier must be within the range allocated by *any* certificate
-  in the chain to the trust anchor (see [TODO](TODO.md) for notes)
 - IP blocks must be within the ranges allocated by the *nearest*
   non-inheriting certificate in the chain to the trust anchor
 
