@@ -115,7 +115,7 @@ static void	 proc_parser(int, int, int)
 			__attribute__((noreturn));
 static void	 proc_rsync(const char *, int, int)
 			__attribute__((noreturn));
-static void	 logx(const char *fmt, ...) 
+static void	 logx(const char *fmt, ...)
 			__attribute__((format(printf, 1, 2)));
 
 static int	 verbose;
@@ -145,7 +145,7 @@ rtype_resolve(const char *uri)
 {
 	enum rtype	 rp;
 
-	(void)rsync_uri_parse(NULL, NULL, 
+	(void)rsync_uri_parse(NULL, NULL,
 		NULL, NULL, NULL, NULL, &rp, uri);
 	return rp;
 }
@@ -317,8 +317,8 @@ entityq_flush(int fd, struct entityq *q, const struct repo *repo)
  * Add the heap-allocated file to the queue for processing.
  */
 static void
-entityq_add(int fd, struct entityq *q, char *file, enum rtype type, 
-	const struct repo *rp, const unsigned char *dgst, 
+entityq_add(int fd, struct entityq *q, char *file, enum rtype type,
+	const struct repo *rp, const unsigned char *dgst,
 	const unsigned char *pkey, size_t pkeysz, size_t *eid)
 {
 	struct entity	*p;
@@ -342,7 +342,7 @@ entityq_add(int fd, struct entityq *q, char *file, enum rtype type,
 	}
 	TAILQ_INSERT_TAIL(q, p, entries);
 
-	/* 
+	/*
 	 * Write to the queue if there's no repo or the repo has already
 	 * been loaded.
 	 */
@@ -356,7 +356,7 @@ entityq_add(int fd, struct entityq *q, char *file, enum rtype type,
  * These are always relative to the directory in which "mft" sits.
  */
 static void
-queue_add_from_mft(int fd, struct entityq *q, const char *mft, 
+queue_add_from_mft(int fd, struct entityq *q, const char *mft,
 	const struct mftfile *file, enum rtype type, size_t *eid)
 {
 	size_t	 	 sz;
@@ -447,7 +447,7 @@ queue_add_tal(int fd, struct entityq *q, const char *file, size_t *eid)
 
 	/* Not in a repository, so directly add to queue. */
 
-	entityq_add(fd, q, nfile, RTYPE_TAL, 
+	entityq_add(fd, q, nfile, RTYPE_TAL,
 		NULL, NULL, NULL, 0, eid);
 }
 
@@ -631,7 +631,7 @@ proc_rsync(const char *prog, int fd, int noop)
 			continue;
 		}
 
-		/* 
+		/*
 		 * Read til the parent exits.
 		 * That will mean that we can safely exit.
 		 */
@@ -653,7 +653,7 @@ proc_rsync(const char *prog, int fd, int noop)
 			continue;
 		}
 
-		/* 
+		/*
 		 * Create source and destination locations.
 		 * Build up the tree to this point because GPL rsync(1)
 		 * will not build the destination for us.
@@ -696,7 +696,7 @@ proc_rsync(const char *prog, int fd, int noop)
 
 		/* Augment the list of running processes. */
 
-		for (i = 0; i < idsz; i++) 
+		for (i = 0; i < idsz; i++)
 			if (ids[i].pid == 0) {
 				ids[i].id = id;
 				ids[i].pid = pid;
@@ -704,7 +704,7 @@ proc_rsync(const char *prog, int fd, int noop)
 			}
 
 		if (i == idsz) {
-			ids = reallocarray(ids, idsz + 1, 
+			ids = reallocarray(ids, idsz + 1,
 				sizeof(struct rsyncproc));
 			if (ids == NULL)
 				err(EXIT_FAILURE, NULL);
@@ -742,7 +742,7 @@ out:
  */
 static struct roa *
 proc_parser_roa(struct entity *entp, int norev,
-	X509_STORE *store, X509_STORE_CTX *ctx, 
+	X509_STORE *store, X509_STORE_CTX *ctx,
 	const struct auth *auths, size_t authsz)
 {
 	struct roa	  *roa;
@@ -764,7 +764,7 @@ proc_parser_roa(struct entity *entp, int norev,
 	fl = X509_VERIFY_PARAM_get_flags(param);
 	nfl = X509_V_FLAG_IGNORE_CRITICAL;
 	if (!norev)
-		nfl |= X509_V_FLAG_CRL_CHECK | 
+		nfl |= X509_V_FLAG_CRL_CHECK |
 		       X509_V_FLAG_CRL_CHECK_ALL;
 	if (!X509_VERIFY_PARAM_set_flags(param, fl | nfl))
 		cryptoerrx("X509_VERIFY_PARAM_set_flags");
@@ -839,7 +839,7 @@ proc_parser_mft(struct entity *entp, int force, X509_STORE *store,
 	return mft;
 }
 
-/* 
+/*
  * Certificates are from manifests (has a digest and is signed with
  * another certificate) or TALs (has a pkey and is self-signed).
  * Parse the certificate, make sure its signatures are valid (with CRLs
@@ -848,8 +848,8 @@ proc_parser_mft(struct entity *entp, int force, X509_STORE *store,
  * failure.
  */
 static struct cert *
-proc_parser_cert(const struct entity *entp, int norev, 
-	X509_STORE *store, X509_STORE_CTX *ctx, 
+proc_parser_cert(const struct entity *entp, int norev,
+	X509_STORE *store, X509_STORE_CTX *ctx,
 	struct auth **auths, size_t *authsz)
 {
 	struct cert	    *cert;
@@ -869,7 +869,7 @@ proc_parser_cert(const struct entity *entp, int norev,
 	if (cert == NULL)
 		return NULL;
 
-	/* 
+	/*
 	 * Validate certificate chain w/CRLs.
 	 * Only check the CRLs if specifically asked.
 	 */
@@ -882,12 +882,12 @@ proc_parser_cert(const struct entity *entp, int norev,
 	fl = X509_VERIFY_PARAM_get_flags(param);
 	nfl = X509_V_FLAG_IGNORE_CRITICAL;
 	if (!norev)
-		nfl |= X509_V_FLAG_CRL_CHECK | 
+		nfl |= X509_V_FLAG_CRL_CHECK |
 		       X509_V_FLAG_CRL_CHECK_ALL;
 	if (!X509_VERIFY_PARAM_set_flags(param, fl | nfl))
 		cryptoerrx("X509_VERIFY_PARAM_set_flags");
 
-	/* 
+	/*
 	 * FIXME: can we pass any options to the verification that make
 	 * the depth-zero self-signed bits verify properly?
 	 */
@@ -917,7 +917,7 @@ proc_parser_cert(const struct entity *entp, int norev,
 		return cert;
 	}
 
-	/* 
+	/*
 	 * Only on success of all do we add the certificate to the store
 	 * of trusted certificates, both X509 and RPKI semantic.
 	 */
@@ -1106,7 +1106,7 @@ proc_parser(int fd, int force, int norev)
 			io_simple_buffer(&b, &bsz, &bmax, &c, sizeof(int));
 			if (cert != NULL)
 				cert_buffer(&b, &bsz, &bmax, cert);
-			/* 
+			/*
 			 * The parsed certificate data "cert" is now
 			 * managed in the "auths" table, so don't free
 			 * it here (see the loop after "out").
@@ -1122,7 +1122,7 @@ proc_parser(int fd, int force, int norev)
 			mft_free(mft);
 			break;
 		case RTYPE_CRL:
-			proc_parser_crl(entp, norev, 
+			proc_parser_crl(entp, norev,
 				store, ctx, auths, authsz);
 			break;
 		case RTYPE_ROA:
@@ -1216,12 +1216,12 @@ entity_process(int proc, int rsync, struct stats *st,
 			 * process the MFT.
 			 */
 			if (cert->crl != NULL)
-				queue_add_from_cert(proc, rsync, 
+				queue_add_from_cert(proc, rsync,
 					q, cert->crl, rt, eid);
 			if (cert->mft != NULL)
-				queue_add_from_cert(proc, rsync, 
+				queue_add_from_cert(proc, rsync,
 					q, cert->mft, rt, eid);
-		} else 
+		} else
 			st->certs_invalid++;
 		cert_free(cert);
 		break;
@@ -1287,7 +1287,7 @@ main(int argc, char *argv[])
 	if (pledge("stdio rpath proc exec cpath unveil", NULL) == -1)
 		err(EXIT_FAILURE, "pledge");
 
-	while ((c = getopt(argc, argv, "e:fnqrv")) != -1) 
+	while ((c = getopt(argc, argv, "e:fnqrv")) != -1)
 		switch (c) {
 		case 'e':
 			rsync_prog = optarg;
@@ -1319,7 +1319,7 @@ main(int argc, char *argv[])
 	memset(&stats, 0, sizeof(struct stats));
 	TAILQ_INIT(&q);
 
-	/* 
+	/*
 	 * Create the file reader as a jailed child process.
 	 * It will be responsible for reading all of the files (ROAs,
 	 * manifests, certificates, etc.) and returning contents.
@@ -1336,7 +1336,7 @@ main(int argc, char *argv[])
 			err(EXIT_FAILURE, "pledge");
 		proc_parser(fd[0], force, norev);
 		/* NOTREACHED */
-	} 
+	}
 
 	close(fd[0]);
 	proc = fd[1];
@@ -1348,9 +1348,9 @@ main(int argc, char *argv[])
 	 * TAL) exists and has been downloaded.
 	 */
 
-	if (socketpair(AF_UNIX, fl, 0, fd) == -1) 
+	if (socketpair(AF_UNIX, fl, 0, fd) == -1)
 		err(EXIT_FAILURE, "socketpair");
-	if ((rsyncpid = fork()) == -1) 
+	if ((rsyncpid = fork()) == -1)
 		err(EXIT_FAILURE, "fork");
 
 	if (rsyncpid == 0) {
@@ -1437,7 +1437,7 @@ main(int argc, char *argv[])
 		io_socket_blocking(pfd[0].fd);
 		io_socket_blocking(pfd[1].fd);
 
-		/* 
+		/*
 		 * Check the rsync process.
 		 * This means that one of our modules has completed
 		 * downloading and we can flush the module requests into
@@ -1455,7 +1455,7 @@ main(int argc, char *argv[])
 			entityq_flush(proc, &q, &rt.repos[i]);
 		}
 
-		/* 
+		/*
 		 * The parser has finished something for us.
 		 * Dequeue these one by one.
 		 */
@@ -1498,14 +1498,14 @@ main(int argc, char *argv[])
 
 	/* Output and statistics. */
 
-	output_bgpd((const struct roa **)out, 
+	output_bgpd((const struct roa **)out,
 		outsz, quiet, &routes, &uniqs);
 	logx("Route origins: %zu (%zu failed parse, %zu invalid)",
 		stats.roas, stats.roas_fail, stats.roas_invalid);
-	logx("Certificates: %zu (%zu failed parse, %zu invalid)", 
+	logx("Certificates: %zu (%zu failed parse, %zu invalid)",
 		stats.certs, stats.certs_fail, stats.certs_invalid);
 	logx("Trust anchor locators: %zu", stats.tals);
-	logx("Manifests: %zu (%zu failed parse, %zu stale)", 
+	logx("Manifests: %zu (%zu failed parse, %zu stale)",
 		stats.mfts, stats.mfts_fail, stats.mfts_stale);
 	logx("Certificate revocation lists: %zu", stats.crls);
 	logx("Repositories: %zu", stats.repos);

@@ -47,7 +47,7 @@ ASN1_frame(const char *fn, size_t sz,
 	if ((ret & 0x80)) {
 		cryptowarnx("%s: ASN1_get_object", fn);
 		return 0;
-	} 
+	}
 	return ASN1_object_size((ret & 0x01) ? 2 : 0, *cntsz, *tag);
 }
 
@@ -84,12 +84,12 @@ x509_get_aki_ext(X509_EXTENSION *ext, const char *fn)
 		warnx("%s: RFC 6487 section 4.8.3: AKI: want 1 "
 			"element, have %d", fn, sk_ASN1_TYPE_num(seq));
 		goto out;
-	} 
+	}
 
 	t = sk_ASN1_TYPE_value(seq, 0);
 	if (t->type != V_ASN1_OTHER) {
 		warnx("%s: RFC 6487 section 4.8.3: AKI: "
-			"want ASN.1 external, have %s (NID %d)", 
+			"want ASN.1 external, have %s (NID %d)",
 			fn, ASN1_tag2str(t->type), t->type);
 		goto out;
 	}
@@ -151,7 +151,7 @@ x509_get_ski_ext(X509_EXTENSION *ext, const char *fn)
 		warnx("%s: RFC 6487 section 4.8.2: SKI: want 20 B "
 			"SHA1 hash, have %d B", fn, dsz);
 		goto out;
-	} 
+	}
 
 	/* Make room for [hex1, hex2, ":"]*, NUL. */
 

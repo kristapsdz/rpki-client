@@ -58,7 +58,7 @@ valid_as(uint32_t min, uint32_t max,
 	/* Does this certificate cover our AS number? */
 
 	if (as[idx].cert->asz) {
-		c = as_check_covered(min, max, 
+		c = as_check_covered(min, max,
 			as[idx].cert->as, as[idx].cert->asz);
 		if (c > 0)
 			return idx;
@@ -80,8 +80,8 @@ valid_as(uint32_t min, uint32_t max,
  * Returns the index of the certificate in auths or -1 on error.
  */
 static ssize_t
-valid_ip(size_t idx, enum afi afi, 
-	const unsigned char *min, const unsigned char *max, 
+valid_ip(size_t idx, enum afi afi,
+	const unsigned char *min, const unsigned char *max,
 	const struct auth *as, size_t asz)
 {
 	int	 c;
@@ -122,7 +122,7 @@ valid_ta(const char *fn, const struct auth *auths,
 			"inheriting AS resources", fn);
 		return -1;
 	}
-	for (i = 0; i < cert->ipsz; i++) 
+	for (i = 0; i < cert->ipsz; i++)
 		if (cert->ips[i].type == CERT_IP_INHERIT) {
 			warnx("%s: RFC 6487 (trust anchor): "
 				"inheriting IP resources", fn);
@@ -146,7 +146,7 @@ valid_ta(const char *fn, const struct auth *auths,
  * Returns the parent index or -1 on failure.
  */
 static ssize_t
-valid_ski_aki(const char *fn, const struct auth *auths, 
+valid_ski_aki(const char *fn, const struct auth *auths,
 	size_t authsz, const char *ski, const char *aki)
 {
 	size_t		 i;
@@ -193,7 +193,7 @@ valid_cert(const char *fn, const struct auth *auths,
 		pp = valid_as(min, max, c, auths, authsz);
 		if (pp >= 0)
 			continue;
-		warnx("%s: RFC 6487: uncovered AS: %" 
+		warnx("%s: RFC 6487: uncovered AS: %"
 			PRIu32 "--%" PRIu32, fn, min, max);
 		tracewarn(c, auths, authsz);
 		return -1;
@@ -201,21 +201,21 @@ valid_cert(const char *fn, const struct auth *auths,
 
 	for (i = 0; i < cert->ipsz; i++) {
 		pp = valid_ip
-			(c, cert->ips[i].afi, cert->ips[i].min, 
+			(c, cert->ips[i].afi, cert->ips[i].min,
 			 cert->ips[i].max, auths, authsz);
 		if (pp >= 0)
 			continue;
 		switch (cert->ips[i].type) {
 		case CERT_IP_RANGE:
-			ip_addr_print(&cert->ips[i].range.min, 
+			ip_addr_print(&cert->ips[i].range.min,
 				cert->ips[i].afi, buf1, sizeof(buf1));
-			ip_addr_print(&cert->ips[i].range.max, 
+			ip_addr_print(&cert->ips[i].range.max,
 				cert->ips[i].afi, buf2, sizeof(buf2));
 			warnx("%s: RFC 6487: uncovered IP: "
 				"%s--%s", fn, buf1, buf2);
 			break;
 		case CERT_IP_ADDR:
-			ip_addr_print(&cert->ips[i].ip, 
+			ip_addr_print(&cert->ips[i].ip,
 				cert->ips[i].afi, buf1, sizeof(buf1));
 			warnx("%s: RFC 6487: uncovered IP: "
 				"%s", fn, buf1);
@@ -238,7 +238,7 @@ valid_cert(const char *fn, const struct auth *auths,
  * Returns zero if not valid, non-zero if valid.
  */
 int
-valid_roa(const char *fn, const struct auth *auths, 
+valid_roa(const char *fn, const struct auth *auths,
 	size_t authsz, const struct roa *roa)
 {
 	ssize_t	 c, pp;
@@ -255,7 +255,7 @@ valid_roa(const char *fn, const struct auth *auths,
 	 */
 
 	if (roa->asid > 0) {
-		pp = valid_as(roa->asid, 
+		pp = valid_as(roa->asid,
 			roa->asid, c, auths, authsz);
 		if (pp < 0) {
 			warnx("%s: RFC 6482: uncovered AS: "
@@ -267,11 +267,11 @@ valid_roa(const char *fn, const struct auth *auths,
 
 	for (i = 0; i < roa->ipsz; i++) {
 		pp = valid_ip
-			(c, roa->ips[i].afi, roa->ips[i].min, 
+			(c, roa->ips[i].afi, roa->ips[i].min,
 			 roa->ips[i].max, auths, authsz);
 		if (pp >= 0)
 			continue;
-		ip_addr_print(&roa->ips[i].addr, 
+		ip_addr_print(&roa->ips[i].addr,
 			roa->ips[i].afi, buf, sizeof(buf));
 		warnx("%s: RFC 6482: uncovered IP: %s", fn, buf);
 		tracewarn(c, auths, authsz);

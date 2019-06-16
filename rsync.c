@@ -104,9 +104,9 @@ rsync_uri_parse(const char **hostp, size_t *hostsz,
 			*modulesz = strlen(module);
 		return 1;
 	} else if (path == module) {
-		warnx("%s: zero-length module", uri); 
+		warnx("%s: zero-length module", uri);
 		return 0;
-	} 
+	}
 
 	if (modulep != NULL)
 		*modulep = module;

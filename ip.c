@@ -82,7 +82,7 @@ ip_addr_afi_parse(const char *fn,
  */
 int
 ip_addr_check_covered(enum afi afi,
-	const unsigned char *min, const unsigned char *max, 
+	const unsigned char *min, const unsigned char *max,
 	const struct cert_ip *ips, size_t ipsz)
 {
 	size_t	 i, sz = AFI_IPV4 == afi ? 4 : 16;
@@ -115,12 +115,12 @@ ip_addr_check_overlap(const struct cert_ip *ip, const char *fn,
 		 has_v4 = 0, has_v6 = 0, socktype;
 	char	 buf[64];
 
-	/* 
+	/*
 	 * FIXME: cache this by having a flag on the cert_ip, else we're
 	 * going to need to do a lot of scanning for big allocations.
 	 */
 
-	for (i = 0; i < ipsz; i++) 
+	for (i = 0; i < ipsz; i++)
 		if (ips[i].type == CERT_IP_INHERIT) {
 			if (ips[i].afi == AFI_IPV4)
 				inherit_v4 = 1;
@@ -137,9 +137,9 @@ ip_addr_check_overlap(const struct cert_ip *ip, const char *fn,
 
 	if ((inherit_v4 && ip->afi == AFI_IPV4) ||
 	    (inherit_v6 && ip->afi == AFI_IPV6) ||
-	    (has_v4 && ip->afi == AFI_IPV4 && 
+	    (has_v4 && ip->afi == AFI_IPV4 &&
 	     ip->type == CERT_IP_INHERIT) ||
-	    (has_v6 && ip->afi == AFI_IPV6 && 
+	    (has_v6 && ip->afi == AFI_IPV6 &&
 	     ip->type == CERT_IP_INHERIT)) {
 		warnx("%s: RFC 3779 section 2.2.3.5: cannot have "
 			"multiple inheritence or inheritence and "
@@ -155,7 +155,7 @@ ip_addr_check_overlap(const struct cert_ip *ip, const char *fn,
 		if (memcmp(ips[i].max, ip->min, sz) <= 0 ||
 	  	    memcmp(ips[i].min, ip->max, sz) >= 0)
 			continue;
-		socktype = (ips[i].afi == AFI_IPV4) ? AF_INET : AF_INET6, 
+		socktype = (ips[i].afi == AFI_IPV4) ? AF_INET : AF_INET6,
 		warnx("%s: RFC 3779 section 2.2.3.5: "
 			"cannot have overlapping IP addresses", fn);
 		ip_addr_print(&ip->ip, ip->afi, buf, sizeof(buf));
@@ -199,7 +199,7 @@ ip_addr_parse(const ASN1_BIT_STRING *p,
 		return 0;
 	}
 
-	/* 
+	/*
 	 * Check that the unused bits are set to zero.
 	 * If we don't do this, stray bits will corrupt our composition
 	 * of the [minimum] address ranges.
@@ -265,7 +265,7 @@ ip6_addr2str(const struct ip_addr *addr, char *b, size_t bsz)
 	char	 buf[16];
 	uint16_t v;
 
-	/* 
+	/*
 	 * Address is grouped into pairs of bytes and we may have an odd
 	 * number of bytes, so fill into a well-sized buffer to avoid
 	 * complexities of handling the odd man out.
@@ -295,7 +295,7 @@ ip6_addr2str(const struct ip_addr *addr, char *b, size_t bsz)
 		pos += snprintf(b + pos, bsz - pos, "%hx:", v);
 	}
 
-	/* 
+	/*
 	 * If we have nothing, just use "0::".
 	 * If we have a remaining 4+ octets that weren't specified and
 	 * are thus zero, compress them into "::".

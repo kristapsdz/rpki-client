@@ -35,7 +35,7 @@ cmp(const void *p1, const void *p2)
 }
 
 void
-output_bgpd(const struct roa **roas, size_t roasz, 
+output_bgpd(const struct roa **roas, size_t roasz,
 	int quiet, size_t *routes, size_t *unique)
 {
 	char	  buf1[64], buf2[32], linebuf[128];
@@ -53,18 +53,18 @@ output_bgpd(const struct roa **roas, size_t roasz,
 
 	for (i = k = 0; i < roasz; i++)
 		for (j = 0; j < roas[i]->ipsz; j++) {
-			ip_addr_print(&roas[i]->ips[j].addr, 
+			ip_addr_print(&roas[i]->ips[j].addr,
 				roas[i]->ips[j].afi, buf1, sizeof(buf1));
 			if (roas[i]->ips[j].maxlength >
-			    (roas[i]->ips[j].addr.sz * 8 - 
+			    (roas[i]->ips[j].addr.sz * 8 -
 			     roas[i]->ips[j].addr.unused))
 				snprintf(buf2, sizeof(buf2),
-					"maxlen %zu ", 
+					"maxlen %zu ",
 					roas[i]->ips[j].maxlength);
 			else
 				buf2[0] = '\0';
 			snprintf(linebuf, sizeof(linebuf),
-				"%s %ssource-as %" PRIu32, 
+				"%s %ssource-as %" PRIu32,
 				buf1, buf2, roas[i]->asid);
 			if ((lines[k++] = strdup(linebuf)) == NULL)
 				err(EXIT_FAILURE, NULL);

@@ -50,7 +50,7 @@ main(int argc, char *argv[])
 	SSL_library_init();
 	SSL_load_error_strings();
 
-	while (-1 != (c = getopt(argc, argv, "v"))) 
+	while (-1 != (c = getopt(argc, argv, "v")))
 		switch (c) {
 		case 'v':
 			verb++;

@@ -51,15 +51,15 @@ cert_print(const struct cert *p)
 	for (i = 0; i < p->asz; i++)
 		switch (p->as[i].type) {
 		case CERT_AS_ID:
-			printf("%5zu: AS: %" 
+			printf("%5zu: AS: %"
 				PRIu32 "\n", i + 1, p->as[i].id);
 			break;
 		case CERT_AS_INHERIT:
 			printf("%5zu: AS: inherit\n", i + 1);
 			break;
 		case CERT_AS_RANGE:
-			printf("%5zu: AS: %" 
-				PRIu32 "--%" PRIu32 "\n", i + 1, 
+			printf("%5zu: AS: %"
+				PRIu32 "--%" PRIu32 "\n", i + 1,
 				p->as[i].range.min, p->as[i].range.max);
 			break;
 		}
@@ -70,12 +70,12 @@ cert_print(const struct cert *p)
 			printf("%5zu: IP: inherit\n", i + 1);
 			break;
 		case CERT_IP_ADDR:
-			ip_addr_print(&p->ips[i].ip, 
+			ip_addr_print(&p->ips[i].ip,
 				p->ips[i].afi, buf1, sizeof(buf1));
 			printf("%5zu: IP: %s\n", i + 1, buf1);
 			break;
 		case CERT_IP_RANGE:
-			sockt = (p->ips[i].afi == AFI_IPV4) ? 
+			sockt = (p->ips[i].afi == AFI_IPV4) ?
 				AF_INET : AF_INET6;
 			inet_ntop(sockt, p->ips[i].min, buf1, sizeof(buf1));
 			inet_ntop(sockt, p->ips[i].max, buf2, sizeof(buf2));
@@ -95,7 +95,7 @@ main(int argc, char *argv[])
 	SSL_library_init();
 	SSL_load_error_strings();
 
-	while ((c = getopt(argc, argv, "tv")) != -1) 
+	while ((c = getopt(argc, argv, "tv")) != -1)
 		switch (c) {
 		case 't':
 			ta = 1;
