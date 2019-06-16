@@ -213,7 +213,7 @@ repo_lookup(int fd, struct repotab *rt, const char *uri)
 	rt->repos = reallocarray(rt->repos,
 		rt->reposz + 1, sizeof(struct repo));
 	if (rt->repos == NULL)
-		err(EXIT_FAILURE, NULL);
+		err(EXIT_FAILURE, "reallocarray");
 
 	rp = &rt->repos[rt->reposz++];
 	memset(rp, 0, sizeof(struct repo));
@@ -221,7 +221,7 @@ repo_lookup(int fd, struct repotab *rt, const char *uri)
 
 	if ((rp->host = strndup(host, hostsz)) == NULL ||
 	    (rp->module = strndup(mod, modsz)) == NULL)
-		err(EXIT_FAILURE, NULL);
+		err(EXIT_FAILURE, "strndup");
 
 	i = rt->reposz - 1;
 
@@ -324,7 +324,7 @@ entityq_add(int fd, struct entityq *q, char *file, enum rtype type,
 	struct entity	*p;
 
 	if ((p = calloc(1, sizeof(struct entity))) == NULL)
-		err(EXIT_FAILURE, NULL);
+		err(EXIT_FAILURE, "calloc");
 
 	p->id = (*eid)++;
 	p->type = type;
@@ -337,7 +337,7 @@ entityq_add(int fd, struct entityq *q, char *file, enum rtype type,
 	if (p->has_pkey) {
 		p->pkeysz = pkeysz;
 		if ((p->pkey = malloc(pkeysz)) == NULL)
-			err(EXIT_FAILURE, NULL);
+			err(EXIT_FAILURE, "malloc");
 		memcpy(p->pkey, pkey, pkeysz);
 	}
 	TAILQ_INSERT_TAIL(q, p, entries);
@@ -368,7 +368,7 @@ queue_add_from_mft(int fd, struct entityq *q, const char *mft,
 
 	sz = strlen(file->file) + strlen(mft);
 	if ((nfile = calloc(sz + 1, 1)) == NULL)
-		err(EXIT_FAILURE, NULL);
+		err(EXIT_FAILURE, "calloc");
 
 	/* We know this is BASE_DIR/host/module/... */
 
@@ -443,7 +443,7 @@ queue_add_tal(int fd, struct entityq *q, const char *file, size_t *eid)
 	char		*nfile;
 
 	if ((nfile = strdup(file)) == NULL)
-		err(EXIT_FAILURE, NULL);
+		err(EXIT_FAILURE, "strdup");
 
 	/* Not in a repository, so directly add to queue. */
 
@@ -474,7 +474,7 @@ queue_add_from_tal(int proc, int rsync, struct entityq *q,
 
 	if (asprintf(&nfile, "%s/%s/%s/%s",
 	    BASE_DIR, repo->host, repo->module, uri) < 0)
-		err(EXIT_FAILURE, NULL);
+		err(EXIT_FAILURE, "asprintf");
 
 	entityq_add(proc, q, nfile, RTYPE_CER,
 		repo, NULL, tal->pkey, tal->pkeysz, eid);
@@ -503,7 +503,7 @@ queue_add_from_cert(int proc, int rsync, struct entityq *q,
 
 	if (asprintf(&nfile, "%s/%s/%s/%s",
 	    BASE_DIR, repo->host, repo->module, uri) < 0)
-		err(EXIT_FAILURE, NULL);
+		err(EXIT_FAILURE, "asprintf");
 
 	entityq_add(proc, q, nfile, type, repo, NULL, NULL, 0, eid);
 }
@@ -532,16 +532,61 @@ proc_rsync(const char *prog, int fd, int noop)
 {
 	size_t		  id, i, idsz = 0;
 	ssize_t		  ssz;
-	char		 *host = NULL, *mod = NULL, *uri = NULL, *dst = NULL;
+	char		 *host = NULL, *mod = NULL, *uri = NULL, *dst = NULL,
+			 *path, *save, *cmd;
+	const char	 *pp;
 	pid_t		  pid;
 	char		 *args[32];
 	int		  st, rc = 0;
+	struct stat	  stt;
 	struct pollfd	  pfd;
 	sigset_t	  mask, oldmask;
 	struct rsyncproc *ids = NULL;
 
 	pfd.fd = fd;
 	pfd.events = POLLIN;
+
+	/*
+	 * Unveil the command we want to run.
+	 * If this has a pathname component in it, interpret as a file
+	 * and unveil the file directly.
+	 * Otherwise, look up the command in our PATH.
+	 */
+
+	if (!noop) {
+		if (strchr(prog, '/') == NULL) {
+			if (getenv("PATH") == NULL)
+				errx(EXIT_FAILURE, "PATH is unset");
+			if ((path = strdup(getenv("PATH"))) == NULL)
+				err(EXIT_FAILURE, "strdup");
+			save = path;
+			while ((pp = strsep(&path, ":")) != NULL) {
+				if (*pp == '\0')
+					continue;
+				if (asprintf(&cmd, "%s/%s", pp, prog) == -1)
+					err(EXIT_FAILURE, "asprintf");
+				if (lstat(cmd, &stt) == -1) {
+					warnx("skipped: %s", cmd);
+					free(cmd);
+					continue;
+				} else if (unveil(cmd, "x") == -1)
+					err(EXIT_FAILURE, "%s: unveil", cmd);
+				free(cmd);
+				break;
+			}
+			free(save);
+		} else if (unveil(prog, "x") == -1)
+			err(EXIT_FAILURE, "%s: unveil", prog);
+
+		/* Unveil the repository directory and terminate unveiling. */
+
+		if (unveil(BASE_DIR, "c") == -1)
+			err(EXIT_FAILURE, "%s: unveil", BASE_DIR);
+		if (unveil(NULL, NULL) == -1)
+			err(EXIT_FAILURE, "unveil");
+	}
+
+	/* Initialise retriever for children exiting. */
 
 	if (sigemptyset(&mask) == -1)
 		err(EXIT_FAILURE, NULL);
@@ -1035,7 +1080,7 @@ proc_parser(int fd, int force, int norev)
 
 		if (entp->type != RTYPE_TAL && first_tals) {
 			if (unveil(BASE_DIR, "r") == -1)
-				err(EXIT_FAILURE, "unveil");
+				err(EXIT_FAILURE, "%s: unveil", BASE_DIR);
 			if (unveil(NULL, NULL) == -1)
 				err(EXIT_FAILURE, "unveil");
 			first_tals = 0;
@@ -1208,7 +1253,7 @@ entity_process(int proc, int rsync, struct stats *st,
 			*out = reallocarray(*out,
 				*outsz + 1, sizeof(struct roa *));
 			if (*out == NULL)
-				err(EXIT_FAILURE, NULL);
+				err(EXIT_FAILURE, "reallocarray");
 			(*out)[*outsz] = roa;
 			(*outsz)++;
 			/* We roa_free() on exit. */
@@ -1310,7 +1355,7 @@ main(int argc, char *argv[])
 
 	if (rsyncpid == 0) {
 		close(fd[1]);
-		if (pledge("stdio proc exec cpath", NULL) == -1)
+		if (pledge("stdio proc exec rpath cpath unveil", NULL) == -1)
 			err(EXIT_FAILURE, "pledge");
 
 		/* If -n, we don't exec or mkdir. */
