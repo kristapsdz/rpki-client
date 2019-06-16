@@ -56,7 +56,7 @@ Next, you'll need the */var/cache/rpki-client* directory in place.
 It must be writable by the operator of **rpki-client**.
 
 You'll also need TAL ("trust anchor locator") files.
-There are some in the [tal](tal) directory of this system, but you can
+There are some in the [tals](tals) directory of this system, but you can
 download them on your own.
 
 To run **rpki-client**, just point it at your TAL files.
