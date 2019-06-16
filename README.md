@@ -17,6 +17,8 @@ The system runs on modern UNIX operating systems with the the
 See [Portability](#portability) for details.
 The reference operating system is [OpenBSD](https://www.openbsd.org),
 which we strongly suggest for all installations for security reasons.
+It will support [LibreSSL](https://www.libressl.org/) once the library
+gains CMS parsing.
 
 See the [TODO](TODO.md) file for open questions regarding RPKI operation
 in general.
@@ -37,22 +39,24 @@ It was funded by [NetNod](https://www.netnod.se),
 First, you'll need a recent [OpenSSL](https://www.openssl.org/) library
 on your operating system.
 At this point, just run the following.
+The installation rule will install into `PREFIX`, defaulting to
+*/usr/local*.
 
 ```
 % ./configure
 % make
+# make install
 ```
 
-If you have your OpenSSL installation by an alternative name
-(alternative to where `pkg-config` will find it), adjust the `OPENSSL`
-variable in the *Makefile*.
-Linux installations will need to uncomment the *-lresolve*.
+Linux installations will need to uncomment the [Makefile](Makfile)
+components following the `Linux` comment.  For OpenBSD, those following
+`OpenBSD`.  FreeBSD should work without modification (untested).
 
 Next, you'll need the */var/cache/rpki-client* directory in place.
 It must be writable by the operator of **rpki-client**.
 
 You'll also need TAL ("trust anchor locator") files.
-There are some in the *tal* directory of this system, but you can
+There are some in the [tal](tal) directory of this system, but you can
 download them on your own.
 
 To run **rpki-client**, just point it at your TAL files.
@@ -61,14 +65,18 @@ You'll also need the [openrsync(1)](https://man.openbsd.org/openrsync.1)
 **-e** argument) executable installed.
 
 ```
-% ./rpki-client -rv ./tals/*.tal
+% ./rpki-client -v ./tals/*.tal
 ```
 
-Note the **-r** flag.
-At the time, this is strongly recommended since CRL parsing takes ten
-times longer due to huge CRL files.
-This is not currently solvable within **rpki-client** unless in
-designing a new non-OpenSSL parser for CRL files entirely.
+If you later want to uninstall the system, simply run
+
+```
+# make uninstall
+```
+
+If the manpages in the install root have already been indexed, you may
+need to re-run [makewhatis(8)](https://man.openbsd.org/makewhatis.8) to
+purge the system's manpage.
 
 # Architecture
 
