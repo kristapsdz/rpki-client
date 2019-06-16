@@ -39,6 +39,16 @@ LDADD += /usr/local/lib/eopenssl/libssl.a /usr/local/lib/eopenssl/libcrypto.a
 
 all: $(BINS)
 
+install: all
+	mkdir -p $(DESTDIR)$(BINDIR)
+	mkdir -p $(DESTDIR)$(MANDIR)/man1
+	$(INSTALL_PROGRAM) rpki-client $(DESTDIR)$(BINDIR)
+	$(INSTALL_MAN) rpki-client.1 $(DESTDIR)$(MANDIR)/man1
+
+uninstall:
+	rm -f $(DESTDIR)$(BINDIR)/rpki-client
+	rm -f $(DESTDIR)$(MANDIR)/man1/rpki-client.1
+
 rpki-client: $(OBJS) main.o
 	$(CC) -o $@ main.o $(OBJS) $(LDFLAGS) $(LDADD)
 
