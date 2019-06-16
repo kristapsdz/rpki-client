@@ -566,7 +566,6 @@ proc_rsync(const char *prog, int fd, int noop)
 				if (asprintf(&cmd, "%s/%s", pp, prog) == -1)
 					err(EXIT_FAILURE, "asprintf");
 				if (lstat(cmd, &stt) == -1) {
-					warnx("skipped: %s", cmd);
 					free(cmd);
 					continue;
 				} else if (unveil(cmd, "x") == -1)
