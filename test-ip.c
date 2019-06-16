@@ -47,18 +47,18 @@ test(const char *res, uint16_t afiv, size_t sz, size_t unused, ...)
 	memset(&addr, 0, sizeof(struct ip_addr));
 
 	va_start(ap, unused);
-	for (i = 0; i < sz - 1; i++) 
+	for (i = 0; i < sz - 1; i++)
 		addr.addr[i] = (unsigned char)va_arg(ap, int);
 	va_end(ap);
 
 	addr.sz = sz - 1;
 	addr.unused = unused;
 	ip_addr_print(&addr, afi, buf, sizeof(buf));
-	if (res != NULL && strcmp(res, buf)) 
+	if (res != NULL && strcmp(res, buf))
 		errx(EXIT_FAILURE, "fail: %s != %s\n", res, buf);
 	else if (res != NULL)
 		warnx("pass: %s", buf);
-	else 
+	else
 		warnx("check: %s", buf);
 
 	ip.afi = afi;

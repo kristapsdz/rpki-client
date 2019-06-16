@@ -64,7 +64,7 @@ roa_parse_addr(const ASN1_OCTET_STRING *os,
 	if (sk_ASN1_TYPE_num(seq) != 1 &&
 	    sk_ASN1_TYPE_num(seq) != 2) {
 		warnx("%s: RFC 6482 section 3.3: adddress: "
-			"want 1 or 2 elements, have %d", 
+			"want 1 or 2 elements, have %d",
 			p->fn, sk_ASN1_TYPE_num(seq));
 		goto out;
 	}
@@ -72,7 +72,7 @@ roa_parse_addr(const ASN1_OCTET_STRING *os,
 	t = sk_ASN1_TYPE_value(seq, 0);
 	if (t->type != V_ASN1_BIT_STRING) {
 		warnx("%s: RFC 6482 section 3.3: address: "
-			"want ASN.1 bit string, have %s (NID %d)", 
+			"want ASN.1 bit string, have %s (NID %d)",
 			p->fn, ASN1_tag2str(t->type), t->type);
 		goto out;
 	}
@@ -82,7 +82,7 @@ roa_parse_addr(const ASN1_OCTET_STRING *os,
 		goto out;
 	}
 
-	/* 
+	/*
 	 * RFC 6482, section 3.3 doesn't ever actually state that the
 	 * maximum length can't be negative, but it needs to be >=0.
 	 */
@@ -91,7 +91,7 @@ roa_parse_addr(const ASN1_OCTET_STRING *os,
 		t = sk_ASN1_TYPE_value(seq, 1);
 		if (t->type != V_ASN1_INTEGER) {
 			warnx("%s: RFC 6482 section 3.1: maxLength: "
-				"want ASN.1 integer, have %s (NID %d)", 
+				"want ASN.1 integer, have %s (NID %d)",
 				p->fn, ASN1_tag2str(t->type), t->type);
 			goto out;
 		}
@@ -153,7 +153,7 @@ roa_parse_ipfam(const ASN1_OCTET_STRING *os, struct parse *p)
 	} else if (sk_ASN1_TYPE_num(seq) != 2) {
 		warnx("%s: RFC 6482 section 3.3: "
 			"ROAIPAddressFamily: "
-			"want 2 elements, have %d", 
+			"want 2 elements, have %d",
 			p->fn, sk_ASN1_TYPE_num(seq));
 		goto out;
 	}
@@ -162,7 +162,7 @@ roa_parse_ipfam(const ASN1_OCTET_STRING *os, struct parse *p)
 	if (t->type != V_ASN1_OCTET_STRING) {
 		warnx("%s: RFC 6482 section 3.3: "
 			"addressFamily: want ASN.1 "
-			"octet string, have %s (NID %d)", 
+			"octet string, have %s (NID %d)",
 			p->fn, ASN1_tag2str(t->type), t->type);
 		goto out;
 	}
@@ -175,7 +175,7 @@ roa_parse_ipfam(const ASN1_OCTET_STRING *os, struct parse *p)
 	t = sk_ASN1_TYPE_value(seq, 1);
 	if (t->type != V_ASN1_SEQUENCE) {
 		warnx("%s: RFC 6482 section 3.3: addresses: "
-			"want ASN.1 sequence, have %s (NID %d)", 
+			"want ASN.1 sequence, have %s (NID %d)",
 			p->fn, ASN1_tag2str(t->type), t->type);
 		goto out;
 	}
@@ -193,7 +193,7 @@ roa_parse_ipfam(const ASN1_OCTET_STRING *os, struct parse *p)
 		t = sk_ASN1_TYPE_value(sseq, i);
 		if (t->type != V_ASN1_SEQUENCE) {
 			warnx("%s: RFC 6482 section 3.3: ROAIPAddress: "
-				"want ASN.1 sequence, have %s (NID %d)", 
+				"want ASN.1 sequence, have %s (NID %d)",
 				p->fn, ASN1_tag2str(t->type), t->type);
 			goto out;
 		}
@@ -232,7 +232,7 @@ roa_parse_ipblocks(const ASN1_OCTET_STRING *os, struct parse *p)
 		if (t->type != V_ASN1_SEQUENCE) {
 			warnx("%s: RFC 6482 section 3.3: "
 				"ROAIPAddressFamily: want ASN.1 "
-				"sequence, have %s (NID %d)", 
+				"sequence, have %s (NID %d)",
 				p->fn, ASN1_tag2str(t->type), t->type);
 			goto out;
 		} else if (!roa_parse_ipfam(t->value.octet_string, p))
@@ -263,12 +263,12 @@ roa_parse_econtent(const unsigned char *d, size_t dsz, struct parse *p)
 			"RouteOriginAttestation: "
 			"failed ASN.1 sequence parse", p->fn);
 		goto out;
-	} 
+	}
 
 	if ((sz = sk_ASN1_TYPE_num(seq)) != 2 && sz != 3) {
 		warnx("%s: RFC 6482 section 3: "
 			"RouteOriginAttestation: "
-			"want 2 or 3 elements, have %d", 
+			"want 2 or 3 elements, have %d",
 			p->fn, sk_ASN1_TYPE_num(seq));
 		goto out;
 	}
@@ -286,18 +286,18 @@ roa_parse_econtent(const unsigned char *d, size_t dsz, struct parse *p)
 
 		if (t->type != V_ASN1_INTEGER) {
 			warnx("%s: RFC 6482 section 3.1: version: "
-				"want ASN.1 integer, have %s (NID %d)", 
+				"want ASN.1 integer, have %s (NID %d)",
 				p->fn, ASN1_tag2str(t->type), t->type);
 			goto out;
 		} else if (ASN1_INTEGER_get(t->value.integer) != 0) {
 			warnx("%s: RFC 6482 section 3.1: version: "
-				"want version 0, have %ld", 
+				"want version 0, have %ld",
 				p->fn, ASN1_INTEGER_get(t->value.integer));
 			goto out;
 		}
-	} 
+	}
 
-	/* 
+	/*
 	 * RFC 6482, section 3.2.
 	 * It doesn't ever actually state that AS numbers can't be
 	 * negative, but...?
@@ -306,7 +306,7 @@ roa_parse_econtent(const unsigned char *d, size_t dsz, struct parse *p)
 	t = sk_ASN1_TYPE_value(seq, i++);
 	if (t->type != V_ASN1_INTEGER) {
 		warnx("%s: RFC 6482 section 3.2: asID: "
-			"want ASN.1 integer, have %s (NID %d)", 
+			"want ASN.1 integer, have %s (NID %d)",
 			p->fn, ASN1_tag2str(t->type), t->type);
 		goto out;
 	} else if (!as_id_parse(t->value.integer, &p->res->asid)) {
@@ -320,7 +320,7 @@ roa_parse_econtent(const unsigned char *d, size_t dsz, struct parse *p)
 	t = sk_ASN1_TYPE_value(seq, i++);
 	if (t->type != V_ASN1_SEQUENCE) {
 		warnx("%s: RFC 6482 section 3.3: ipAddrBlocks: "
-			"want ASN.1 sequence, have %s (NID %d)", 
+			"want ASN.1 sequence, have %s (NID %d)",
 			p->fn, ASN1_tag2str(t->type), t->type);
 		goto out;
 	} else if (!roa_parse_ipblocks(t->value.octet_string, p))

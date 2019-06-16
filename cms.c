@@ -52,7 +52,7 @@ cms_parse_validate(X509 **xp, const char *fn,
 	*rsz = 0;
 	*xp = NULL;
 
-	/* 
+	/*
 	 * This is usually fopen() failure, so let it pass through to
 	 * the handler, which will in turn ignore the entity.
 	 */
@@ -109,7 +109,7 @@ cms_parse_validate(X509 **xp, const char *fn,
 	 * Verify that the self-signage is correct.
 	 */
 
-	if (!CMS_verify(cms, NULL, NULL, 
+	if (!CMS_verify(cms, NULL, NULL,
 	    NULL, NULL, CMS_NO_SIGNER_CERT_VERIFY)) {
 		cryptowarnx("%s: RFC 6488: CMS not self-signed", fn);
 		goto out;

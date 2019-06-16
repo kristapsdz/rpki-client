@@ -55,7 +55,7 @@ tal_parse_stream(const char *fn, FILE *f)
 		assert(linelen);
 		assert(line[linelen - 1] == '\n');
 		line[--linelen] = '\0';
-		if (linelen && line[linelen - 1] == '\r') 
+		if (linelen && line[linelen - 1] == '\r')
 			line[--linelen] = '\0';
 
 		/* Zero-length line is end of section. */
@@ -78,7 +78,7 @@ tal_parse_stream(const char *fn, FILE *f)
 
 		/* Make sure we're a proper rsync URI. */
 
-		if (!rsync_uri_parse(NULL, NULL, 
+		if (!rsync_uri_parse(NULL, NULL,
 		    NULL, NULL, NULL, NULL, &rp, line)) {
 			warnx("%s: RFC 7730 section 2.1: "
 				"failed to parse URL: %s", fn, line);
@@ -108,7 +108,7 @@ tal_parse_stream(const char *fn, FILE *f)
 		assert(linelen);
 		assert(line[linelen - 1] == '\n');
 		line[--linelen] = '\0';
-		if (linelen && line[linelen - 1] == '\r') 
+		if (linelen && line[linelen - 1] == '\r')
 			line[--linelen] = '\0';
 
 		/* Zero-length line can be ignored... ? */
@@ -124,7 +124,7 @@ tal_parse_stream(const char *fn, FILE *f)
 		if ((ssz = b64_pton(line, b64 + b64sz, sz)) < 0)
 			errx(EXIT_FAILURE, "b64_pton");
 
-		/* 
+		/*
 		 * This might be different from our allocation size, but
 		 * that doesn't matter: the slop here is minimal.
 		 */
