@@ -1,5 +1,10 @@
 # Introduction
 
+**This system has been merged into OpenBSD base.  If you'd like to
+contribute to openrsync, please mail your patches to tech@openbsd.org.
+This repository is simply the OpenBSD version plus some glue for
+portability.**
+
 **rpki-client** is an implementation of RPKI (resource public key
 infrastructure) described in [RFC
 6480](https://tools.ietf.org/html/rfc6480).
