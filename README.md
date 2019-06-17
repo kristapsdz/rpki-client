@@ -1,7 +1,7 @@
 # Introduction
 
 **This system has been merged into OpenBSD base.  If you'd like to
-contribute to openrsync, please mail your patches to tech@openbsd.org.
+contribute to rpki-client, please mail your patches to tech@openbsd.org.
 This repository is simply the OpenBSD version plus some glue for
 portability.**
 
