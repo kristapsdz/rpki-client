@@ -44,6 +44,13 @@
 #define	BASE_DIR "/var/cache/rpki-client"
 
 /*
+ * Implementation of (open)rsync we're going to use.
+ */
+#ifndef RSYNC_PROG
+#define RSYNC_PROG "openrsync"
+#endif
+
+/*
  * Statistics collected during run-time.
  */
 struct	stats {
@@ -1281,7 +1288,7 @@ main(int argc, char *argv[])
 	struct repotab	  rt;
 	struct stats	  stats;
 	struct roa	**out = NULL;
-	const char	 *rsync_prog = "openrsync";
+	const char	 *rsync_prog = RSYNC_PROG;
 
 	if (pledge("stdio rpath proc exec cpath unveil", NULL) == -1)
 		err(EXIT_FAILURE, "pledge");
