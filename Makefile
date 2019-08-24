@@ -39,13 +39,13 @@ all: $(BINS)
 
 install: all
 	mkdir -p $(DESTDIR)$(BINDIR)
-	mkdir -p $(DESTDIR)$(MANDIR)/man1
+	mkdir -p $(DESTDIR)$(MANDIR)/man8
 	$(INSTALL_PROGRAM) rpki-client $(DESTDIR)$(BINDIR)
-	$(INSTALL_MAN) rpki-client.1 $(DESTDIR)$(MANDIR)/man1
+	$(INSTALL_MAN) rpki-client.8 $(DESTDIR)$(MANDIR)/man8
 
 uninstall:
 	rm -f $(DESTDIR)$(BINDIR)/rpki-client
-	rm -f $(DESTDIR)$(MANDIR)/man1/rpki-client.1
+	rm -f $(DESTDIR)$(MANDIR)/man8/rpki-client.8
 
 rpki-client: $(OBJS) main.o
 	$(CC) -o $@ main.o $(OBJS) $(LDFLAGS) $(LDADD)
