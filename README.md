@@ -10,7 +10,7 @@ infrastructure) described in [RFC
 6480](https://tools.ietf.org/html/rfc6480).
 It implements the *client* side of RPKI, which is responsible for
 downloading and validating route origin statements.
-For usage, please read [rpki-client(8)](rpki-client.8).
+For usage, please read [rpki-client(1)](rpki-client.1).
 
 The design focus of **rpki-client** is simplicity and security.
 To wit, it implements RPKI components necessary for validating route
@@ -31,7 +31,7 @@ in general.
 ## Project background
 
 **rpki-client** is written as part of the
-[rpki-client(8)](https://medium.com/@jobsnijders/a-proposal-for-a-new-rpki-validator-openbsd-rpki-client-1-15b74e7a3f65)
+[rpki-client(1)](https://medium.com/@jobsnijders/a-proposal-for-a-new-rpki-validator-openbsd-rpki-client-1-15b74e7a3f65)
 project, an
 [RPKI](https://en.wikipedia.org/wiki/Resource_Public_Key_Infrastructure)
 validator for OpenBSD. 
@@ -70,7 +70,7 @@ You'll also need the [openrsync(1)](https://man.openbsd.org/openrsync.1)
 **-e** argument) executable installed.
 
 ```
-% ./rpki-client -v ./tals/*.tal
+% ./rpki-client -v ./tals/*.tal > bgpd-rpki.conf
 ```
 
 If you later want to uninstall the system, simply run
@@ -117,7 +117,7 @@ This process performs the bulk of the work.
 The master process is responsible for orchestrating this pipeline.
 It seeds the parser process with the TAL files, retrieves TAL output,
 then begins parsing certificates (X509), manifests (MFT), revocation
-lists (CRL), and routes (ROA).
+lists (CRL), and Route Origin Authorizations (ROAs).
 If any of these files sits in a repository not yet fetched, that
 repository is fetched or refreshed.
 When the repository is fetched, those pending entries are flushed into

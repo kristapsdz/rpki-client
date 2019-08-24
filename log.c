@@ -37,7 +37,7 @@ cryptoerrx(const char *fmt, ...)
 {
 	unsigned long	 er;
 	char		 buf[BUFSIZ];
-	va_list	  	 ap;
+	va_list		 ap;
 
 	while ((er = ERR_get_error()) > 0) {
 		ERR_error_string_n(er, buf, sizeof(buf));
@@ -61,7 +61,7 @@ cryptowarnx(const char *fmt, ...)
 {
 	unsigned long	 er;
 	char		 buf[BUFSIZ];
-	va_list	  	 ap;
+	va_list		 ap;
 
 	while ((er = ERR_get_error()) > 0) {
 		ERR_error_string_n(er, buf, sizeof(buf));

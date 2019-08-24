@@ -32,6 +32,8 @@
 
 #include "extern.h"
 
+int	 verbose;
+
 static void
 cert_print(const struct cert *p)
 {
@@ -87,7 +89,7 @@ cert_print(const struct cert *p)
 int
 main(int argc, char *argv[])
 {
-	int		 c, verb = 0, ta = 0;
+	int		 c, ta = 0;
 	size_t		 i;
 	X509		*xp = NULL;
 	struct cert	*p;
@@ -101,7 +103,7 @@ main(int argc, char *argv[])
 			ta = 1;
 			break;
 		case 'v':
-			verb++;
+			verbose++;
 			break;
 		default:
 			return EXIT_FAILURE;
@@ -116,7 +118,7 @@ main(int argc, char *argv[])
 			cert_parse(&xp, argv[i], NULL);
 		if (p == NULL)
 			break;
-		if (verb)
+		if (verbose)
 			cert_print(p);
 		cert_free(p);
 		X509_free(xp);

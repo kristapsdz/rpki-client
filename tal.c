@@ -16,9 +16,9 @@
  */
 #include "config.h"
 
+#include <netinet/in.h>
 #include <assert.h>
 #include <err.h>
-#include <netinet/in.h>
 #include <resolv.h>
 #include <stdio.h>
 #include <stdlib.h>
@@ -53,7 +53,11 @@ tal_parse_stream(const char *fn, FILE *f)
 	while ((linelen = getline(&line, &linesize, f)) != -1) {
 		lineno++;
 		assert(linelen);
-		assert(line[linelen - 1] == '\n');
+		if (line[linelen - 1] != '\n') {
+			warnx("%s: RFC 7730 section 2.1: "
+			    "failed to parse URL", fn);
+			goto out;
+		}
 		line[--linelen] = '\0';
 		if (linelen && line[linelen - 1] == '\r')
 			line[--linelen] = '\0';
@@ -81,11 +85,11 @@ tal_parse_stream(const char *fn, FILE *f)
 		if (!rsync_uri_parse(NULL, NULL,
 		    NULL, NULL, NULL, NULL, &rp, line)) {
 			warnx("%s: RFC 7730 section 2.1: "
-				"failed to parse URL: %s", fn, line);
+			    "failed to parse URL: %s", fn, line);
 			goto out;
 		} else if (rp != RTYPE_CER) {
 			warnx("%s: RFC 7730 section 2.1: "
-				"not a certificate URL: %s", fn, line);
+			    "not a certificate URL: %s", fn, line);
 			goto out;
 		}
 	}
@@ -106,7 +110,11 @@ tal_parse_stream(const char *fn, FILE *f)
 	while ((linelen = getline(&line, &linesize, f)) != -1) {
 		lineno++;
 		assert(linelen);
-		assert(line[linelen - 1] == '\n');
+		if (line[linelen - 1] != '\n') {
+			warnx("%s: RFC 7730 section 2.1: "
+			    "failed to parse public key", fn);
+			goto out;
+		}
 		line[--linelen] = '\0';
 		if (linelen && line[linelen - 1] == '\r')
 			line[--linelen] = '\0';
@@ -131,14 +139,13 @@ tal_parse_stream(const char *fn, FILE *f)
 
 		b64sz += ssz;
 	}
-	
+
 	if (ferror(f))
 		err(EXIT_FAILURE, "%s: getline", fn);
 
 	if (b64sz == 0) {
-		warnx("%s: RFC 7730 section 2.1: "
-			"subjectPublicKeyInfo: "
-			"zero-length public key", fn);
+		warnx("%s: RFC 7730 section 2.1: subjectPublicKeyInfo: "
+		    "zero-length public key", fn);
 		goto out;
 	}
 
@@ -150,9 +157,8 @@ tal_parse_stream(const char *fn, FILE *f)
 	pkey = d2i_PUBKEY(NULL, (const unsigned char **)&b64, b64sz);
 	b64 = NULL;
 	if (pkey == NULL) {
-		cryptowarnx("%s: RFC 7730 section 2.1: "
-			"subjectPublicKeyInfo: "
-			"failed public key parse", fn);
+		cryptowarnx("%s: RFC 7730 section 2.1: subjectPublicKeyInfo: "
+		    "failed public key parse", fn);
 		goto out;
 	}
 	rc = 1;

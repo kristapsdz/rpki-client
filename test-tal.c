@@ -29,6 +29,8 @@
 
 #include "extern.h"
 
+int	verbose;
+
 static void
 tal_print(const struct tal *p)
 {
@@ -43,7 +45,7 @@ tal_print(const struct tal *p)
 int
 main(int argc, char *argv[])
 {
-	int		 c, verb = 0;
+	int		 c;
 	struct tal	*tal;
 	size_t		 i;
 
@@ -53,7 +55,7 @@ main(int argc, char *argv[])
 	while (-1 != (c = getopt(argc, argv, "v")))
 		switch (c) {
 		case 'v':
-			verb++;
+			verbose++;
 			break;
 		default:
 			return EXIT_FAILURE;
@@ -65,7 +67,7 @@ main(int argc, char *argv[])
 	for (i = 0; i < (size_t)argc; i++) {
 		if ((tal = tal_parse(argv[i])) == NULL)
 			break;
-		if (verb)
+		if (verbose)
 			tal_print(tal);
 		tal_free(tal);
 	}

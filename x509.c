@@ -37,7 +37,7 @@
  */
 static int
 ASN1_frame(const char *fn, size_t sz,
-	const unsigned char **cnt, long *cntsz, int *tag)
+    const unsigned char **cnt, long *cntsz, int *tag)
 {
 	int	 ret, pcls;
 
@@ -59,7 +59,7 @@ ASN1_frame(const char *fn, size_t sz,
 char *
 x509_get_aki_ext(X509_EXTENSION *ext, const char *fn)
 {
-	const unsigned char 	*d;
+	const unsigned char	*d;
 	const ASN1_TYPE		*t;
 	const ASN1_OCTET_STRING	*os = NULL;
 	ASN1_SEQUENCE_ANY	*seq = NULL;
@@ -69,7 +69,7 @@ x509_get_aki_ext(X509_EXTENSION *ext, const char *fn)
 	char			*res = NULL;
 
 	assert(NID_authority_key_identifier ==
-	       OBJ_obj2nid(X509_EXTENSION_get_object(ext)));
+	    OBJ_obj2nid(X509_EXTENSION_get_object(ext)));
 	os = X509_EXTENSION_get_data(ext);
 	assert(os != NULL);
 
@@ -78,19 +78,20 @@ x509_get_aki_ext(X509_EXTENSION *ext, const char *fn)
 
 	if ((seq = d2i_ASN1_SEQUENCE_ANY(NULL, &d, dsz)) == NULL) {
 		cryptowarnx("%s: RFC 6487 section 4.8.3: AKI: "
-			"failed ASN.1 sub-sequence parse", fn);
+		    "failed ASN.1 sub-sequence parse", fn);
 		goto out;
-	} else if (sk_ASN1_TYPE_num(seq) != 1) {
-		warnx("%s: RFC 6487 section 4.8.3: AKI: want 1 "
-			"element, have %d", fn, sk_ASN1_TYPE_num(seq));
+	}
+	if (sk_ASN1_TYPE_num(seq) != 1) {
+		warnx("%s: RFC 6487 section 4.8.3: AKI: "
+		    "want 1 element, have %d", fn, sk_ASN1_TYPE_num(seq));
 		goto out;
 	}
 
 	t = sk_ASN1_TYPE_value(seq, 0);
 	if (t->type != V_ASN1_OTHER) {
 		warnx("%s: RFC 6487 section 4.8.3: AKI: "
-			"want ASN.1 external, have %s (NID %d)",
-			fn, ASN1_tag2str(t->type), t->type);
+		    "want ASN.1 external, have %s (NID %d)",
+		    fn, ASN1_tag2str(t->type), t->type);
 		goto out;
 	}
 
@@ -123,7 +124,7 @@ out:
 char *
 x509_get_ski_ext(X509_EXTENSION *ext, const char *fn)
 {
-	const unsigned char 	*d;
+	const unsigned char	*d;
 	const ASN1_OCTET_STRING	*os;
 	ASN1_OCTET_STRING	*oss = NULL;
 	int			 i, dsz;
@@ -131,7 +132,7 @@ x509_get_ski_ext(X509_EXTENSION *ext, const char *fn)
 	char			*res = NULL;
 
 	assert(NID_subject_key_identifier ==
-	       OBJ_obj2nid(X509_EXTENSION_get_object(ext)));
+	    OBJ_obj2nid(X509_EXTENSION_get_object(ext)));
 
 	os = X509_EXTENSION_get_data(ext);
 	assert(os != NULL);
@@ -140,7 +141,7 @@ x509_get_ski_ext(X509_EXTENSION *ext, const char *fn)
 
 	if ((oss = d2i_ASN1_OCTET_STRING(NULL, &d, dsz)) == NULL) {
 		cryptowarnx("%s: RFC 6487 section 4.8.2: SKI: "
-			"failed ASN.1 octet string parse", fn);
+		    "failed ASN.1 octet string parse", fn);
 		goto out;
 	}
 
@@ -148,8 +149,8 @@ x509_get_ski_ext(X509_EXTENSION *ext, const char *fn)
 	dsz = oss->length;
 
 	if (dsz != 20) {
-		warnx("%s: RFC 6487 section 4.8.2: SKI: want 20 B "
-			"SHA1 hash, have %d B", fn, dsz);
+		warnx("%s: RFC 6487 section 4.8.2: SKI: "
+		    "want 20 B SHA1 hash, have %d B", fn, dsz);
 		goto out;
 	}
 
@@ -203,17 +204,19 @@ x509_get_ski_aki(X509 *x, const char *fn, char **ski, char **aki)
 	}
 
 	if (*aki == NULL) {
-		cryptowarnx("%s: RFC 6487 section 4.8.3: "
-			"AKI: missing AKI X509 extension", fn);
+		cryptowarnx("%s: RFC 6487 section 4.8.3: AKI: "
+		    "missing AKI X509 extension", fn);
 		free(*ski);
+		*ski = NULL;
 		return 0;
-	} else if (*ski == NULL) {
-		cryptowarnx("%s: RFC 6487 section 4.8.2: "
-			"AKI: missing SKI X509 extension", fn);
+	}
+	if (*ski == NULL) {
+		cryptowarnx("%s: RFC 6487 section 4.8.2: AKI: "
+		    "missing SKI X509 extension", fn);
 		free(*aki);
+		*aki = NULL;
 		return 0;
 	}
 
-	assert(*ski != NULL && *aki != NULL);
 	return 1;
 }

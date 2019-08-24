@@ -18,13 +18,11 @@ OBJS	 = as.o \
 ALLOBJS	 = $(OBJS) \
 	   main.o \
 	   test-cert.o \
-	   test-ip.o \
 	   test-mft.o \
 	   test-roa.o \
 	   test-tal.o
 BINS	 = rpki-client \
 	   test-cert \
-	   test-ip \
 	   test-mft \
 	   test-roa \
 	   test-tal
@@ -43,20 +41,17 @@ install: all
 	mkdir -p $(DESTDIR)$(BINDIR)
 	mkdir -p $(DESTDIR)$(MANDIR)/man1
 	$(INSTALL_PROGRAM) rpki-client $(DESTDIR)$(BINDIR)
-	$(INSTALL_MAN) rpki-client.8 $(DESTDIR)$(MANDIR)/man1
+	$(INSTALL_MAN) rpki-client.1 $(DESTDIR)$(MANDIR)/man1
 
 uninstall:
 	rm -f $(DESTDIR)$(BINDIR)/rpki-client
-	rm -f $(DESTDIR)$(MANDIR)/man8/rpki-client.8
+	rm -f $(DESTDIR)$(MANDIR)/man1/rpki-client.1
 
 rpki-client: $(OBJS) main.o
 	$(CC) -o $@ main.o $(OBJS) $(LDFLAGS) $(LDADD)
 
 test-tal: $(OBJS) test-tal.o
 	$(CC) -o $@ test-tal.o $(OBJS) $(LDFLAGS) $(LDADD)
-
-test-ip: $(OBJS) test-ip.o
-	$(CC) -o $@ test-ip.o $(OBJS) $(LDFLAGS) $(LDADD)
 
 test-mft: $(OBJS) test-mft.o
 	$(CC) -o $@ test-mft.o $(OBJS) $(LDFLAGS) $(LDADD)
