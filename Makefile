@@ -66,6 +66,6 @@ clean:
 	rm -f $(BINS) $(ALLOBJS)
 
 distclean: clean
-	rm -f config.h config.log
+	rm -f config.h config.log Makefile.configure
 
 $(ALLOBJS): extern.h config.h
