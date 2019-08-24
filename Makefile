@@ -65,4 +65,7 @@ test-cert: $(OBJS) test-cert.o
 clean:
 	rm -f $(BINS) $(ALLOBJS)
 
+distclean: clean
+	rm -f config.h config.log
+
 $(ALLOBJS): extern.h config.h
