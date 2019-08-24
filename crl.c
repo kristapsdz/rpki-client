@@ -34,14 +34,15 @@
 X509_CRL *
 crl_parse(const char *fn, const unsigned char *dgst)
 {
-	int	 	 rc = 0, sz;
+	int		 rc = 0, sz;
 	X509_CRL	*x = NULL;
 	BIO		*bio = NULL, *shamd;
 	EVP_MD		*md;
 	char		 mdbuf[EVP_MAX_MD_SIZE];
 
 	if ((bio = BIO_new_file(fn, "rb")) == NULL) {
-		cryptowarnx("%s: BIO_new_file", fn);
+		if (verbose > 0)
+			cryptowarnx("%s: BIO_new_file", fn);
 		return NULL;
 	}
 
@@ -63,7 +64,7 @@ crl_parse(const char *fn, const unsigned char *dgst)
 		cryptowarnx("%s: d2i_X509_CRL_bio", fn);
 		goto out;
 	}
-	
+
 	/*
 	 * If we have a digest, find it in the chain (we'll already have
 	 * made it, so assert otherwise) and verify it.
@@ -82,7 +83,8 @@ crl_parse(const char *fn, const unsigned char *dgst)
 		assert(sz == SHA256_DIGEST_LENGTH);
 
 		if (memcmp(mdbuf, dgst, SHA256_DIGEST_LENGTH)) {
-			warnx("%s: bad message digest", fn);
+			if (verbose > 0)
+				warnx("%s: bad message digest", fn);
 			goto out;
 		}
 	}

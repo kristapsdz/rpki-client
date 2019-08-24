@@ -91,19 +91,19 @@ mft_parse_filehash(struct parse *p, const ASN1_OCTET_STRING *os)
 	const ASN1_SEQUENCE_ANY *seq;
 	const ASN1_TYPE		*file, *hash;
 	char			*fn = NULL;
-	const unsigned char     *d = os->data;
-	size_t		         dsz = os->length, sz;
-	int		 	 rc = 0;
+	const unsigned char	*d = os->data;
+	size_t			 dsz = os->length, sz;
+	int			 rc = 0;
 	struct mftfile		*fent;
 
 	if ((seq = d2i_ASN1_SEQUENCE_ANY(NULL, &d, dsz)) == NULL) {
 		cryptowarnx("%s: RFC 6486 section 4.2.1: FileAndHash: "
-			"failed ASN.1 sequence parse", p->fn);
+		    "failed ASN.1 sequence parse", p->fn);
 		goto out;
 	} else if (sk_ASN1_TYPE_num(seq) != 2) {
 		warnx("%s: RFC 6486 section 4.2.1: FileAndHash: "
-			"want 2 elements, have %d", p->fn,
-			sk_ASN1_TYPE_num(seq));
+		    "want 2 elements, have %d", p->fn,
+		    sk_ASN1_TYPE_num(seq));
 		goto out;
 	}
 
@@ -112,13 +112,12 @@ mft_parse_filehash(struct parse *p, const ASN1_OCTET_STRING *os)
 	file = sk_ASN1_TYPE_value(seq, 0);
 	if (file->type != V_ASN1_IA5STRING) {
 		warnx("%s: RFC 6486 section 4.2.1: FileAndHash: "
-			"want ASN.1 IA5 string, have %s (NID %d)",
-			p->fn, ASN1_tag2str(file->type), file->type);
+		    "want ASN.1 IA5 string, have %s (NID %d)",
+		    p->fn, ASN1_tag2str(file->type), file->type);
 		goto out;
 	}
-	fn = strndup
-		((const char *)file->value.ia5string->data,
-		 file->value.ia5string->length);
+	fn = strndup((const char *)file->value.ia5string->data,
+	    file->value.ia5string->length);
 	if (fn == NULL)
 		err(EXIT_FAILURE, NULL);
 
@@ -130,12 +129,12 @@ mft_parse_filehash(struct parse *p, const ASN1_OCTET_STRING *os)
 	 */
 
 	if (strchr(fn, '/') != NULL) {
-		warnx("%s: path components disallowed in "
-			"filename: %s", p->fn, fn);
+		warnx("%s: path components disallowed in filename: %s",
+		    p->fn, fn);
 		goto out;
 	} else if ((sz = strlen(fn)) <= 4) {
-		warnx("%s: filename must be large enough "
-			"for suffix part: %s", p->fn, fn);
+		warnx("%s: filename must be large enough for suffix part: %s",
+		    p->fn, fn);
 		goto out;
 	}
 
@@ -149,28 +148,26 @@ mft_parse_filehash(struct parse *p, const ASN1_OCTET_STRING *os)
 	}
 
 	/* Now hash value. */
-	
+
 	hash = sk_ASN1_TYPE_value(seq, 1);
 	if (hash->type != V_ASN1_BIT_STRING) {
 		warnx("%s: RFC 6486 section 4.2.1: FileAndHash: "
-			"want ASN.1 bit string, have %s (NID %d)",
-			p->fn, ASN1_tag2str(hash->type), hash->type);
+		    "want ASN.1 bit string, have %s (NID %d)",
+		    p->fn, ASN1_tag2str(hash->type), hash->type);
 		goto out;
 	}
 
 	if (hash->value.bit_string->length != SHA256_DIGEST_LENGTH) {
 		warnx("%s: RFC 6486 section 4.2.1: hash: "
-			"invalid SHA256 length, have %d",
-			p->fn, hash->value.bit_string->length);
+		    "invalid SHA256 length, have %d",
+		    p->fn, hash->value.bit_string->length);
 		goto out;
 	}
 
 	/* Insert the filename and hash value. */
 
-	p->res->files = reallocarray
-		(p->res->files,
-		 p->res->filesz + 1,
-		 sizeof(struct mftfile));
+	p->res->files = reallocarray(p->res->files, p->res->filesz + 1,
+	    sizeof(struct mftfile));
 	if (p->res->files == NULL)
 		err(EXIT_FAILURE, NULL);
 
@@ -179,8 +176,7 @@ mft_parse_filehash(struct parse *p, const ASN1_OCTET_STRING *os)
 
 	fent->file = fn;
 	fn = NULL;
-	memcpy(fent->hash, hash->value.bit_string->data,
-		SHA256_DIGEST_LENGTH);
+	memcpy(fent->hash, hash->value.bit_string->data, SHA256_DIGEST_LENGTH);
 
 	rc = 1;
 out:
@@ -196,15 +192,15 @@ out:
 static int
 mft_parse_flist(struct parse *p, const ASN1_OCTET_STRING *os)
 {
-	ASN1_SEQUENCE_ANY 	*seq;
+	ASN1_SEQUENCE_ANY	*seq;
 	const ASN1_TYPE		*t;
-	const unsigned char     *d = os->data;
-	size_t		         dsz = os->length;
-	int		 	 i, rc = 0;
+	const unsigned char	*d = os->data;
+	size_t			 dsz = os->length;
+	int			 i, rc = 0;
 
 	if ((seq = d2i_ASN1_SEQUENCE_ANY(NULL, &d, dsz)) == NULL) {
 		cryptowarnx("%s: RFC 6486 section 4.2: fileList: "
-			"failed ASN.1 sequence parse", p->fn);
+		    "failed ASN.1 sequence parse", p->fn);
 		goto out;
 	}
 
@@ -212,8 +208,8 @@ mft_parse_flist(struct parse *p, const ASN1_OCTET_STRING *os)
 		t = sk_ASN1_TYPE_value(seq, i);
 		if (t->type != V_ASN1_SEQUENCE) {
 			warnx("%s: RFC 6486 section 4.2: fileList: "
-				"want ASN.1 sequence, have %s (NID %d)",
-				p->fn, ASN1_tag2str(t->type), t->type);
+			    "want ASN.1 sequence, have %s (NID %d)",
+			    p->fn, ASN1_tag2str(t->type), t->type);
 			goto out;
 		} else if (!mft_parse_filehash(p, t->value.octet_string))
 			goto out;
@@ -232,15 +228,15 @@ out:
 static int
 mft_parse_econtent(const unsigned char *d, size_t dsz, struct parse *p, int force)
 {
-	ASN1_SEQUENCE_ANY 	*seq;
+	ASN1_SEQUENCE_ANY	*seq;
 	const ASN1_TYPE		*t;
-	int		         i, rc = -1;
+	int			 i, rc = -1;
 	time_t			 this, next, now = time(NULL);
 	char			 buf[64];
 
 	if ((seq = d2i_ASN1_SEQUENCE_ANY(NULL, &d, dsz)) == NULL) {
 		cryptowarnx("%s: RFC 6486 section 4.2: Manifest: "
-			"failed ASN.1 sequence parse", p->fn);
+		    "failed ASN.1 sequence parse", p->fn);
 		goto out;
 	}
 
@@ -249,8 +245,8 @@ mft_parse_econtent(const unsigned char *d, size_t dsz, struct parse *p, int forc
 	if (sk_ASN1_TYPE_num(seq) != 5 &&
 	    sk_ASN1_TYPE_num(seq) != 6) {
 		warnx("%s: RFC 6486 section 4.2: Manifest: "
-			"want 5 or 6 elements, have %d", p->fn,
-			sk_ASN1_TYPE_num(seq));
+		    "want 5 or 6 elements, have %d", p->fn,
+		    sk_ASN1_TYPE_num(seq));
 		goto out;
 	}
 
@@ -261,8 +257,8 @@ mft_parse_econtent(const unsigned char *d, size_t dsz, struct parse *p, int forc
 		t = sk_ASN1_TYPE_value(seq, i++);
 		if (t->type != V_ASN1_INTEGER) {
 			warnx("%s: RFC 6486 section 4.2.1: version: "
-				"want ASN.1 integer, have %s (NID %d)",
-				p->fn, ASN1_tag2str(t->type), t->type);
+			    "want ASN.1 integer, have %s (NID %d)",
+			    p->fn, ASN1_tag2str(t->type), t->type);
 			goto out;
 		}
 	}
@@ -272,8 +268,8 @@ mft_parse_econtent(const unsigned char *d, size_t dsz, struct parse *p, int forc
 	t = sk_ASN1_TYPE_value(seq, i++);
 	if (t->type != V_ASN1_INTEGER) {
 		warnx("%s: RFC 6486 section 4.2.1: manifestNumber: "
-			"want ASN.1 integer, have %s (NID %d)",
-			p->fn, ASN1_tag2str(t->type), t->type);
+		    "want ASN.1 integer, have %s (NID %d)",
+		    p->fn, ASN1_tag2str(t->type), t->type);
 		goto out;
 	}
 
@@ -290,17 +286,17 @@ mft_parse_econtent(const unsigned char *d, size_t dsz, struct parse *p, int forc
 	t = sk_ASN1_TYPE_value(seq, i++);
 	if (t->type != V_ASN1_GENERALIZEDTIME) {
 		warnx("%s: RFC 6486 section 4.2.1: thisUpdate: "
-			"want ASN.1 generalised time, have %s (NID %d)",
-			p->fn, ASN1_tag2str(t->type), t->type);
+		    "want ASN.1 generalised time, have %s (NID %d)",
+		    p->fn, ASN1_tag2str(t->type), t->type);
 		goto out;
 	}
 	this = gentime2time(p, t->value.generalizedtime);
-	
+
 	t = sk_ASN1_TYPE_value(seq, i++);
 	if (t->type != V_ASN1_GENERALIZEDTIME) {
 		warnx("%s: RFC 6486 section 4.2.1: nextUpdate: "
-			"want ASN.1 generalised time, have %s (NID %d)",
-			p->fn, ASN1_tag2str(t->type), t->type);
+		    "want ASN.1 generalised time, have %s (NID %d)",
+		    p->fn, ASN1_tag2str(t->type), t->type);
 		goto out;
 	}
 	next = gentime2time(p, t->value.generalizedtime);
@@ -315,11 +311,13 @@ mft_parse_econtent(const unsigned char *d, size_t dsz, struct parse *p, int forc
 		ctime_r(&next, buf);
 		buf[strlen(buf) - 1] = '\0';
 		if (!force) {
-			warnx("%s: stale: expired %s", p->fn, buf);
+			if (verbose > 0)
+				warnx("%s: stale: expired %s", p->fn, buf);
 			rc = 0;
 			goto out;
 		}
-		warnx("%s: stale: expired %s (ignoring)", p->fn, buf);
+		if (verbose > 0)
+			warnx("%s: stale: expired %s (ignoring)", p->fn, buf);
 	}
 
 	/* File list algorithm. */
@@ -327,14 +325,14 @@ mft_parse_econtent(const unsigned char *d, size_t dsz, struct parse *p, int forc
 	t = sk_ASN1_TYPE_value(seq, i++);
 	if (t->type != V_ASN1_OBJECT) {
 		warnx("%s: RFC 6486 section 4.2.1: fileHashAlg: "
-			"want ASN.1 object time, have %s (NID %d)",
-			p->fn, ASN1_tag2str(t->type), t->type);
+		    "want ASN.1 object time, have %s (NID %d)",
+		    p->fn, ASN1_tag2str(t->type), t->type);
 		goto out;
 	} else if (OBJ_obj2nid(t->value.object) != NID_sha256) {
 		warnx("%s: RFC 6486 section 4.2.1: fileHashAlg: "
-			"want SHA256 object, have %s (NID %d)", p->fn,
-			ASN1_tag2str(OBJ_obj2nid(t->value.object)),
-			OBJ_obj2nid(t->value.object));
+		    "want SHA256 object, have %s (NID %d)", p->fn,
+		    ASN1_tag2str(OBJ_obj2nid(t->value.object)),
+		    OBJ_obj2nid(t->value.object));
 		goto out;
 	}
 
@@ -343,8 +341,8 @@ mft_parse_econtent(const unsigned char *d, size_t dsz, struct parse *p, int forc
 	t = sk_ASN1_TYPE_value(seq, i++);
 	if (t->type != V_ASN1_SEQUENCE) {
 		warnx("%s: RFC 6486 section 4.2.1: fileList: "
-			"want ASN.1 sequence, have %s (NID %d)",
-			p->fn, ASN1_tag2str(t->type), t->type);
+		    "want ASN.1 sequence, have %s (NID %d)",
+		    p->fn, ASN1_tag2str(t->type), t->type);
 		goto out;
 	} else if (!mft_parse_flist(p, t->value.octet_string))
 		goto out;
@@ -373,8 +371,8 @@ mft_parse(X509 **x509, const char *fn, int force)
 	memset(&p, 0, sizeof(struct parse));
 	p.fn = fn;
 
-	cms = cms_parse_validate(x509, fn,
-		"1.2.840.113549.1.9.16.1.26", NULL, &cmsz);
+	cms = cms_parse_validate(x509, fn, "1.2.840.113549.1.9.16.1.26",
+	    NULL, &cmsz);
 	if (cms == NULL)
 		return NULL;
 	assert(*x509 != NULL);
@@ -406,7 +404,7 @@ mft_parse(X509 **x509, const char *fn, int force)
 		free(p.res->files);
 		p.res->filesz = 0;
 		p.res->files = NULL;
-	} else if (c < 0)
+	} else if (c == -1)
 		goto out;
 
 	rc = 1;
@@ -474,7 +472,7 @@ mft_buffer(char **b, size_t *bsz, size_t *bmax, const struct mft *p)
 struct mft *
 mft_read(int fd)
 {
-	struct mft 	*p = NULL;
+	struct mft	*p = NULL;
 	size_t		 i;
 
 	if ((p = calloc(1, sizeof(struct mft))) == NULL)
@@ -483,7 +481,7 @@ mft_read(int fd)
 	io_simple_read(fd, &p->stale, sizeof(int));
 	io_str_read(fd, &p->file);
 	io_simple_read(fd, &p->filesz, sizeof(size_t));
-	
+
 	if ((p->files = calloc(p->filesz, sizeof(struct mftfile))) == NULL)
 		err(EXIT_FAILURE, NULL);
 

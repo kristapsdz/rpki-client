@@ -29,6 +29,8 @@
 
 #include "extern.h"
 
+int	 verbose;
+
 static void
 mft_print(const struct mft *p)
 {
@@ -46,7 +48,7 @@ mft_print(const struct mft *p)
 int
 main(int argc, char *argv[])
 {
-	int		 c, verb = 0, force = 0;
+	int		 c, force = 0;
 	size_t		 i;
 	struct mft	*p;
 	X509		*xp = NULL;
@@ -60,7 +62,7 @@ main(int argc, char *argv[])
 			force = 1;
 			break;
 		case 'v':
-			verb++;
+			verbose++;
 			break;
 		default:
 			return EXIT_FAILURE;
@@ -72,7 +74,7 @@ main(int argc, char *argv[])
 	for (i = 0; i < (size_t)argc; i++) {
 		if ((p = mft_parse(&xp, argv[i], force)) == NULL)
 			break;
-		if (verb)
+		if (verbose)
 			mft_print(p);
 		mft_free(p);
 		X509_free(xp);
