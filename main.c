@@ -1260,26 +1260,26 @@ entity_process(int proc, int rsync, struct stats *st,
 int
 main(int argc, char *argv[])
 {
-	int		  rc = 0, c, proc, st, rsync,
-			  fl = SOCK_STREAM | SOCK_CLOEXEC, noop = 0,
-			  force = 0, norev = 0;
-	size_t		  i, j, eid = 1, outsz = 0, routes, uniqs;
-	pid_t		  procpid, rsyncpid;
-	int		  fd[2];
-	struct entityq	  q;
-	struct entity	 *ent;
-	struct pollfd	  pfd[2];
-	struct repotab	  rt;
-	struct stats	  stats;
+	int		 rc = 0, c, proc, st, rsync,
+			 fl = SOCK_STREAM | SOCK_CLOEXEC, noop = 0,
+			 force = 0, norev = 0;
+	size_t		 i, j, eid = 1, outsz = 0, vrps, uniqs;
+	pid_t		 procpid, rsyncpid;
+	int		 fd[2];
+	struct entityq	 q;
+	struct entity	*ent;
+	struct pollfd	 pfd[2];
+	struct repotab	 rt;
+	struct stats	 stats;
 	struct roa	**out = NULL;
-	const char	 *rsync_prog = "openrsync";
-	const char	 *bind_addr = NULL;
-	FILE		 *output = stdout;
+	const char	*rsync_prog = "openrsync";
+	const char	*bind_addr = NULL;
+	FILE		*output = stdout;
 
-	if (pledge("stdio rpath cpath proc exec cpath unveil", NULL) == -1)
+	if (pledge("stdio rpath cpath proc exec unveil", NULL) == -1)
 		err(EXIT_FAILURE, "pledge");
 
-	while ((c = getopt(argc, argv, "b:e:fnqrv")) != -1)
+	while ((c = getopt(argc, argv, "b:e:fnrv")) != -1)
 		switch (c) {
 		case 'b':
 			bind_addr = optarg;
@@ -1478,17 +1478,17 @@ main(int argc, char *argv[])
 	/* Output and statistics. */
 
 	output_bgpd(output, (const struct roa **)out,
-		outsz, &routes, &uniqs);
-	logx("Route origins: %zu (%zu failed parse, %zu invalid)",
-		stats.roas, stats.roas_fail, stats.roas_invalid);
+	    outsz, &vrps, &uniqs);
+	logx("Route Origin Authorizations: %zu (%zu failed parse, %zu invalid)",
+	    stats.roas, stats.roas_fail, stats.roas_invalid);
 	logx("Certificates: %zu (%zu failed parse, %zu invalid)",
-		stats.certs, stats.certs_fail, stats.certs_invalid);
-	logx("Trust anchor locators: %zu", stats.tals);
+	    stats.certs, stats.certs_fail, stats.certs_invalid);
+	logx("Trust Anchor Locators: %zu", stats.tals);
 	logx("Manifests: %zu (%zu failed parse, %zu stale)",
-		stats.mfts, stats.mfts_fail, stats.mfts_stale);
+	    stats.mfts, stats.mfts_fail, stats.mfts_stale);
 	logx("Certificate revocation lists: %zu", stats.crls);
 	logx("Repositories: %zu", stats.repos);
-	logx("Routes: %zu (%zu unique)", routes, uniqs);
+	logx("VRP Entries: %zu (%zu unique)", vrps, uniqs);
 
 	/* Memory cleanup. */
 
