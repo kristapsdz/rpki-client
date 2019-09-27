@@ -233,6 +233,8 @@ mft_parse_econtent(const unsigned char *d, size_t dsz, struct parse *p, int forc
 	int			 i, rc = -1;
 	time_t			 this, next, now = time(NULL);
 	char			 buf[64];
+	char			 caThis[64], caNow[64], caNext[64];
+	struct tm *tm;
 
 	if ((seq = d2i_ASN1_SEQUENCE_ANY(NULL, &d, dsz)) == NULL) {
 		cryptowarnx("%s: RFC 6486 section 4.2: Manifest: "
@@ -272,6 +274,7 @@ mft_parse_econtent(const unsigned char *d, size_t dsz, struct parse *p, int forc
 		    p->fn, ASN1_tag2str(t->type), t->type);
 		goto out;
 	}
+	p->res->manifestNumber = ASN1_INTEGER_get(t->value.integer);
 
 	/*
 	 * Timestamps: this and next update time.
@@ -300,12 +303,21 @@ mft_parse_econtent(const unsigned char *d, size_t dsz, struct parse *p, int forc
 		goto out;
 	}
 	next = gentime2time(p, t->value.generalizedtime);
+	tm = localtime(&this);
+	strftime(caThis, sizeof(caThis)-1, "%Y-%m-%d %H:%M:%S", tm);
+	tm = localtime(&next);
+	strftime(caNext, sizeof(caNext)-1, "%Y-%m-%d %H:%M:%S", tm);
+	tm = localtime(&now);
+	strftime(caNow, sizeof(caNow)-1, "%Y-%m-%d %H:%M:%S", tm);
+
+	memcpy(&p->res->thisUpdate, &this, sizeof (time_t));
+	memcpy(&p->res->nextUpdate, &next, sizeof (time_t));
 
 	if (this >= next) {
-		warnx("%s: bad update interval", p->fn);
+		warnx("%s: bad update interval [%s] >= [%s]", p->fn, caThis, caNext);
 		goto out;
 	} else if (now < this) {
-		warnx("%s: before date interval (clock drift?)", p->fn);
+		warnx("%s: before date interval (clock drift?) [%s] < [%s]", p->fn, caNow, caThis);
 		goto out;
 	} else if (now >= next) {
 		ctime_r(&next, buf);

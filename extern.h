@@ -154,6 +154,10 @@ struct	mft {
 	int		 stale; /* if a stale manifest */
 	char		*ski; /* SKI */
 	char		*aki; /* AKI */
+	long		version;
+	long		manifestNumber;
+	time_t		thisUpdate;
+	time_t		nextUpdate;
 };
 
 /*

@@ -28,6 +28,7 @@
 #include <openssl/ssl.h>
 
 #include "extern.h"
+#include "test-core.h"
 
 int	 verbose;
 
@@ -35,13 +36,36 @@ static void
 mft_print(const struct mft *p)
 {
 	size_t	 i;
+	unsigned char caSHA256[64 + 1];
+	char caThis[64], caNext[64], caNow[64];
+	time_t now;
+	struct tm *tm;
 
 	assert(p != NULL);
 
+    now = time(NULL);
+	tm = localtime(&now);
+	strftime(caNow, sizeof(caNow)-1, "%Y-%m-%d %H:%M:%S", tm);
+
+		tm = localtime(&p->thisUpdate);
+		strftime(caThis, sizeof(caThis)-1, "%Y-%m-%d %H:%M:%S", tm);
+
+		tm = localtime(&p->nextUpdate);
+		strftime(caNext, sizeof(caNext)-1, "%Y-%m-%d %H:%M:%S", tm);
+
+	printf("Manifest Number: %ld\n", p->manifestNumber);
+
+	printf("Now: %s\n", caNow);
+	printf("This Update: %s\n", caThis);
+	printf("Next Update: %s\n", caNext);
+
 	printf("Subject key identifier: %s\n", p->ski);
 	printf("Authority key identifier: %s\n", p->aki);
-	for (i = 0; i < p->filesz; i++)
-		printf("%5zu: %s\n", i + 1, p->files[i].file);
+	for (i = 0; i < p->filesz; i++) {
+		memset (caSHA256, 0, sizeof (caSHA256));
+		HexEncode(caSHA256, p->files[i].hash, 32);
+		printf("%s: %s\n", p->files[i].file, caSHA256);
+	}
 }
 
 

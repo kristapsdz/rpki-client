@@ -13,27 +13,33 @@ OBJS	 = as.o \
 	   roa.o \
 	   rsync.o \
 	   tal.o \
+	   test-core.o \
 	   validate.o \
 	   x509.o
 ALLOBJS	 = $(OBJS) \
 	   main.o \
 	   test-cert.o \
+	   test-crl.o \
 	   test-mft.o \
 	   test-roa.o \
 	   test-tal.o
 BINS	 = rpki-client \
 	   test-cert \
+	   test-crl \
 	   test-mft \
 	   test-roa \
 	   test-tal
 
-# Linux.
-#LDADD += `pkg-config --libs openssl` -lresolv
-#CFLAGS += `pkg-config --cflags openssl`
-
-# OpenBSD.
-CFLAGS += -I/usr/local/include/eopenssl
-LDADD += /usr/local/lib/eopenssl/libssl.a /usr/local/lib/eopenssl/libcrypto.a
+ARCH=$(shell uname -s|tr A-Z a-z)
+ifeq ($(ARCH), linux)
+	# Linux.
+	LDADD += `pkg-config --libs openssl` -lresolv
+	CFLAGS += `pkg-config --cflags openssl`
+else
+	# OpenBSD.
+	CFLAGS += -I/usr/local/include/eopenssl
+	LDADD += /usr/local/lib/eopenssl/libssl.a /usr/local/lib/eopenssl/libcrypto.a
+endif
 
 all: $(BINS)
 
@@ -47,20 +53,23 @@ uninstall:
 	rm -f $(DESTDIR)$(BINDIR)/rpki-client
 	rm -f $(DESTDIR)$(MANDIR)/man8/rpki-client.8
 
-rpki-client: $(OBJS) main.o
-	$(CC) -o $@ main.o $(OBJS) $(LDFLAGS) $(LDADD)
+rpki-client: main.o $(OBJS)
+	$(CC) -o $@ $^ $(LDFLAGS) $(LDADD)
 
-test-tal: $(OBJS) test-tal.o
-	$(CC) -o $@ test-tal.o $(OBJS) $(LDFLAGS) $(LDADD)
+test-tal: test-tal.o $(OBJS)
+	$(CC) -o $@ $^ $(LDFLAGS) $(LDADD)
 
-test-mft: $(OBJS) test-mft.o
-	$(CC) -o $@ test-mft.o $(OBJS) $(LDFLAGS) $(LDADD)
+test-mft: test-mft.o $(OBJS)
+	$(CC) -o $@ $^ $(LDFLAGS) $(LDADD)
 
-test-roa: $(OBJS) test-roa.o
-	$(CC) -o $@ test-roa.o $(OBJS) $(LDFLAGS) $(LDADD)
+test-roa: test-roa.o $(OBJS)
+	$(CC) -o $@ $^ $(LDFLAGS) $(LDADD)
 
-test-cert: $(OBJS) test-cert.o
-	$(CC) -o $@ test-cert.o $(OBJS) $(LDFLAGS) $(LDADD)
+test-cert: test-cert.o $(OBJS)
+	$(CC) -o $@ $^ $(LDFLAGS) $(LDADD)
+
+test-crl: test-crl.o $(OBJS)
+	$(CC) -o $@ $^ $(LDFLAGS) $(LDADD)
 
 clean:
 	rm -f $(BINS) $(ALLOBJS)
