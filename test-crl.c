@@ -32,7 +32,7 @@
 int	 verbose;
 
 // https://stackoverflow.com/questions/10975542/asn1-time-to-time-t-conversion
-static time_t ASN1_GetTimeT(ASN1_TIME* time){
+static struct tm ASN1_GetTimeT(ASN1_TIME* time){
     struct tm t;
     const char* str = (const char*) time->data;
     size_t i = 0;
@@ -63,26 +63,45 @@ static time_t ASN1_GetTimeT(ASN1_TIME* time){
     t.tm_sec += (str[i++] - '0');
 
     /* Note: we did not adjust the time based on time zone information */
-    return mktime(&t);
+    return t;
 }
 
 // http://www.geo-complex.com/shares/soft/unix/CentOS/OpenVPN/openssl-1.1.0c/crypto/x509/x_crl.c
 static void
 crl_print(const X509_CRL *p)
 {
-	int i;
+	int i, numRevoked;
 	char caRevocationDate[64];
-	struct tm *tm;
+	long crlNumber;
+	struct tm tm;
 	STACK_OF(X509_REVOKED) *revoked;
 
 	revoked = X509_CRL_get_REVOKED(p);
-	for (i = 0; i < sk_X509_REVOKED_num(revoked); i++) {
-		X509_REVOKED *rev = sk_X509_REVOKED_value(revoked, i);
-		long srl=ASN1_INTEGER_get(rev->serialNumber);
-		time_t t = ASN1_GetTimeT(rev->revocationDate);
-		tm = localtime(&t);
-		strftime(caRevocationDate, sizeof(caRevocationDate)-1, "%Y-%m-%d %H:%M:%S", tm);
-		printf ("%s: %ld\n", caRevocationDate, srl);
+	crlNumber = ASN1_INTEGER_get(p->crl_number);
+	printf ("Certificate Revocation List (CRL):\n");
+	printf ("        CRL extensions:\n");
+	printf ("            X509v3 CRL Number:\n");
+	printf ("                %ld\n", crlNumber);
+	numRevoked = sk_X509_REVOKED_num(revoked);
+	if (numRevoked > 0) {
+		printf ("Revoked Certificates:\n");
+		for (i = 0; i < numRevoked; i++) {
+			X509_REVOKED *rev = sk_X509_REVOKED_value(revoked, i);
+			if (rev != NULL) {
+				BIGNUM *bnSrl = ASN1_INTEGER_to_BN(rev->serialNumber, NULL);
+				if (bnSrl != NULL) {
+					char *lpcSrl = BN_bn2hex(bnSrl);
+					if (lpcSrl != NULL) {
+						printf ("    Serial Number: %s\n", lpcSrl);
+						OPENSSL_free(lpcSrl);
+					}
+					BN_free(bnSrl);
+				}
+			}
+			tm = ASN1_GetTimeT(rev->revocationDate);
+			strftime(caRevocationDate, sizeof(caRevocationDate)-1, "%Y-%m-%d %H:%M:%S GMT", &tm);
+			printf ("        Revokation Date: %s\n", caRevocationDate);
+		}
 	}
 }
 
