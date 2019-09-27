@@ -25,7 +25,7 @@ static unsigned char ToAsc (unsigned char c)
 	unsigned char nib = c & 0x0f;
   	if (nib <= 9)
     	return (nib + '0');
-	return (nib - 10 + 'A');
+	return (nib - 10 + 'a');
 }
 
 void HexEncode (unsigned char *lpcAsc, unsigned char *lpcBcd, size_t szBcd)

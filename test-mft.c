@@ -64,7 +64,7 @@ mft_print(const struct mft *p)
 	for (i = 0; i < p->filesz; i++) {
 		memset (caSHA256, 0, sizeof (caSHA256));
 		HexEncode(caSHA256, p->files[i].hash, 32);
-		printf("%s: %s\n", p->files[i].file, caSHA256);
+		printf("%s  %s\n", caSHA256, p->files[i].file);
 	}
 }
 
