@@ -336,6 +336,9 @@ mft_parse(X509 **x509, const char *fn, int force)
 	int		 c, rc = 0;
 	size_t		 i, cmsz;
 	unsigned char	*cms;
+	ASN1_TIME *t;
+	struct tm		tm;
+	time_t	tt;
 
 	memset(&p, 0, sizeof(struct parse));
 	p.fn = fn;
@@ -375,6 +378,16 @@ mft_parse(X509 **x509, const char *fn, int force)
 		p.res->files = NULL;
 	} else if (c == -1)
 		goto out;
+
+    t = X509_get_notBefore(*x509);
+	tm = asn1Time2Time(t);
+	tt = mktime(&tm);
+    memcpy(&p.res->notBefore, &tt, sizeof (time_t));
+
+    t = X509_get_notAfter(*x509);
+	tm = asn1Time2Time(t);
+	tt = mktime(&tm);
+    memcpy(&p.res->notAfter, &tt, sizeof (time_t));
 
 	rc = 1;
 out:

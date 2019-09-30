@@ -360,10 +360,10 @@ roa_parse(X509 **x509, const char *fn, const unsigned char *dgst)
 		goto out;
 
     t = X509_get_notBefore(*x509);
-	
 	tm = asn1Time2Time(t);
 	tt = mktime(&tm);
     memcpy(&p.res->notBefore, &tt, sizeof (time_t));
+
     t = X509_get_notAfter(*x509);
 	tm = asn1Time2Time(t);
 	tt = mktime(&tm);

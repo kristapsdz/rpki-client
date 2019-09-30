@@ -157,6 +157,8 @@ struct	mft {
 	char		*aki; /* AKI */
 	long		version;
 	long		manifestNumber;
+	time_t		notAfter;
+	time_t		notBefore;
 	time_t		thisUpdate;
 	time_t		nextUpdate;
 };

@@ -22,5 +22,6 @@
 #define TAB 30
 
 void hex_encode (unsigned char *lpcAsc, unsigned char *lpcBcd, size_t szBcd);
+void print_sep_line (const char *title, size_t count);
 
 #endif

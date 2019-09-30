@@ -53,11 +53,13 @@ roa_print(const struct roa *p)
 	tm = gmtime(&p->notAfter);
 	strftime(caNotAfter, sizeof(caNotAfter)-1, "%Y-%m-%d %H:%M:%S GMT", tm);
 
-	printf("%*.*s: %s\n", TAB, TAB, "Subject key identifier", p->ski);
-	printf("%*.*s: %s\n", TAB, TAB, "Authority key identifier", p->aki);
 	printf("%*.*s: %s\n", TAB, TAB, "Now", caNow);
+	print_sep_line("EE Certificate", 110);
 	printf("%*.*s: %s\n", TAB, TAB, "Not Before", caNotBefore);
 	printf("%*.*s: %s\n", TAB, TAB, "Not After", caNotAfter);
+	printf("%*.*s: %s\n", TAB, TAB, "Subject key identifier", p->ski);
+	printf("%*.*s: %s\n", TAB, TAB, "Authority key identifier", p->aki);
+	print_sep_line("ROA", 110);
 	printf("%*.*s: %" PRIu32 "\n", TAB, TAB, "asID", p->asid);
 	for (i = 0; i < p->ipsz; i++) {
 		ip_addr_print(&p->ips[i].addr,

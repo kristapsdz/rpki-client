@@ -39,7 +39,7 @@ mft_print(const struct mft *p)
 {
 	size_t	 i;
 	unsigned char caSHA256[64 + 1];
-	char caThis[64], caNext[64], caNow[64];
+	char caNotAfter[64], caNotBefore[64], caThis[64], caNext[64], caNow[64];
 	time_t now;
 	struct tm *tm;
 
@@ -55,14 +55,23 @@ mft_print(const struct mft *p)
 	tm = gmtime(&p->nextUpdate);
 	strftime(caNext, sizeof(caNext)-1, "%Y-%m-%d %H:%M:%S GMT", tm);
 
-	printf("%*.*s: %ld\n", TAB, TAB, "Manifest Number", p->manifestNumber);
+	tm = gmtime(&p->notBefore);
+	strftime(caNotBefore, sizeof(caNotBefore)-1, "%Y-%m-%d %H:%M:%S GMT", tm);
 
+	tm = gmtime(&p->notAfter);
+	strftime(caNotAfter, sizeof(caNotAfter)-1, "%Y-%m-%d %H:%M:%S GMT", tm);
+
+	print_sep_line("EE Certificate", 110);
+	printf("%*.*s: %s\n", TAB, TAB, "Not Before", caNotBefore);
+	printf("%*.*s: %s\n", TAB, TAB, "Not After", caNotAfter);
+	printf("%*.*s: %s\n", TAB, TAB, "Subject key identifier", p->ski);
+	printf("%*.*s: %s\n", TAB, TAB, "Authority key identifier", p->aki);
+	print_sep_line("Manifest", 110);
+
+	printf("%*.*s: %ld\n", TAB, TAB, "Manifest Number", p->manifestNumber);
 	printf("%*.*s: %s\n", TAB, TAB, "Now", caNow);
 	printf("%*.*s: %s\n", TAB, TAB, "This Update", caThis);
 	printf("%*.*s: %s\n", TAB, TAB, "Next Update", caNext);
-
-	printf("%*.*s: %s\n", TAB, TAB, "Subject key identifier", p->ski);
-	printf("%*.*s: %s\n", TAB, TAB, "Authority key identifier", p->aki);
 	for (i = 0; i < p->filesz; i++) {
 		memset (caSHA256, 0, sizeof (caSHA256));
 		hex_encode(caSHA256, p->files[i].hash, 32);

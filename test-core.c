@@ -16,7 +16,9 @@
  */
 #include "config.h"
 
+#include <stdio.h>
 #include <stdlib.h>
+#include <memory.h>
 
 #include "test-core.h"
 
@@ -35,4 +37,18 @@ void hex_encode (unsigned char *lpcAsc, unsigned char *lpcBcd, size_t szBcd)
 		*lpcAsc++ = ToAsc (lpcBcd[i] >> 4);
 		*lpcAsc++ = ToAsc (lpcBcd[i]);
 	}
+}
+
+void print_sep_line (const char *title, size_t count)
+{
+	size_t i;
+
+	if (title && *title) {
+		printf ("%s ", title);
+		count -= strlen(title) + 1;
+	}
+	for (i = 0; i < count; i++) {
+		printf("=");
+	}
+	printf("\n");
 }
