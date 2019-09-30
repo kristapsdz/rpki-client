@@ -26,6 +26,7 @@
 
 #include <openssl/ssl.h>
 
+#include "asn1.h"
 #include "extern.h"
 
 /*
@@ -35,51 +36,6 @@ struct	parse {
 	const char	*fn; /* manifest file name */
 	struct mft	*res; /* result object */
 };
-
-/*
- * Convert from the ASN.1 generalised time to a time_t.
- * Return the time.
- * This is a stupid requirement due to using ASN1_GENERALIZEDTIME
- * instead of the native ASN1_TIME functions for comparing time.
- */
-static time_t
-gentime2time(struct parse *p, const ASN1_GENERALIZEDTIME *tp)
-{
-	BIO		*mem;
-	char		*pp;
-	char		 buf[64];
-	long		 len;
-	struct tm	 tm;
-	time_t		 t;
-
-	if ((mem = BIO_new(BIO_s_mem())) == NULL)
-		cryptoerrx("BIO_new");
-	if (!ASN1_GENERALIZEDTIME_print(mem, tp))
-		cryptoerrx("ASN1_GENERALIZEDTIME_print");
-
-	/*
-	 * The manpage says nothing about being NUL terminated and
-	 * strptime(3) needs a string.
-	 * So convert into a static buffer of decent size and NUL
-	 * terminate in that way.
-	 */
-
-	len = BIO_get_mem_data(mem, &pp);
-	if (len < 0 || (size_t)len > sizeof(buf) - 1)
-		errx(EXIT_FAILURE, "BIO_get_mem_data");
-
-	memcpy(buf, pp, len);
-	buf[len] = '\0';
-	BIO_free(mem);
-
-	memset(&tm, 0, sizeof(struct tm));
-	if (strptime(buf, "%b %d %T %Y %Z", &tm) == NULL)
-		errx(EXIT_FAILURE, "%s: strptime", buf);
-	if ((t = mktime(&tm)) == -1)
-		errx(EXIT_FAILURE, "%s: mktime", buf);
-
-	return t;
-}
 
 /*
  * Parse an individual "FileAndHash", RFC 6486, sec. 4.2.
@@ -230,11 +186,11 @@ mft_parse_econtent(const unsigned char *d, size_t dsz, struct parse *p, int forc
 {
 	ASN1_SEQUENCE_ANY	*seq;
 	const ASN1_TYPE		*t;
+	struct tm			tm;
 	int			 i, rc = -1;
 	time_t			 this, next, now = time(NULL);
 	char			 buf[64];
 	char			 caThis[64], caNow[64], caNext[64];
-	struct tm *tm;
 
 	if ((seq = d2i_ASN1_SEQUENCE_ANY(NULL, &d, dsz)) == NULL) {
 		cryptowarnx("%s: RFC 6486 section 4.2: Manifest: "
@@ -293,7 +249,9 @@ mft_parse_econtent(const unsigned char *d, size_t dsz, struct parse *p, int forc
 		    p->fn, ASN1_tag2str(t->type), t->type);
 		goto out;
 	}
-	this = gentime2time(p, t->value.generalizedtime);
+
+	tm = asn1Time2Time(t->value.generalizedtime);
+	this = mktime(&tm);
 
 	t = sk_ASN1_TYPE_value(seq, i++);
 	if (t->type != V_ASN1_GENERALIZEDTIME) {
@@ -302,13 +260,12 @@ mft_parse_econtent(const unsigned char *d, size_t dsz, struct parse *p, int forc
 		    p->fn, ASN1_tag2str(t->type), t->type);
 		goto out;
 	}
-	next = gentime2time(p, t->value.generalizedtime);
-	tm = localtime(&this);
-	strftime(caThis, sizeof(caThis)-1, "%Y-%m-%d %H:%M:%S", tm);
-	tm = localtime(&next);
-	strftime(caNext, sizeof(caNext)-1, "%Y-%m-%d %H:%M:%S", tm);
-	tm = localtime(&now);
-	strftime(caNow, sizeof(caNow)-1, "%Y-%m-%d %H:%M:%S", tm);
+	tm = asn1Time2Time(t->value.generalizedtime);
+	next = mktime(&tm);
+
+	strftime(caThis, sizeof(caThis)-1, "%Y-%m-%d %H:%M:%S", localtime(&this));
+	strftime(caNext, sizeof(caNext)-1, "%Y-%m-%d %H:%M:%S", localtime(&next));
+	strftime(caNow, sizeof(caNow)-1, "%Y-%m-%d %H:%M:%S", localtime(&now));
 
 	memcpy(&p->res->thisUpdate, &this, sizeof (time_t));
 	memcpy(&p->res->nextUpdate, &next, sizeof (time_t));

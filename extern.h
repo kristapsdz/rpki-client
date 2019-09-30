@@ -184,6 +184,8 @@ struct	roa {
 	int		 valid; /* validated resources */
 	char		*ski; /* SKI */
 	char		*aki; /* AKI */
+	time_t		notBefore;
+	time_t		notAfter;
 };
 
 /*

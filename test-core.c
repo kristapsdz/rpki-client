@@ -28,7 +28,7 @@ static unsigned char ToAsc (unsigned char c)
 	return (nib - 10 + 'a');
 }
 
-void HexEncode (unsigned char *lpcAsc, unsigned char *lpcBcd, size_t szBcd)
+void hex_encode (unsigned char *lpcAsc, unsigned char *lpcBcd, size_t szBcd)
 {
 	size_t i;
 	for (i = 0; i < szBcd; i++) {

@@ -1,6 +1,7 @@
 include Makefile.configure
 
 OBJS	 = as.o \
+	   asn1.o \
 	   cert.o \
 	   cms.o \
 	   compats.o \

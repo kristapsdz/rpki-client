@@ -30,6 +30,8 @@
 #include "extern.h"
 #include "test-core.h"
 
+#define TAB 30
+
 int	 verbose;
 
 static void
@@ -47,23 +49,23 @@ mft_print(const struct mft *p)
 	tm = localtime(&now);
 	strftime(caNow, sizeof(caNow)-1, "%Y-%m-%d %H:%M:%S", tm);
 
-		tm = localtime(&p->thisUpdate);
-		strftime(caThis, sizeof(caThis)-1, "%Y-%m-%d %H:%M:%S", tm);
+	tm = localtime(&p->thisUpdate);
+	strftime(caThis, sizeof(caThis)-1, "%Y-%m-%d %H:%M:%S", tm);
 
-		tm = localtime(&p->nextUpdate);
-		strftime(caNext, sizeof(caNext)-1, "%Y-%m-%d %H:%M:%S", tm);
+	tm = localtime(&p->nextUpdate);
+	strftime(caNext, sizeof(caNext)-1, "%Y-%m-%d %H:%M:%S", tm);
 
-	printf("Manifest Number: %ld\n", p->manifestNumber);
+	printf("%*.*s: %ld\n", TAB, TAB, "Manifest Number", p->manifestNumber);
 
-	printf("Now: %s\n", caNow);
-	printf("This Update: %s\n", caThis);
-	printf("Next Update: %s\n", caNext);
+	printf("%*.*s: %s\n", TAB, TAB, "Now", caNow);
+	printf("%*.*s: %s\n", TAB, TAB, "This Update", caThis);
+	printf("%*.*s: %s\n", TAB, TAB, "Next Update", caNext);
 
-	printf("Subject key identifier: %s\n", p->ski);
-	printf("Authority key identifier: %s\n", p->aki);
+	printf("%*.*s: %s\n", TAB, TAB, "Subject key identifier", p->ski);
+	printf("%*.*s: %s\n", TAB, TAB, "Authority key identifier", p->aki);
 	for (i = 0; i < p->filesz; i++) {
 		memset (caSHA256, 0, sizeof (caSHA256));
-		HexEncode(caSHA256, p->files[i].hash, 32);
+		hex_encode(caSHA256, p->files[i].hash, 32);
 		printf("%s  %s\n", caSHA256, p->files[i].file);
 	}
 }

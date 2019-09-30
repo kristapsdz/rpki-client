@@ -28,6 +28,7 @@
 #include <openssl/ssl.h>
 
 #include "extern.h"
+#include "test-core.h"
 
 int	verbose;
 
@@ -36,16 +37,32 @@ roa_print(const struct roa *p)
 {
 	char	 buf[128];
 	size_t	 i;
+	char caNotAfter[64], caNotBefore[64], caNow[64];
+	time_t now;
+	struct tm *tm;
 
 	assert(p != NULL);
 
-	printf("Subject key identifier: %s\n", p->ski);
-	printf("Authority key identifier: %s\n", p->aki);
-	printf("asID: %" PRIu32 "\n", p->asid);
+    now = time(NULL);
+	tm = gmtime(&now);
+	strftime(caNow, sizeof(caNow)-1, "%Y-%m-%d %H:%M:%S GMT", tm);
+
+	tm = gmtime(&p->notBefore);
+	strftime(caNotBefore, sizeof(caNotBefore)-1, "%Y-%m-%d %H:%M:%S GMT", tm);
+
+	tm = gmtime(&p->notAfter);
+	strftime(caNotAfter, sizeof(caNotAfter)-1, "%Y-%m-%d %H:%M:%S GMT", tm);
+
+	printf("%*.*s: %s\n", TAB, TAB, "Subject key identifier", p->ski);
+	printf("%*.*s: %s\n", TAB, TAB, "Authority key identifier", p->aki);
+	printf("%*.*s: %s\n", TAB, TAB, "Now", caNow);
+	printf("%*.*s: %s\n", TAB, TAB, "Not Before", caNotBefore);
+	printf("%*.*s: %s\n", TAB, TAB, "Not After", caNotAfter);
+	printf("%*.*s: %" PRIu32 "\n", TAB, TAB, "asID", p->asid);
 	for (i = 0; i < p->ipsz; i++) {
 		ip_addr_print(&p->ips[i].addr,
 			p->ips[i].afi, buf, sizeof(buf));
-		printf("%5zu: %s (max: %zu)\n", i + 1,
+		printf("%*zu: %s (max: %zu)\n", TAB, i + 1,
 			buf, p->ips[i].maxlength);
 	}
 }

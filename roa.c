@@ -26,6 +26,7 @@
 
 #include <openssl/ssl.h>
 
+#include "asn1.h"
 #include "extern.h"
 
 /*
@@ -336,6 +337,9 @@ roa_parse(X509 **x509, const char *fn, const unsigned char *dgst)
 	struct parse	 p;
 	size_t		 cmsz;
 	unsigned char	*cms;
+	ASN1_TIME *t;
+	struct tm		tm;
+	time_t	tt;
 	int		 rc = 0;
 
 	memset(&p, 0, sizeof(struct parse));
@@ -354,6 +358,16 @@ roa_parse(X509 **x509, const char *fn, const unsigned char *dgst)
 		goto out;
 	if (!roa_parse_econtent(cms, cmsz, &p))
 		goto out;
+
+    t = X509_get_notBefore(*x509);
+	
+	tm = asn1Time2Time(t);
+	tt = mktime(&tm);
+    memcpy(&p.res->notBefore, &tt, sizeof (time_t));
+    t = X509_get_notAfter(*x509);
+	tm = asn1Time2Time(t);
+	tt = mktime(&tm);
+    memcpy(&p.res->notAfter, &tt, sizeof (time_t));
 
 	rc = 1;
 out:
