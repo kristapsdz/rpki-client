@@ -31,6 +31,7 @@
 #include <openssl/ssl.h>
 
 #include "extern.h"
+#include "test-core.h"
 
 int	 verbose;
 
@@ -43,25 +44,29 @@ cert_print(const struct cert *p)
 
 	assert(p != NULL);
 
-	printf("Manifest: %s\n", p->mft);
-	if (p->crl != NULL)
-		printf("Revocation list: %s\n", p->crl);
-	printf("Subject key identifier: %s\n", p->ski);
-	if (p->aki != NULL)
-		printf("Authority key identifier: %s\n", p->aki);
-
+	printf("%*.*s: %s\n", TAB, TAB, "Manifest", p->mft);
+	if (p->rep != NULL) {
+		printf("%*.*s: %s\n", TAB, TAB, "Repository", p->rep);
+	}
+	if (p->crl != NULL) {
+		printf("%*.*s: %s\n", TAB, TAB, "Revocation list", p->crl);
+	}
+	printf("%*.*s: %s\n", TAB, TAB, "Subject key identifier", p->ski);
+	if (p->aki != NULL) {
+		printf("%*.*s: %s\n", TAB, TAB, "Authority key identifier", p->aki);
+	}
 	for (i = 0; i < p->asz; i++)
 		switch (p->as[i].type) {
 		case CERT_AS_ID:
-			printf("%5zu: AS: %"
-				PRIu32 "\n", i + 1, p->as[i].id);
+			printf("%*zu: AS: %"
+				PRIu32 "\n", TAB, i + 1, p->as[i].id);
 			break;
 		case CERT_AS_INHERIT:
-			printf("%5zu: AS: inherit\n", i + 1);
+			printf("%*zu: AS: inherit\n", TAB, i + 1);
 			break;
 		case CERT_AS_RANGE:
-			printf("%5zu: AS: %"
-				PRIu32 "--%" PRIu32 "\n", i + 1,
+			printf("%*zu: AS: %"
+				PRIu32 "--%" PRIu32 "\n", TAB, i + 1,
 				p->as[i].range.min, p->as[i].range.max);
 			break;
 		}
@@ -69,19 +74,19 @@ cert_print(const struct cert *p)
 	for (i = 0; i < p->ipsz; i++)
 		switch (p->ips[i].type) {
 		case CERT_IP_INHERIT:
-			printf("%5zu: IP: inherit\n", i + 1);
+			printf("%*zu: IP: inherit\n", TAB, i + 1);
 			break;
 		case CERT_IP_ADDR:
 			ip_addr_print(&p->ips[i].ip,
 				p->ips[i].afi, buf1, sizeof(buf1));
-			printf("%5zu: IP: %s\n", i + 1, buf1);
+			printf("%*zu: IP: %s\n",TAB,  i + 1, buf1);
 			break;
 		case CERT_IP_RANGE:
 			sockt = (p->ips[i].afi == AFI_IPV4) ?
 				AF_INET : AF_INET6;
 			inet_ntop(sockt, p->ips[i].min, buf1, sizeof(buf1));
 			inet_ntop(sockt, p->ips[i].max, buf2, sizeof(buf2));
-			printf("%5zu: IP: %s--%s\n", i + 1, buf1, buf2);
+			printf("%*zu: IP: %s--%s\n", TAB, i + 1, buf1, buf2);
 			break;
 		}
 }

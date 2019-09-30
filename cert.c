@@ -182,50 +182,91 @@ sbgp_sia_resource_mft(struct parse *p,
 	 *  - 1.3.6.1.5.5.7.48.5 (CA repository)
 	 */
 
-	if (strcmp(buf, "1.3.6.1.5.5.7.48.10")) {
-		rc = 1;
-		goto out;
-	}
-	if (p->res->mft != NULL) {
-		warnx("%s: RFC 6487 section 4.8.8: SIA: "
-		    "MFT location already specified", p->fn);
-		goto out;
-	}
+	if (strcmp(buf, "1.3.6.1.5.5.7.48.10") == 0) { // id-ad-rpkiManifest
+		if (p->res->mft != NULL) {
+			warnx("%s: RFC 6487 section 4.8.8: SIA: "
+				"MFT location already specified", p->fn);
+			goto out;
+		}
 
-	t = sk_ASN1_TYPE_value(seq, 1);
-	if (t->type != V_ASN1_OTHER) {
-		warnx("%s: RFC 6487 section 4.8.8: SIA: "
-		    "want ASN.1 external, have %s (NID %d)",
-		    p->fn, ASN1_tag2str(t->type), t->type);
-		goto out;
-	}
+		t = sk_ASN1_TYPE_value(seq, 1);
+		if (t->type != V_ASN1_OTHER) {
+			warnx("%s: RFC 6487 section 4.8.8: SIA: "
+				"want ASN.1 external, have %s (NID %d)",
+				p->fn, ASN1_tag2str(t->type), t->type);
+			goto out;
+		}
 
-	/* FIXME: there must be a way to do this without ASN1_frame. */
+		/* FIXME: there must be a way to do this without ASN1_frame. */
 
-	d = t->value.asn1_string->data;
-	dsz = t->value.asn1_string->length;
-	if (!ASN1_frame(p, dsz, &d, &plen, &ptag))
-		goto out;
+		d = t->value.asn1_string->data;
+		dsz = t->value.asn1_string->length;
+		if (!ASN1_frame(p, dsz, &d, &plen, &ptag))
+			goto out;
 
-	if ((p->res->mft = strndup((const char *)d, plen)) == NULL)
-		err(EXIT_FAILURE, NULL);
+		if ((p->res->mft = strndup((const char *)d, plen)) == NULL)
+			err(EXIT_FAILURE, NULL);
 
-	/* Make sure it's an MFT rsync address. */
+		/* Make sure it's an MFT rsync address. */
 
-	if (!rsync_uri_parse(NULL, NULL, NULL,
-	    NULL, NULL, NULL, &rt, p->res->mft)) {
-		warnx("%s: RFC 6487 section 4.8.8: SIA: "
-		    "failed to parse rsync URI", p->fn);
-		free(p->res->mft);
-		p->res->mft = NULL;
-		goto out;
-	}
-	if (rt != RTYPE_MFT) {
-		warnx("%s: RFC 6487 section 4.8.8: SIA: "
-		    "invalid rsync URI suffix", p->fn);
-		free(p->res->mft);
-		p->res->mft = NULL;
-		goto out;
+		if (!rsync_uri_parse(NULL, NULL, NULL,
+			NULL, NULL, NULL, &rt, p->res->mft)) {
+			warnx("%s: RFC 6487 section 4.8.8: SIA: "
+				"failed to parse rsync URI", p->fn);
+			free(p->res->mft);
+			p->res->mft = NULL;
+			goto out;
+		}
+		if (rt != RTYPE_MFT) {
+			warnx("%s: RFC 6487 section 4.8.8: SIA: "
+				"invalid rsync URI suffix", p->fn);
+			free(p->res->mft);
+			p->res->mft = NULL;
+			goto out;
+		}
+	} // ToDo: review a better way to do this, instead replicating from above
+	else if (strcmp(buf, "1.3.6.1.5.5.7.48.5") == 0) { // id-ad-caRepository
+		if (p->res->rep != NULL) {
+			warnx("%s: RFC 6487 section 4.8.8: SIA: "
+				"REP location already specified", p->fn);
+			goto out;
+		}
+
+		t = sk_ASN1_TYPE_value(seq, 1);
+		if (t->type != V_ASN1_OTHER) {
+			warnx("%s: RFC 6487 section 4.8.8: SIA: "
+				"want ASN.1 external, have %s (NID %d)",
+				p->fn, ASN1_tag2str(t->type), t->type);
+			goto out;
+		}
+
+		/* FIXME: there must be a way to do this without ASN1_frame. */
+
+		d = t->value.asn1_string->data;
+		dsz = t->value.asn1_string->length;
+		if (!ASN1_frame(p, dsz, &d, &plen, &ptag))
+			goto out;
+
+		if ((p->res->rep = strndup((const char *)d, plen)) == NULL)
+			err(EXIT_FAILURE, NULL);
+
+		/* Make sure it's an REP rsync address. */
+
+		if (!rsync_uri_parse(NULL, NULL, NULL,
+			NULL, NULL, NULL, &rt, p->res->rep)) {
+			warnx("%s: RFC 6487 section 4.8.8: SIA: "
+				"failed to parse rsync URI", p->fn);
+			free(p->res->rep);
+			p->res->rep = NULL;
+			goto out;
+		}
+		if (rt != RTYPE_EOF) {
+			warnx("%s: RFC 6487 section 4.8.8: SIA: "
+				"invalid rsync URI suffix", p->fn);
+			free(p->res->rep);
+			p->res->rep = NULL;
+			goto out;
+		}
 	}
 
 	rc = 1;

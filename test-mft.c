@@ -46,14 +46,14 @@ mft_print(const struct mft *p)
 	assert(p != NULL);
 
     now = time(NULL);
-	tm = localtime(&now);
-	strftime(caNow, sizeof(caNow)-1, "%Y-%m-%d %H:%M:%S", tm);
+	tm = gmtime(&now);
+	strftime(caNow, sizeof(caNow)-1, "%Y-%m-%d %H:%M:%S GMT", tm);
 
-	tm = localtime(&p->thisUpdate);
-	strftime(caThis, sizeof(caThis)-1, "%Y-%m-%d %H:%M:%S", tm);
+	tm = gmtime(&p->thisUpdate);
+	strftime(caThis, sizeof(caThis)-1, "%Y-%m-%d %H:%M:%S GMT", tm);
 
-	tm = localtime(&p->nextUpdate);
-	strftime(caNext, sizeof(caNext)-1, "%Y-%m-%d %H:%M:%S", tm);
+	tm = gmtime(&p->nextUpdate);
+	strftime(caNext, sizeof(caNext)-1, "%Y-%m-%d %H:%M:%S GMT", tm);
 
 	printf("%*.*s: %ld\n", TAB, TAB, "Manifest Number", p->manifestNumber);
 

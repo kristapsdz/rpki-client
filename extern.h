@@ -115,6 +115,7 @@ struct	cert {
 	size_t		 asz; /* length of "asz" */
 	char		*mft; /* manifest (rsync:// uri) */
 	char		*crl; /* CRL location (rsync:// or NULL) */
+	char		*rep; /* repository (rsync:// uri) */
 	char		*aki; /* AKI (or NULL, for trust anchor) */
 	char		*ski; /* SKI */
 	int		 valid; /* validated resources */
