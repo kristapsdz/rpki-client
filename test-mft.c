@@ -61,6 +61,7 @@ mft_print(const struct mft *p)
 	tm = gmtime(&p->notAfter);
 	strftime(caNotAfter, sizeof(caNotAfter)-1, "%Y-%m-%d %H:%M:%S GMT", tm);
 
+	printf("%*.*s: %s\n", TAB, TAB, "Now", caNow);
 	print_sep_line("EE Certificate", 110);
 	printf("%*.*s: %s\n", TAB, TAB, "Not Before", caNotBefore);
 	printf("%*.*s: %s\n", TAB, TAB, "Not After", caNotAfter);
@@ -69,7 +70,6 @@ mft_print(const struct mft *p)
 	print_sep_line("Manifest", 110);
 
 	printf("%*.*s: %ld\n", TAB, TAB, "Manifest Number", p->manifestNumber);
-	printf("%*.*s: %s\n", TAB, TAB, "Now", caNow);
 	printf("%*.*s: %s\n", TAB, TAB, "This Update", caThis);
 	printf("%*.*s: %s\n", TAB, TAB, "Next Update", caNext);
 	for (i = 0; i < p->filesz; i++) {
