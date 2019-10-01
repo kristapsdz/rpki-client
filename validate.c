@@ -218,6 +218,7 @@ valid_cert(const char *fn, const struct auth *auths,
 			    cert->ips[i].afi, buf1, sizeof(buf1));
 			warnx("%s: RFC 6487: uncovered IP: "
 			    "%s", fn, buf1);
+			break;
 		case CERT_IP_INHERIT:
 			warnx("%s: RFC 6487: uncovered IP: "
 			    "(inherit)", fn);

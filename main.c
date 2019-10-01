@@ -679,10 +679,10 @@ proc_rsync(const char *prog, const char *bind_addr, int fd, int noop)
 				err(EXIT_FAILURE, "pledge");
 			i = 0;
 			args[i++] = (char *)prog;
-			args[i++] = "-rlt";
-			args[i++] = "--delete";
+			args[i++] = (char *) "-rlt";
+			args[i++] = (char *) "--delete";
 			if (bind_addr != NULL) {
-				args[i++] = "--address";
+				args[i++] = (char *) "--address";
 				args[i++] = (char *)bind_addr;
 			}
 			args[i++] = uri;
