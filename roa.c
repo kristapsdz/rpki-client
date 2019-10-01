@@ -350,12 +350,10 @@ roa_parse(X509 **x509, const char *fn, const unsigned char *dgst)
 
 	if ((p.res = calloc(1, sizeof(struct roa))) == NULL)
 		err(EXIT_FAILURE, NULL);
-	if (!x509_get_ski_aki(*x509, fn, &p.res->cert.ski, &p.res->cert.aki))
+    if (!x509Basic_parse(*x509, fn, &p.res->eeCert,1))
 		goto out;
 	if (!roa_parse_econtent(cms, cmsz, &p))
 		goto out;
-
-    ee_parse (*x509, &p.res->cert);
 
 	rc = 1;
 out:
@@ -380,7 +378,7 @@ roa_free(struct roa *p)
 	if (p == NULL)
 		return;
 
-	ee_free(&p->cert);
+	x509Basic_free(&p->eeCert);
 	free(p->ips);
 	free(p);
 }
@@ -410,8 +408,8 @@ roa_buffer(char **b, size_t *bsz, size_t *bmax, const struct roa *p)
 		ip_addr_buffer(b, bsz, bmax, &p->ips[i].addr);
 	}
 
-	io_str_buffer(b, bsz, bmax, p->cert.aki);
-	io_str_buffer(b, bsz, bmax, p->cert.ski);
+	io_str_buffer(b, bsz, bmax, p->eeCert.aki);
+	io_str_buffer(b, bsz, bmax, p->eeCert.ski);
 }
 
 /*
@@ -443,7 +441,7 @@ roa_read(int fd)
 		ip_addr_read(fd, &p->ips[i].addr);
 	}
 
-	io_str_read(fd, &p->cert.aki);
-	io_str_read(fd, &p->cert.ski);
+	io_str_read(fd, &p->eeCert.aki);
+	io_str_read(fd, &p->eeCert.ski);
 	return p;
 }

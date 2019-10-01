@@ -335,9 +335,6 @@ mft_parse(X509 **x509, const char *fn, int force)
 	int		 c, rc = 0;
 	size_t		 i, cmsz;
 	unsigned char	*cms;
-	ASN1_TIME *t;
-	struct tm		tm;
-	time_t	tt;
 
 	memset(&p, 0, sizeof(struct parse));
 	p.fn = fn;
@@ -352,7 +349,7 @@ mft_parse(X509 **x509, const char *fn, int force)
 		err(EXIT_FAILURE, NULL);
 	if ((p.res->file = strdup(fn)) == NULL)
 		err(EXIT_FAILURE, NULL);
-	if (!x509_get_ski_aki(*x509, fn, &p.res->cert.ski, &p.res->cert.aki))
+    if (!x509Basic_parse(*x509, fn, &p.res->eeCert, 1))
 		goto out;
 
 	/*
@@ -377,18 +374,6 @@ mft_parse(X509 **x509, const char *fn, int force)
 		p.res->files = NULL;
 	} else if (c == -1)
 		goto out;
-
-    t = X509_get_notBefore(*x509);
-	tm = asn1Time2Time(t);
-	tt = mktime(&tm);
-    memcpy(&p.res->cert.notBefore, &tt, sizeof (time_t));
-
-    t = X509_get_notAfter(*x509);
-	tm = asn1Time2Time(t);
-	tt = mktime(&tm);
-    memcpy(&p.res->cert.notAfter, &tt, sizeof (time_t));
-
-    ee_parse(*x509, &p.res->cert);
 
 	rc = 1;
 out:
@@ -418,7 +403,7 @@ mft_free(struct mft *p)
 		for (i = 0; i < p->filesz; i++)
 			free(p->files[i].file);
 
-	ee_free(&p->cert);
+	x509Basic_free(&p->eeCert);
 	free(p->file);
 	free(p->files);
 	free(p);
@@ -443,8 +428,8 @@ mft_buffer(char **b, size_t *bsz, size_t *bmax, const struct mft *p)
 			p->files[i].hash, SHA256_DIGEST_LENGTH);
 	}
 
-	io_str_buffer(b, bsz, bmax, p->cert.aki);
-	io_str_buffer(b, bsz, bmax, p->cert.ski);
+	io_str_buffer(b, bsz, bmax, p->eeCert.aki);
+	io_str_buffer(b, bsz, bmax, p->eeCert.ski);
 }
 
 /*
@@ -472,7 +457,7 @@ mft_read(int fd)
 		io_simple_read(fd, p->files[i].hash, SHA256_DIGEST_LENGTH);
 	}
 
-	io_str_read(fd, &p->cert.aki);
-	io_str_read(fd, &p->cert.ski);
+	io_str_read(fd, &p->eeCert.aki);
+	io_str_read(fd, &p->eeCert.ski);
 	return p;
 }

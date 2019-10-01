@@ -132,7 +132,7 @@ valid_ta(const char *fn, const struct auth *auths,
 	/* SKI must not be a dupe. */
 
 	for (i = 0; i < authsz; i++)
-		if (strcmp(auths[i].cert->ski, cert->ski) == 0) {
+		if (strcmp(auths[i].cert->basic.ski, cert->basic.ski) == 0) {
 			warnx("%s: RFC 6487: duplicate SKI", fn);
 			return -1;
 		}
@@ -152,13 +152,13 @@ valid_ski_aki(const char *fn, const struct auth *auths,
 	size_t		 i;
 
 	for (i = 0; i < authsz; i++)
-		if (strcmp(auths[i].cert->ski, ski) == 0) {
+		if (strcmp(auths[i].cert->basic.ski, ski) == 0) {
 			warnx("%s: RFC 6487: duplicate SKI", fn);
 			return -1;
 		}
 
 	for (i = 0; i < authsz; i++)
-		if (strcmp(auths[i].cert->ski, aki) == 0)
+		if (strcmp(auths[i].cert->basic.ski, aki) == 0)
 			return i;
 
 	warnx("%s: RFC 6487: unknown AKI", fn);
@@ -179,7 +179,7 @@ valid_cert(const char *fn, const struct auth *auths,
 	uint32_t	 min, max;
 	char		 buf1[64], buf2[64];
 
-	c = valid_ski_aki(fn, auths, authsz, cert->ski, cert->aki);
+	c = valid_ski_aki(fn, auths, authsz, cert->basic.ski, cert->basic.aki);
 	if (c < 0)
 		return -1;
 
@@ -244,7 +244,7 @@ valid_roa(const char *fn, const struct auth *auths,
 	size_t	 i;
 	char	 buf[64];
 
-	c = valid_ski_aki(fn, auths, authsz, roa->cert.ski, roa->cert.aki);
+	c = valid_ski_aki(fn, auths, authsz, roa->eeCert.ski, roa->eeCert.aki);
 	if (c < 0)
 		return 0;
 

@@ -174,8 +174,7 @@ out:
  * Returns zero on failure (out pointers are NULL) or non-zero on
  * success (out pointers must be freed).
  */
-int
-x509_get_ski_aki(X509 *x, const char *fn, char **ski, char **aki)
+static void x509_get_ski_aki(X509 *x, const char *fn, char **ski, char **aki)
 {
 	X509_EXTENSION		*ext = NULL;
 	const ASN1_OBJECT	*obj;
@@ -202,21 +201,76 @@ x509_get_ski_aki(X509 *x, const char *fn, char **ski, char **aki)
 			break;
 		}
 	}
+}
 
-	if (*aki == NULL) {
-		cryptowarnx("%s: RFC 6487 section 4.8.3: AKI: "
-		    "missing AKI X509 extension", fn);
-		free(*ski);
-		*ski = NULL;
-		return 0;
-	}
-	if (*ski == NULL) {
-		cryptowarnx("%s: RFC 6487 section 4.8.2: AKI: "
-		    "missing SKI X509 extension", fn);
-		free(*aki);
-		*aki = NULL;
-		return 0;
-	}
+int x509Basic_parse(X509 *x509, const char *fn, struct basicCertificate *cert, int isResourceCertificate) {
+	ASN1_INTEGER *srl;
+	ASN1_TIME *t;
+	struct tm tm;
+	time_t tt;
 
+	x509_get_ski_aki(x509, fn, &cert->ski, &cert->aki);
+	if (isResourceCertificate) {
+		// Resource Certificate must have aki and ski extensions
+		if (cert->aki == NULL) {
+			cryptowarnx("%s: RFC 6487 section 4.8.3: AKI: "
+				"missing AKI X509 extension", fn);
+			if (cert->ski != NULL) {
+				free(cert->ski);
+				cert->ski = NULL;
+			}
+			return 0;
+		}
+		if (cert->ski == NULL) {
+			cryptowarnx("%s: RFC 6487 section 4.8.2: AKI: "
+				"missing SKI X509 extension", fn);
+			if (cert->aki != NULL) {
+				free(cert->aki);
+				cert->aki = NULL;
+			}
+			return 0;
+		}
+	}
+    t = X509_get_notBefore(x509);
+	tm = asn1Time2Time(t);
+	tt = mktime(&tm);
+    memcpy(&cert->notBefore, &tt, sizeof (time_t));
+
+    t = X509_get_notAfter(x509);
+	tm = asn1Time2Time(t);
+	tt = mktime(&tm);
+    memcpy(&cert->notAfter, &tt, sizeof (time_t));
+
+	srl = X509_get_serialNumber(x509);
+	if (srl != NULL) {
+		BIGNUM *bnSrl = ASN1_INTEGER_to_BN(srl, NULL);
+		if (bnSrl != NULL) {
+			cert->serial = BN_bn2hex(bnSrl);
+			BN_free(bnSrl);
+		}
+	}
+    cert->subject = X509_NAME_oneline(X509_get_subject_name(x509), NULL, 0);
+	cert->version = X509_get_version(x509) + 1; // 0-based -> 1-based
+	cert->issuerName = X509_NAME_oneline(X509_get_issuer_name(x509), NULL, 0);
 	return 1;
+}
+
+void x509Basic_free(struct basicCertificate *cert) {
+    if (cert != NULL) {
+        if (cert->serial != NULL) {
+	        OPENSSL_free(cert->serial);
+        }
+        if (cert->issuerName != NULL) {
+	        OPENSSL_free(cert->issuerName);
+        }
+        if (cert->subject != NULL) {
+	        OPENSSL_free(cert->subject);
+        }
+        if (cert->aki != NULL) {
+	        free(cert->aki);
+        }
+        if (cert->ski != NULL) {
+	        free(cert->ski);
+        }
+    }
 }

@@ -1209,6 +1209,7 @@ cert_parse_inner(X509 **xp, const char *fn, const unsigned char *dgst, int ta)
 	if ((extsz = X509_get_ext_count(x)) < 0)
 		cryptoerrx("X509_get_ext_count");
 
+	x509Basic_parse(x, fn, &p.res->basic, 0);
 	for (i = 0; i < (size_t)extsz; i++) {
 		ext = X509_get_ext(x, i);
 		assert(ext != NULL);
@@ -1228,16 +1229,6 @@ cert_parse_inner(X509 **xp, const char *fn, const unsigned char *dgst, int ta)
 		case NID_crl_distribution_points:
 			c = sbgp_crl(&p, ext);
 			break;
-		case NID_authority_key_identifier:
-			free(p.res->aki);
-			p.res->aki = x509_get_aki_ext(ext, p.fn);
-			c = (p.res->aki != NULL);
-			break;
-		case NID_subject_key_identifier:
-			free(p.res->ski);
-			p.res->ski = x509_get_ski_ext(ext, p.fn);
-			c = (p.res->ski != NULL);
-			break;
 		default:
 			c = 1;
 			/* {
@@ -1254,23 +1245,23 @@ cert_parse_inner(X509 **xp, const char *fn, const unsigned char *dgst, int ta)
 
 	/* Validation on required fields. */
 
-	if (p.res->ski == NULL) {
+	if (p.res->basic.ski == NULL) {
 		warnx("%s: RFC 6487 section 8.4.2: "
 		    "missing SKI", p.fn);
 		goto out;
 	}
 
-	if (ta && p.res->aki != NULL && strcmp(p.res->aki, p.res->ski)) {
+	if (ta && p.res->basic.aki != NULL && strcmp(p.res->basic.aki, p.res->basic.ski)) {
 		warnx("%s: RFC 6487 section 8.4.2: "
 		    "trust anchor AKI, if specified, must match SKI", p.fn);
 		goto out;
 	}
 
-	if (!ta && p.res->aki == NULL) {
+	if (!ta && p.res->basic.aki == NULL) {
 		warnx("%s: RFC 6487 section 8.4.2: "
 		    "non-trust anchor missing AKI", p.fn);
 		goto out;
-	} else if (!ta && strcmp(p.res->aki, p.res->ski) == 0) {
+	} else if (!ta && strcmp(p.res->basic.aki, p.res->basic.ski) == 0) {
 		warnx("%s: RFC 6487 section 8.4.2: "
 		    "non-trust anchor AKI may not match SKI", p.fn);
 		goto out;
@@ -1362,12 +1353,11 @@ cert_free(struct cert *p)
 	if (p == NULL)
 		return;
 
+	x509Basic_free(&p->basic);
 	free(p->crl);
 	free(p->mft);
 	free(p->ips);
 	free(p->as);
-	free(p->aki);
-	free(p->ski);
 	free(p);
 }
 
@@ -1428,11 +1418,11 @@ cert_buffer(char **b, size_t *bsz, size_t *bmax, const struct cert *p)
 	io_simple_buffer(b, bsz, bmax, &has_crl, sizeof(int));
 	if (has_crl)
 		io_str_buffer(b, bsz, bmax, p->crl);
-	has_aki = (p->aki != NULL);
+	has_aki = (p->basic.aki != NULL);
 	io_simple_buffer(b, bsz, bmax, &has_aki, sizeof(int));
 	if (has_aki)
-		io_str_buffer(b, bsz, bmax, p->aki);
-	io_str_buffer(b, bsz, bmax, p->ski);
+		io_str_buffer(b, bsz, bmax, p->basic.aki);
+	io_str_buffer(b, bsz, bmax, p->basic.ski);
 }
 
 static void
@@ -1501,8 +1491,8 @@ cert_read(int fd)
 		io_str_read(fd, &p->crl);
 	io_simple_read(fd, &has_aki, sizeof(int));
 	if (has_aki)
-		io_str_read(fd, &p->aki);
-	io_str_read(fd, &p->ski);
+		io_str_read(fd, &p->basic.aki);
+	io_str_read(fd, &p->basic.ski);
 
 	return p;
 }
