@@ -43,6 +43,7 @@ int ee_parse(X509 *x509, struct eeCertificate *eeCert)
 			BN_free(bnSrl);
 		}
 	}
+    eeCert->subject = X509_NAME_oneline(X509_get_subject_name(x509), NULL, 0);
 	eeCert->version = X509_get_version(x509); // ToDo: sum 1 here?
 	eeCert->issuerName = X509_NAME_oneline(X509_get_issuer_name(x509), NULL, 0);
 	return 1;
@@ -55,6 +56,9 @@ void ee_free(struct eeCertificate *eeCert) {
         }
         if (eeCert->issuerName != NULL) {
 	        OPENSSL_free(eeCert->issuerName);
+        }
+        if (eeCert->subject != NULL) {
+	        OPENSSL_free(eeCert->subject);
         }
         if (eeCert->aki != NULL) {
 	        free(eeCert->aki);

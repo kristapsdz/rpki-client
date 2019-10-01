@@ -58,6 +58,7 @@ roa_print(const struct roa *p)
 	printf("%*.*s: %ld\n", TAB, TAB, "Version", p->cert.version);
 	printf("%*.*s: %s\n", TAB, TAB, "Serial", p->cert.serial);
 	printf("%*.*s: %s\n", TAB, TAB, "Issuer", p->cert.issuerName);
+	printf("%*.*s: %s\n", TAB, TAB, "Subject", p->cert.subject);
 	printf("%*.*s: %s\n", TAB, TAB, "Not Before", caNotBefore);
 	printf("%*.*s: %s\n", TAB, TAB, "Not After", caNotAfter);
 	printf("%*.*s: %s\n", TAB, TAB, "Subject key identifier", p->cert.ski);

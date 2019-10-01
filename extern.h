@@ -150,6 +150,7 @@ struct	eeCertificate {
 	long	version;
 	char	*serial;
 	char	*issuerName;
+	char	*subject;
 	char	*ski; /* SKI */
 	char	*aki; /* AKI */
 	time_t	notAfter;
