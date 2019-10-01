@@ -44,7 +44,7 @@ int ee_parse(X509 *x509, struct eeCertificate *eeCert)
 		}
 	}
     eeCert->subject = X509_NAME_oneline(X509_get_subject_name(x509), NULL, 0);
-	eeCert->version = X509_get_version(x509); // ToDo: sum 1 here?
+	eeCert->version = X509_get_version(x509) + 1; // 0-based -> 1-based
 	eeCert->issuerName = X509_NAME_oneline(X509_get_issuer_name(x509), NULL, 0);
 	return 1;
 }
