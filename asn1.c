@@ -27,7 +27,6 @@
 #include <openssl/ssl.h>
 
 #include "extern.h"
-#include "asn1.h"
 
 /*
  * Convert from the ASN.1 [generalised] time to a time_t.

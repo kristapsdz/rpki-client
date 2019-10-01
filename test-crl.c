@@ -27,7 +27,6 @@
 #include <openssl/err.h>
 #include <openssl/ssl.h>
 
-#include "asn1.h"
 #include "extern.h"
 
 int	 verbose;

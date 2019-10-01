@@ -144,6 +144,19 @@ struct	mftfile {
 };
 
 /*
+ * End-Entity Certificate (aka Resource Certificate)
+ */
+struct	eeCertificate {
+	long	version;
+	char	*serial;
+	char	*issuerName;
+	char	*ski; /* SKI */
+	char	*aki; /* AKI */
+	time_t	notAfter;
+	time_t	notBefore;
+};
+
+/*
  * A manifest, RFC 6486.
  * This consists of a bunch of files found in the same directory as the
  * manifest file.
@@ -153,12 +166,9 @@ struct	mft {
 	struct mftfile	*files; /* file and hash */
 	size_t		 filesz; /* number of filenames */
 	int		 stale; /* if a stale manifest */
-	char		*ski; /* SKI */
-	char		*aki; /* AKI */
+	struct eeCertificate cert;
 	long		version;
 	long		manifestNumber;
-	time_t		notAfter;
-	time_t		notBefore;
 	time_t		thisUpdate;
 	time_t		nextUpdate;
 };
@@ -185,10 +195,7 @@ struct	roa {
 	struct roa_ip	*ips; /* IP prefixes */
 	size_t		 ipsz; /* number of IP prefixes */
 	int		 valid; /* validated resources */
-	char		*ski; /* SKI */
-	char		*aki; /* AKI */
-	time_t		notBefore;
-	time_t		notAfter;
+	struct eeCertificate cert;
 };
 
 /*
@@ -244,6 +251,8 @@ struct roa	*roa_read(int);
 
 X509_CRL	*crl_parse(const char *, const unsigned char *);
 
+int			 ee_parse(X509 *, struct eeCertificate *);
+void		 ee_free(struct eeCertificate *);
 /* Validation of our objects. */
 
 ssize_t		 valid_cert(const char *, const struct auth *, size_t, const struct cert *);
@@ -314,6 +323,10 @@ void		 io_str_write(int, const char *);
 char		*x509_get_aki_ext(X509_EXTENSION *, const char *);
 char		*x509_get_ski_ext(X509_EXTENSION *, const char *);
 int		 x509_get_ski_aki(X509 *, const char *, char **, char **);
+
+/* ASN1 helpers. */
+
+struct tm asn1Time2Time(ASN1_TIME* time);
 
 /* Output! */
 

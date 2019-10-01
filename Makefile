@@ -6,6 +6,7 @@ OBJS	 = as.o \
 	   cms.o \
 	   compats.o \
 	   crl.o \
+	   ee.o \
 	   io.o \
 	   ip.o \
 	   log.o \

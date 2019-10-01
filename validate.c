@@ -243,7 +243,7 @@ valid_roa(const char *fn, const struct auth *auths,
 	size_t	 i;
 	char	 buf[64];
 
-	c = valid_ski_aki(fn, auths, authsz, roa->ski, roa->aki);
+	c = valid_ski_aki(fn, auths, authsz, roa->cert.ski, roa->cert.aki);
 	if (c < 0)
 		return 0;
 

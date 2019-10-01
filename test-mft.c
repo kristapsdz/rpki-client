@@ -55,18 +55,21 @@ mft_print(const struct mft *p)
 	tm = gmtime(&p->nextUpdate);
 	strftime(caNext, sizeof(caNext)-1, "%Y-%m-%d %H:%M:%S GMT", tm);
 
-	tm = gmtime(&p->notBefore);
+	tm = gmtime(&p->cert.notBefore);
 	strftime(caNotBefore, sizeof(caNotBefore)-1, "%Y-%m-%d %H:%M:%S GMT", tm);
 
-	tm = gmtime(&p->notAfter);
+	tm = gmtime(&p->cert.notAfter);
 	strftime(caNotAfter, sizeof(caNotAfter)-1, "%Y-%m-%d %H:%M:%S GMT", tm);
 
 	printf("%*.*s: %s\n", TAB, TAB, "Now", caNow);
 	print_sep_line("EE Certificate", 110);
+	printf("%*.*s: %ld\n", TAB, TAB, "Version", p->cert.version);
+	printf("%*.*s: %s\n", TAB, TAB, "Serial", p->cert.serial);
+	printf("%*.*s: %s\n", TAB, TAB, "Issuer", p->cert.issuerName);
 	printf("%*.*s: %s\n", TAB, TAB, "Not Before", caNotBefore);
 	printf("%*.*s: %s\n", TAB, TAB, "Not After", caNotAfter);
-	printf("%*.*s: %s\n", TAB, TAB, "Subject key identifier", p->ski);
-	printf("%*.*s: %s\n", TAB, TAB, "Authority key identifier", p->aki);
+	printf("%*.*s: %s\n", TAB, TAB, "Subject key identifier", p->cert.ski);
+	printf("%*.*s: %s\n", TAB, TAB, "Authority key identifier", p->cert.aki);
 	print_sep_line("Manifest", 110);
 
 	printf("%*.*s: %ld\n", TAB, TAB, "Manifest Number", p->manifestNumber);

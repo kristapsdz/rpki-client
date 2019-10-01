@@ -26,7 +26,6 @@
 
 #include <openssl/ssl.h>
 
-#include "asn1.h"
 #include "extern.h"
 
 /*
@@ -337,9 +336,6 @@ roa_parse(X509 **x509, const char *fn, const unsigned char *dgst)
 	struct parse	 p;
 	size_t		 cmsz;
 	unsigned char	*cms;
-	ASN1_TIME *t;
-	struct tm		tm;
-	time_t	tt;
 	int		 rc = 0;
 
 	memset(&p, 0, sizeof(struct parse));
@@ -354,20 +350,12 @@ roa_parse(X509 **x509, const char *fn, const unsigned char *dgst)
 
 	if ((p.res = calloc(1, sizeof(struct roa))) == NULL)
 		err(EXIT_FAILURE, NULL);
-	if (!x509_get_ski_aki(*x509, fn, &p.res->ski, &p.res->aki))
+	if (!x509_get_ski_aki(*x509, fn, &p.res->cert.ski, &p.res->cert.aki))
 		goto out;
 	if (!roa_parse_econtent(cms, cmsz, &p))
 		goto out;
 
-    t = X509_get_notBefore(*x509);
-	tm = asn1Time2Time(t);
-	tt = mktime(&tm);
-    memcpy(&p.res->notBefore, &tt, sizeof (time_t));
-
-    t = X509_get_notAfter(*x509);
-	tm = asn1Time2Time(t);
-	tt = mktime(&tm);
-    memcpy(&p.res->notAfter, &tt, sizeof (time_t));
+    ee_parse (*x509, &p.res->cert);
 
 	rc = 1;
 out:
@@ -389,11 +377,10 @@ out:
 void
 roa_free(struct roa *p)
 {
-
 	if (p == NULL)
 		return;
-	free(p->aki);
-	free(p->ski);
+
+	ee_free(&p->cert);
 	free(p->ips);
 	free(p);
 }
@@ -423,8 +410,8 @@ roa_buffer(char **b, size_t *bsz, size_t *bmax, const struct roa *p)
 		ip_addr_buffer(b, bsz, bmax, &p->ips[i].addr);
 	}
 
-	io_str_buffer(b, bsz, bmax, p->aki);
-	io_str_buffer(b, bsz, bmax, p->ski);
+	io_str_buffer(b, bsz, bmax, p->cert.aki);
+	io_str_buffer(b, bsz, bmax, p->cert.ski);
 }
 
 /*
@@ -456,7 +443,7 @@ roa_read(int fd)
 		ip_addr_read(fd, &p->ips[i].addr);
 	}
 
-	io_str_read(fd, &p->aki);
-	io_str_read(fd, &p->ski);
+	io_str_read(fd, &p->cert.aki);
+	io_str_read(fd, &p->cert.ski);
 	return p;
 }

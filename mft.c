@@ -25,8 +25,7 @@
 #include <unistd.h>
 
 #include <openssl/ssl.h>
-
-#include "asn1.h"
+#include <openssl/crypto.h>
 #include "extern.h"
 
 /*
@@ -353,7 +352,7 @@ mft_parse(X509 **x509, const char *fn, int force)
 		err(EXIT_FAILURE, NULL);
 	if ((p.res->file = strdup(fn)) == NULL)
 		err(EXIT_FAILURE, NULL);
-	if (!x509_get_ski_aki(*x509, fn, &p.res->ski, &p.res->aki))
+	if (!x509_get_ski_aki(*x509, fn, &p.res->cert.ski, &p.res->cert.aki))
 		goto out;
 
 	/*
@@ -382,12 +381,14 @@ mft_parse(X509 **x509, const char *fn, int force)
     t = X509_get_notBefore(*x509);
 	tm = asn1Time2Time(t);
 	tt = mktime(&tm);
-    memcpy(&p.res->notBefore, &tt, sizeof (time_t));
+    memcpy(&p.res->cert.notBefore, &tt, sizeof (time_t));
 
     t = X509_get_notAfter(*x509);
 	tm = asn1Time2Time(t);
 	tt = mktime(&tm);
-    memcpy(&p.res->notAfter, &tt, sizeof (time_t));
+    memcpy(&p.res->cert.notAfter, &tt, sizeof (time_t));
+
+    ee_parse(*x509, &p.res->cert);
 
 	rc = 1;
 out:
@@ -417,8 +418,7 @@ mft_free(struct mft *p)
 		for (i = 0; i < p->filesz; i++)
 			free(p->files[i].file);
 
-	free(p->aki);
-	free(p->ski);
+	ee_free(&p->cert);
 	free(p->file);
 	free(p->files);
 	free(p);
@@ -443,8 +443,8 @@ mft_buffer(char **b, size_t *bsz, size_t *bmax, const struct mft *p)
 			p->files[i].hash, SHA256_DIGEST_LENGTH);
 	}
 
-	io_str_buffer(b, bsz, bmax, p->aki);
-	io_str_buffer(b, bsz, bmax, p->ski);
+	io_str_buffer(b, bsz, bmax, p->cert.aki);
+	io_str_buffer(b, bsz, bmax, p->cert.ski);
 }
 
 /*
@@ -472,7 +472,7 @@ mft_read(int fd)
 		io_simple_read(fd, p->files[i].hash, SHA256_DIGEST_LENGTH);
 	}
 
-	io_str_read(fd, &p->aki);
-	io_str_read(fd, &p->ski);
+	io_str_read(fd, &p->cert.aki);
+	io_str_read(fd, &p->cert.ski);
 	return p;
 }
