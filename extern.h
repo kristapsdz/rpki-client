@@ -89,6 +89,7 @@ struct	basicCertificate {
 	char	*subject;
 	char	*ski; /* SKI */
 	char	*aki; /* AKI */
+	char	*eeLocation; /* EE certificate's SIA */
 	time_t	notAfter;
 	time_t	notBefore;
 };

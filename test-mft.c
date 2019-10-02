@@ -67,6 +67,7 @@ mft_print(const struct mft *p)
 	printf("%*.*s: %s\n", TAB, TAB, "Subject", p->eeCert.subject);
 	printf("%*.*s: %s\n", TAB, TAB, "Not Before", caNotBefore);
 	printf("%*.*s: %s\n", TAB, TAB, "Not After", caNotAfter);
+	printf("%*.*s: %s\n", TAB, TAB, "Subject Info Access", p->eeCert.eeLocation);
 	printf("%*.*s: %s\n", TAB, TAB, "Subject key identifier", p->eeCert.ski);
 	printf("%*.*s: %s\n", TAB, TAB, "Authority key identifier", p->eeCert.aki);
 	print_sep_line("Manifest", 110);

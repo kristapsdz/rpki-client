@@ -170,17 +170,220 @@ out:
 }
 
 /*
+ * Parse the SIA url, 4.8.8.2.
+ * There may be multiple different resources at this location, so throw
+ * out all but the matching resource type.
+ * Returns zero on failure, non-zero on success.
+ */
+static int
+x509_sia_resource_mft(const char *fn, struct basicCertificate *cert,
+	const unsigned char *d, size_t dsz)
+{
+	ASN1_SEQUENCE_ANY	*seq;
+	const ASN1_TYPE		*t;
+	int			 rc = 0, ptag;
+	char			buf[128];
+	long			 plen;
+	enum rtype		 rt;
+
+	if ((seq = d2i_ASN1_SEQUENCE_ANY(NULL, &d, dsz)) == NULL) {
+		cryptowarnx("%s: RFC 6487 section 4.8.8: SIA: "
+		    "failed ASN.1 sequence parse", fn);
+		goto out;
+	}
+	if (sk_ASN1_TYPE_num(seq) != 2) {
+		warnx("%s: RFC 6487 section 4.8.8: SIA: "
+		    "want 2 elements, have %d",
+		    fn, sk_ASN1_TYPE_num(seq));
+		goto out;
+	}
+	/* Composed of an OID and its continuation. */
+
+	t = sk_ASN1_TYPE_value(seq, 0);
+	if (t->type != V_ASN1_OBJECT) {
+		warnx("%s: RFC 6487 section 4.8.8: SIA: "
+		    "want ASN.1 object, have %s (NID %d)",
+		    fn, ASN1_tag2str(t->type), t->type);
+		goto out;
+	}
+	OBJ_obj2txt(buf, sizeof(buf), t->value.object, 1);
+
+	/*
+	 * Ignore all but id-ad-signedObject.
+	 */
+	if (strcmp(buf, "1.3.6.1.5.5.7.48.11")) { // id-ad-signedObject
+		rc = 1;
+		goto out;
+	}
+	if (cert->eeLocation != NULL) {
+		warnx("%s: RFC 6487 section 4.8.8: SIA: "
+			"MFT location already specified", fn);
+		goto out;
+	}
+
+	t = sk_ASN1_TYPE_value(seq, 1);
+	if (t->type != V_ASN1_OTHER) {
+		warnx("%s: RFC 6487 section 4.8.8: SIA: "
+			"want ASN.1 external, have %s (NID %d)",
+			fn, ASN1_tag2str(t->type), t->type);
+		goto out;
+	}
+
+	/* FIXME: there must be a way to do this without ASN1_frame. */
+
+	d = t->value.asn1_string->data;
+	dsz = t->value.asn1_string->length;
+	if (!ASN1_frame(fn, dsz, &d, &plen, &ptag))
+		goto out;
+
+	if ((cert->eeLocation = strndup((const char *)d, plen)) == NULL)
+		err(EXIT_FAILURE, NULL);
+
+	/* Make sure it's an rsync address. */
+
+	if (!rsync_uri_parse(NULL, NULL, NULL,
+		NULL, NULL, NULL, &rt, cert->eeLocation)) {
+		warnx("%s: RFC 6487 section 4.8.8: SIA: "
+			"failed to parse rsync URI", fn);
+		free(cert->eeLocation);
+		cert->eeLocation = NULL;
+		goto out;
+	}
+
+	// ToDo: Should validate the extension?
+	/*
+	if (rt != RTYPE_MFT && rt != RTYPE_ROA) {
+		warnx("%s: RFC 6487 section 4.8.8: SIA: "
+			"invalid rsync URI suffix [%s]", fn, cert->eeLocation);
+		free(cert->eeLocation);
+		cert->eeLocation = NULL;
+		goto out;
+	}
+	*/
+
+	rc = 1;
+out:
+	sk_ASN1_TYPE_pop_free(seq, ASN1_TYPE_free);
+	return rc;
+}
+
+/*
+ * Multiple locations as defined in RFC 6487, 4.8.8.1.
+ * Returns zero on failure, non-zero on success.
+ */
+static int
+x509_sia_resource(const char *fn, struct basicCertificate *cert, const unsigned char *d, size_t dsz)
+{
+	ASN1_SEQUENCE_ANY	*seq;
+	const ASN1_TYPE		*t;
+	int			 rc = 0, i;
+
+	if ((seq = d2i_ASN1_SEQUENCE_ANY(NULL, &d, dsz)) == NULL) {
+		cryptowarnx("%s: RFC 6487 section 4.8.8: SIA: "
+		    "failed ASN.1 sequence parse", fn);
+		goto out;
+	}
+
+	for (i = 0; i < sk_ASN1_TYPE_num(seq); i++) {
+		t = sk_ASN1_TYPE_value(seq, i);
+		if (t->type != V_ASN1_SEQUENCE) {
+			warnx("%s: RFC 6487 section 4.8.8: SIA: "
+			    "want ASN.1 sequence, have %s (NID %d)",
+			    fn, ASN1_tag2str(t->type), t->type);
+			goto out;
+		}
+		d = t->value.asn1_string->data;
+		dsz = t->value.asn1_string->length;
+		if (!x509_sia_resource_mft(fn, cert, d, dsz))
+			goto out;
+	}
+
+	rc = 1;
+out:
+	sk_ASN1_TYPE_pop_free(seq, ASN1_TYPE_free);
+	return rc;
+}
+
+/*
+ * Parse "Subject Information Access" extension, RFC 6487 4.8.8.
+ * Returns zero on failure, non-zero on success.
+ */
+static int
+x509_get_sia_ext(X509_EXTENSION *ext, const char *fn, struct basicCertificate *cert)
+{
+	unsigned char		*sv = NULL;
+	const unsigned char	*d;
+	ASN1_SEQUENCE_ANY	*seq = NULL;
+	const ASN1_TYPE		*t;
+	int			 dsz, rc = 0;
+
+	if ((dsz = i2d_X509_EXTENSION(ext, &sv)) < 0) {
+		cryptowarnx("%s: RFC 6487 section 4.8.8: SIA: "
+		    "failed extension parse", fn);
+		goto out;
+	}
+	d = sv;
+
+	if ((seq = d2i_ASN1_SEQUENCE_ANY(NULL, &d, dsz)) == NULL) {
+		cryptowarnx("%s: RFC 6487 section 4.8.8: SIA: "
+		    "failed ASN.1 sequence parse", fn);
+		goto out;
+	}
+	if (sk_ASN1_TYPE_num(seq) != 2) {
+		warnx("%s: RFC 6487 section 4.8.8: SIA: "
+		    "want 2 elements, have %d", fn,
+		    sk_ASN1_TYPE_num(seq));
+		goto out;
+	}
+
+	t = sk_ASN1_TYPE_value(seq, 0);
+	if (t->type != V_ASN1_OBJECT) {
+		warnx("%s: RFC 6487 section 4.8.8: SIA: "
+		    "want ASN.1 object, have %s (NID %d)",
+		    fn, ASN1_tag2str(t->type), t->type);
+		goto out;
+	}
+	if (OBJ_obj2nid(t->value.object) != NID_sinfo_access) {
+		warnx("%s: RFC 6487 section 4.8.8: SIA: "
+		    "incorrect OID, have %s (NID %d)", fn,
+		    ASN1_tag2str(OBJ_obj2nid(t->value.object)),
+		    OBJ_obj2nid(t->value.object));
+		goto out;
+	}
+
+	t = sk_ASN1_TYPE_value(seq, 1);
+	if (t->type != V_ASN1_OCTET_STRING) {
+		warnx("%s: RFC 6487 section 4.8.8: SIA: "
+		    "want ASN.1 octet string, have %s (NID %d)",
+		    fn, ASN1_tag2str(t->type), t->type);
+		goto out;
+	}
+
+	d = t->value.octet_string->data;
+	dsz = t->value.octet_string->length;
+	if (!x509_sia_resource(fn, cert, d, dsz))
+		goto out;
+
+	rc = 1;
+out:
+	sk_ASN1_TYPE_pop_free(seq, ASN1_TYPE_free);
+	free(sv);
+	return rc;
+}
+
+/*
  * Wraps around x509_get_ski_ext and x509_get_aki_ext.
  * Returns zero on failure (out pointers are NULL) or non-zero on
  * success (out pointers must be freed).
  */
-static void x509_get_ski_aki(X509 *x, const char *fn, char **ski, char **aki)
+static int x509_get_extensions(X509 *x, const char *fn, struct basicCertificate *cert)
 {
 	X509_EXTENSION		*ext = NULL;
 	const ASN1_OBJECT	*obj;
 	int			 extsz, i;
+	int rc = 0;
 
-	*ski = *aki = NULL;
+	cert->ski = cert->aki = NULL;
 
 	if ((extsz = X509_get_ext_count(x)) < 0)
 		cryptoerrx("X509_get_ext_count");
@@ -191,16 +394,30 @@ static void x509_get_ski_aki(X509 *x, const char *fn, char **ski, char **aki)
 		obj = X509_EXTENSION_get_object(ext);
 		assert(obj != NULL);
 		switch (OBJ_obj2nid(obj)) {
+		case NID_sinfo_access:
+			if (cert->eeLocation != NULL) {
+				free(cert->eeLocation);
+			}
+			rc = x509_get_sia_ext(ext, fn, cert);
+			if (rc == 0) {
+				return 0;
+			}
+			break;
 		case NID_subject_key_identifier:
-			free(*ski);
-			*ski = x509_get_ski_ext(ext, fn);
+			if (cert->ski != NULL) {
+				free(cert->ski);
+			}
+			cert->ski = x509_get_ski_ext(ext, fn);
 			break;
 		case NID_authority_key_identifier:
-			free(*aki);
-			*aki = x509_get_aki_ext(ext, fn);
+			if (cert->aki != NULL) {
+				free(cert->aki);
+			}
+			cert->aki = x509_get_aki_ext(ext, fn);
 			break;
 		}
 	}
+	return 1;
 }
 
 int x509Basic_parse(X509 *x509, const char *fn, struct basicCertificate *cert, int isResourceCertificate) {
@@ -209,7 +426,7 @@ int x509Basic_parse(X509 *x509, const char *fn, struct basicCertificate *cert, i
 	struct tm tm;
 	time_t tt;
 
-	x509_get_ski_aki(x509, fn, &cert->ski, &cert->aki);
+	x509_get_extensions(x509, fn, cert);
 	if (isResourceCertificate) {
 		// Resource Certificate must have aki and ski extensions
 		if (cert->aki == NULL) {
@@ -272,5 +489,8 @@ void x509Basic_free(struct basicCertificate *cert) {
         if (cert->ski != NULL) {
 	        free(cert->ski);
         }
+		if (cert->eeLocation != NULL) {
+			free(cert->eeLocation);
+		}
     }
 }
