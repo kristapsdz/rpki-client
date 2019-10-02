@@ -350,7 +350,7 @@ roa_parse(X509 **x509, const char *fn, const unsigned char *dgst)
 
 	if ((p.res = calloc(1, sizeof(struct roa))) == NULL)
 		err(EXIT_FAILURE, NULL);
-    if (!x509Basic_parse(*x509, fn, &p.res->eeCert,1))
+    if (!x509Basic_parse(*x509, fn, &p.res->eeCert, 1))
 		goto out;
 	if (!roa_parse_econtent(cms, cmsz, &p))
 		goto out;

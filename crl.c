@@ -87,7 +87,7 @@ crl_parse(const char *fn, const unsigned char *dgst)
 				warnx("%s: bad message digest", fn);
 			goto out;
 		}
-	} 
+	}
 
 	rc = 1;
 out:
