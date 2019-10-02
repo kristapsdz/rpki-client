@@ -205,6 +205,9 @@ ip_addr_parse(const ASN1_BIT_STRING *p,
 		warnx("%s: RFC 3779 section 2.2.3.8: "
 		    "unused bit count must be zero if length is zero", fn);
 		return 0;
+	} else if (addr == NULL) {
+		warnx("%s: Invalid param addr", fn);
+		return 0;
 	}
 
 	/*
@@ -229,6 +232,7 @@ ip_addr_parse(const ASN1_BIT_STRING *p,
 		return 0;
 	}
 
+	memset (addr, 0, sizeof(struct ip_addr));
 	addr->prefixlen = p->length * 8 - unused;
 	memcpy(addr->addr, p->data, p->length);
 	return 1;
