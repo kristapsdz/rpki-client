@@ -30,8 +30,6 @@
 #include "extern.h"
 #include "test-core.h"
 
-#define TAB 30
-
 int	 verbose;
 
 static void
