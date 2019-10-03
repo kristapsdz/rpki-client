@@ -205,9 +205,6 @@ ip_addr_parse(const ASN1_BIT_STRING *p,
 		warnx("%s: RFC 3779 section 2.2.3.8: "
 		    "unused bit count must be zero if length is zero", fn);
 		return 0;
-	} else if (addr == NULL) {
-		warnx("%s: Invalid param addr", fn);
-		return 0;
 	}
 
 	/*
