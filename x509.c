@@ -315,6 +315,7 @@ x509_get_sia_ext(X509_EXTENSION *ext, const char *fn, struct basicCertificate *c
 	const unsigned char	*d;
 	ASN1_SEQUENCE_ANY	*seq = NULL;
 	const ASN1_TYPE		*t;
+	int numElem;
 	int			 dsz, rc = 0;
 
 	if ((dsz = i2d_X509_EXTENSION(ext, &sv)) < 0) {
@@ -329,13 +330,15 @@ x509_get_sia_ext(X509_EXTENSION *ext, const char *fn, struct basicCertificate *c
 		    "failed ASN.1 sequence parse", fn);
 		goto out;
 	}
-	if (sk_ASN1_TYPE_num(seq) != 2) {
+
+    numElem = sk_ASN1_TYPE_num(seq);
+    // Optionally may have a BOOL at position 1 (0-based)
+	if (numElem != 2 && numElem != 3) {
 		warnx("%s: RFC 6487 section 4.8.8: SIA: "
 		    "want 2 elements, have %d", fn,
 		    sk_ASN1_TYPE_num(seq));
 		goto out;
 	}
-
 	t = sk_ASN1_TYPE_value(seq, 0);
 	if (t->type != V_ASN1_OBJECT) {
 		warnx("%s: RFC 6487 section 4.8.8: SIA: "
@@ -344,14 +347,23 @@ x509_get_sia_ext(X509_EXTENSION *ext, const char *fn, struct basicCertificate *c
 		goto out;
 	}
 	if (OBJ_obj2nid(t->value.object) != NID_sinfo_access) {
-		warnx("%s: RFC 6487 section 4.8.8: SIA: "
-		    "incorrect OID, have %s (NID %d)", fn,
-		    ASN1_tag2str(OBJ_obj2nid(t->value.object)),
-		    OBJ_obj2nid(t->value.object));
+		warnx("%s: RFC 6487 section A.1 Extension: "
+			"want BOOL, have %s (NID %d)",
+			fn, ASN1_tag2str(t->type), t->type);
 		goto out;
 	}
 
-	t = sk_ASN1_TYPE_value(seq, 1);
+    if (numElem == 3) {
+		t = sk_ASN1_TYPE_value(seq, 1);
+		if (t->type != V_ASN1_BOOLEAN) {
+			warnx("%s: RFC 5280 section 4.8.8: SIA: "
+				"want ASN.1 object, have %s (NID %d)",
+				fn, ASN1_tag2str(t->type), t->type);
+			goto out;
+		}
+	}
+
+	t = sk_ASN1_TYPE_value(seq, numElem - 1);
 	if (t->type != V_ASN1_OCTET_STRING) {
 		warnx("%s: RFC 6487 section 4.8.8: SIA: "
 		    "want ASN.1 octet string, have %s (NID %d)",
@@ -394,14 +406,12 @@ static int x509_get_extensions(X509 *x, const char *fn, struct basicCertificate 
 		obj = X509_EXTENSION_get_object(ext);
 		assert(obj != NULL);
 		switch (OBJ_obj2nid(obj)) {
+
 		case NID_sinfo_access:
 			if (cert->eeLocation != NULL) {
 				free(cert->eeLocation);
 			}
-			rc = x509_get_sia_ext(ext, fn, cert);
-			if (rc == 0) {
-				return 0;
-			}
+			x509_get_sia_ext(ext, fn, cert);
 			break;
 		case NID_subject_key_identifier:
 			if (cert->ski != NULL) {

@@ -213,7 +213,7 @@ mft_parse_econtent(const unsigned char *d, size_t dsz, struct parse *p, int forc
 	i = 0;
 	if (sk_ASN1_TYPE_num(seq) == 6) {
 		t = sk_ASN1_TYPE_value(seq, i++);
-		if (t->type != V_ASN1_INTEGER) {
+		if (t->type != V_ASN1_INTEGER && t->type != V_ASN1_OTHER) {
 			warnx("%s: RFC 6486 section 4.2.1: version: "
 			    "want ASN.1 integer, have %s (NID %d)",
 			    p->fn, ASN1_tag2str(t->type), t->type);
@@ -263,13 +263,13 @@ mft_parse_econtent(const unsigned char *d, size_t dsz, struct parse *p, int forc
 	tm = asn1Time2Time(t->value.generalizedtime);
 	next = mktime(&tm);
 
-	strftime(caThis, sizeof(caThis)-1, "%Y-%m-%d %H:%M:%S", localtime(&this));
-	strftime(caNext, sizeof(caNext)-1, "%Y-%m-%d %H:%M:%S", localtime(&next));
-	strftime(caNow, sizeof(caNow)-1, "%Y-%m-%d %H:%M:%S", localtime(&now));
+	strftime(caThis, sizeof(caThis)-1, "%Y-%m-%d %H:%M:%S", gmtime(&this));
+	strftime(caNext, sizeof(caNext)-1, "%Y-%m-%d %H:%M:%S", gmtime(&next));
+	strftime(caNow, sizeof(caNow)-1, "%Y-%m-%d %H:%M:%S", gmtime(&now));
 
 	memcpy(&p->res->thisUpdate, &this, sizeof (time_t));
 	memcpy(&p->res->nextUpdate, &next, sizeof (time_t));
-
+/*
 	if (this >= next) {
 		warnx("%s: bad update interval [%s] >= [%s]", p->fn, caThis, caNext);
 		goto out;
@@ -287,7 +287,7 @@ mft_parse_econtent(const unsigned char *d, size_t dsz, struct parse *p, int forc
 		}
 		if (verbose > 0)
 			warnx("%s: stale: expired %s (ignoring)", p->fn, buf);
-	}
+	}*/
 
 	/* File list algorithm. */
 
