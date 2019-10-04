@@ -147,7 +147,7 @@ sbgp_sia_resource_mft(struct parse *p,
 {
 	ASN1_SEQUENCE_ANY	*seq;
 	const ASN1_TYPE		*t;
-	int			 rc = 0, ptag;
+	int			 numElem, rc = 0, ptag;
 	char			buf[128];
 	long			 plen;
 	enum rtype		 rt;
@@ -157,9 +157,10 @@ sbgp_sia_resource_mft(struct parse *p,
 		    "failed ASN.1 sequence parse", p->fn);
 		goto out;
 	}
-	if (sk_ASN1_TYPE_num(seq) != 2) {
-		warnx("%s: RFC 6487 section 4.8.8: SIA: "
-		    "want 2 elements, have %d",
+	numElem = sk_ASN1_TYPE_num(seq);
+	if (numElem != 2 && numElem != 3) {
+		warnx("%s: RFC 5280 section A.1: Extension: "
+		    "want 2 or 3 elements, have %d",
 		    p->fn, sk_ASN1_TYPE_num(seq));
 		goto out;
 	}
@@ -173,7 +174,7 @@ sbgp_sia_resource_mft(struct parse *p,
 		    p->fn, ASN1_tag2str(t->type), t->type);
 		goto out;
 	}
-	OBJ_obj2txt(buf, sizeof(buf), t->value.object, 1);
+	OBJ_obj2txt(buf, sizeof(buf), t->value.object, numElem - 1);
 
 	/*
 	 * Ignore all but manifest.
@@ -419,7 +420,7 @@ sbgp_crl(struct parse *p, X509_EXTENSION *ext)
 	const unsigned char	*d;
 	ASN1_SEQUENCE_ANY	*seq = NULL;
 	const ASN1_TYPE		*t;
-	int			 dsz, rc = 0;
+	int			 dsz, numElem, rc = 0;
 
 	if (p->res->crl != NULL) {
 		warnx("%s: RFC 6487 section 4.8.6: CRL: "
@@ -438,9 +439,12 @@ sbgp_crl(struct parse *p, X509_EXTENSION *ext)
 		    "failed ASN.1 sequence parse", p->fn);
 		goto out;
 	}
-	if (sk_ASN1_TYPE_num(seq) != 2) {
-		warnx("%s: RFC 6487 section 4.8.6: SIA: "
-		    "want 2 elements, have %d", p->fn,
+
+    numElem = sk_ASN1_TYPE_num(seq);
+    // Optionally may have a BOOL at position 1 (0-based)
+	if (numElem != 2 && numElem != 3) {
+		warnx("%s: RFC 5280 section A.1: Extension: "
+		    "want 2 or 3 elements, have %d", p->fn,
 		    sk_ASN1_TYPE_num(seq));
 		goto out;
 	}
@@ -460,7 +464,7 @@ sbgp_crl(struct parse *p, X509_EXTENSION *ext)
 		goto out;
 	}
 
-	t = sk_ASN1_TYPE_value(seq, 1);
+	t = sk_ASN1_TYPE_value(seq, numElem - 1);
 	if (t->type != V_ASN1_OCTET_STRING) {
 		warnx("%s: RFC 6487 section 4.8.6: CRL: "
 		    "want ASN.1 octet string, have %s (NID %d)",
@@ -496,7 +500,7 @@ sbgp_sia(struct parse *p, X509_EXTENSION *ext)
 	const unsigned char	*d;
 	ASN1_SEQUENCE_ANY	*seq = NULL;
 	const ASN1_TYPE		*t;
-	int			 dsz, rc = 0;
+	int			 dsz, numElem, rc = 0;
 
 	if ((dsz = i2d_X509_EXTENSION(ext, &sv)) < 0) {
 		cryptowarnx("%s: RFC 6487 section 4.8.8: SIA: "
@@ -510,9 +514,10 @@ sbgp_sia(struct parse *p, X509_EXTENSION *ext)
 		    "failed ASN.1 sequence parse", p->fn);
 		goto out;
 	}
-	if (sk_ASN1_TYPE_num(seq) != 2) {
-		warnx("%s: RFC 6487 section 4.8.8: SIA: "
-		    "want 2 elements, have %d", p->fn,
+	numElem = sk_ASN1_TYPE_num(seq);
+	if (numElem != 2 && numElem != 3) {
+		warnx("%s: RFC 5280 section A.1: Extension: "
+		    "want 2 or 3 elements, have %d", p->fn,
 		    sk_ASN1_TYPE_num(seq));
 		goto out;
 	}
@@ -532,7 +537,7 @@ sbgp_sia(struct parse *p, X509_EXTENSION *ext)
 		goto out;
 	}
 
-	t = sk_ASN1_TYPE_value(seq, 1);
+	t = sk_ASN1_TYPE_value(seq, numElem - 1);
 	if (t->type != V_ASN1_OCTET_STRING) {
 		warnx("%s: RFC 6487 section 4.8.8: SIA: "
 		    "want ASN.1 octet string, have %s (NID %d)",

@@ -181,7 +181,7 @@ x509_sia_resource_mft(const char *fn, struct basicCertificate *cert,
 {
 	ASN1_SEQUENCE_ANY	*seq;
 	const ASN1_TYPE		*t;
-	int			 rc = 0, ptag;
+	int			 numElem, rc = 0, ptag;
 	char			buf[128];
 	long			 plen;
 	enum rtype		 rt;
@@ -191,9 +191,10 @@ x509_sia_resource_mft(const char *fn, struct basicCertificate *cert,
 		    "failed ASN.1 sequence parse", fn);
 		goto out;
 	}
-	if (sk_ASN1_TYPE_num(seq) != 2) {
-		warnx("%s: RFC 6487 section 4.8.8: SIA: "
-		    "want 2 elements, have %d",
+	numElem = sk_ASN1_TYPE_num(seq);
+	if (numElem != 2 && numElem != 3) {
+		warnx("%s: RFC 5280 section A.1: Extension: "
+		    "want 2 or 3 elements, have %d",
 		    fn, sk_ASN1_TYPE_num(seq));
 		goto out;
 	}
@@ -206,7 +207,7 @@ x509_sia_resource_mft(const char *fn, struct basicCertificate *cert,
 		    fn, ASN1_tag2str(t->type), t->type);
 		goto out;
 	}
-	OBJ_obj2txt(buf, sizeof(buf), t->value.object, 1);
+	OBJ_obj2txt(buf, sizeof(buf), t->value.object, numElem - 1);
 
 	/*
 	 * Ignore all but id-ad-signedObject.
@@ -221,7 +222,7 @@ x509_sia_resource_mft(const char *fn, struct basicCertificate *cert,
 		goto out;
 	}
 
-	t = sk_ASN1_TYPE_value(seq, 1);
+	t = sk_ASN1_TYPE_value(seq, numElem - 1);
 	if (t->type != V_ASN1_OTHER) {
 		warnx("%s: RFC 6487 section 4.8.8: SIA: "
 			"want ASN.1 external, have %s (NID %d)",
@@ -334,8 +335,8 @@ x509_get_sia_ext(X509_EXTENSION *ext, const char *fn, struct basicCertificate *c
     numElem = sk_ASN1_TYPE_num(seq);
     // Optionally may have a BOOL at position 1 (0-based)
 	if (numElem != 2 && numElem != 3) {
-		warnx("%s: RFC 6487 section 4.8.8: SIA: "
-		    "want 2 elements, have %d", fn,
+		warnx("%s: RFC 5280 section A.1: Extension: "
+		    "want 2 or 3 elements, have %d", fn,
 		    sk_ASN1_TYPE_num(seq));
 		goto out;
 	}
