@@ -16,10 +16,7 @@
  */
 #include "config.h"
 
-#include <assert.h>
-#include <err.h>
 #include <stdio.h>
-#include <stdint.h>
 #include <stdlib.h>
 #include <string.h>
 #include <unistd.h>
@@ -31,57 +28,6 @@
 #include "test-core.h"
 
 int	 verbose;
-
-static void
-mft_print(const struct mft *p)
-{
-	size_t	 i;
-	unsigned char caSHA256[64 + 1];
-	char caNotAfter[64], caNotBefore[64], caThis[64], caNext[64], caNow[64];
-	time_t now;
-	struct tm *tm;
-
-	assert(p != NULL);
-
-    now = time(NULL);
-	tm = gmtime(&now);
-	strftime(caNow, sizeof(caNow)-1, "%Y-%m-%d %H:%M:%S GMT", tm);
-
-	tm = gmtime(&p->thisUpdate);
-	strftime(caThis, sizeof(caThis)-1, "%Y-%m-%d %H:%M:%S GMT", tm);
-
-	tm = gmtime(&p->nextUpdate);
-	strftime(caNext, sizeof(caNext)-1, "%Y-%m-%d %H:%M:%S GMT", tm);
-
-	tm = gmtime(&p->eeCert.notBefore);
-	strftime(caNotBefore, sizeof(caNotBefore)-1, "%Y-%m-%d %H:%M:%S GMT", tm);
-
-	tm = gmtime(&p->eeCert.notAfter);
-	strftime(caNotAfter, sizeof(caNotAfter)-1, "%Y-%m-%d %H:%M:%S GMT", tm);
-
-	printf("%*.*s: %s\n", TAB, TAB, "Now", caNow);
-	print_sep_line("EE Certificate", 110);
-	printf("%*.*s: %ld\n", TAB, TAB, "Version", p->eeCert.version);
-	printf("%*.*s: %s\n", TAB, TAB, "Serial", p->eeCert.serial);
-	printf("%*.*s: %s\n", TAB, TAB, "Issuer", p->eeCert.issuerName);
-	printf("%*.*s: %s\n", TAB, TAB, "Subject", p->eeCert.subject);
-	printf("%*.*s: %s\n", TAB, TAB, "Not Before", caNotBefore);
-	printf("%*.*s: %s\n", TAB, TAB, "Not After", caNotAfter);
-	printf("%*.*s: %s\n", TAB, TAB, "Subject Info Access", p->eeCert.eeLocation);
-	printf("%*.*s: %s\n", TAB, TAB, "Subject key identifier", p->eeCert.ski);
-	printf("%*.*s: %s\n", TAB, TAB, "Authority key identifier", p->eeCert.aki);
-	print_sep_line("Manifest", 110);
-
-	printf("%*.*s: %ld\n", TAB, TAB, "Manifest Number", p->manifestNumber);
-	printf("%*.*s: %s\n", TAB, TAB, "This Update", caThis);
-	printf("%*.*s: %s\n", TAB, TAB, "Next Update", caNext);
-	for (i = 0; i < p->filesz; i++) {
-		memset (caSHA256, 0, sizeof (caSHA256));
-		hex_encode(caSHA256, p->files[i].hash, 32);
-		printf("%s  %s\n", caSHA256, p->files[i].file);
-	}
-}
-
 
 int
 main(int argc, char *argv[])
@@ -113,7 +59,7 @@ main(int argc, char *argv[])
 		if ((p = mft_parse(&xp, argv[i], force)) == NULL)
 			break;
 		if (verbose)
-			mft_print(p);
+			print_mft(p);
 		mft_free(p);
 		X509_free(xp);
 	}

@@ -16,9 +16,6 @@
  */
 #include "config.h"
 
-#include <assert.h>
-#include <err.h>
-#include <inttypes.h>
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
@@ -31,48 +28,6 @@
 #include "test-core.h"
 
 int	verbose;
-
-static void
-roa_print(const struct roa *p)
-{
-	char	 buf[128];
-	size_t	 i;
-	char caNotAfter[64], caNotBefore[64], caNow[64];
-	time_t now;
-	struct tm *tm;
-
-	assert(p != NULL);
-
-    now = time(NULL);
-	tm = gmtime(&now);
-	strftime(caNow, sizeof(caNow)-1, "%Y-%m-%d %H:%M:%S GMT", tm);
-
-	tm = gmtime(&p->eeCert.notBefore);
-	strftime(caNotBefore, sizeof(caNotBefore)-1, "%Y-%m-%d %H:%M:%S GMT", tm);
-
-	tm = gmtime(&p->eeCert.notAfter);
-	strftime(caNotAfter, sizeof(caNotAfter)-1, "%Y-%m-%d %H:%M:%S GMT", tm);
-
-	printf("%*.*s: %s\n", TAB, TAB, "Now", caNow);
-	print_sep_line("EE Certificate", 110);
-	printf("%*.*s: %ld\n", TAB, TAB, "Version", p->eeCert.version);
-	printf("%*.*s: %s\n", TAB, TAB, "Serial", p->eeCert.serial);
-	printf("%*.*s: %s\n", TAB, TAB, "Issuer", p->eeCert.issuerName);
-	printf("%*.*s: %s\n", TAB, TAB, "Subject", p->eeCert.subject);
-	printf("%*.*s: %s\n", TAB, TAB, "Not Before", caNotBefore);
-	printf("%*.*s: %s\n", TAB, TAB, "Not After", caNotAfter);
-	printf("%*.*s: %s\n", TAB, TAB, "Subject Info Access", p->eeCert.eeLocation);
-	printf("%*.*s: %s\n", TAB, TAB, "Subject key identifier", p->eeCert.ski);
-	printf("%*.*s: %s\n", TAB, TAB, "Authority key identifier", p->eeCert.aki);
-	print_sep_line("ROA", 110);
-	printf("%*.*s: %" PRIu32 "\n", TAB, TAB, "asID", p->asid);
-	for (i = 0; i < p->ipsz; i++) {
-		ip_addr_print(&p->ips[i].addr,
-			p->ips[i].afi, buf, sizeof(buf));
-		printf("%*zu: %s (max: %zu)\n", TAB, i + 1,
-			buf, p->ips[i].maxlength);
-	}
-}
 
 int
 main(int argc, char *argv[])
@@ -101,7 +56,7 @@ main(int argc, char *argv[])
 		if ((p = roa_parse(&xp, argv[i], NULL)) == NULL)
 			break;
 		if (verbose)
-			roa_print(p);
+			print_roa(p);
 		roa_free(p);
 		X509_free(xp);
 	}

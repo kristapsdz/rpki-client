@@ -24,4 +24,10 @@
 void hex_encode (unsigned char *lpcAsc, unsigned char *lpcBcd, size_t szBcd);
 void print_sep_line (const char *title, size_t count);
 
+void print_cert(const struct cert *p);
+void print_crl(const X509_CRL *p);
+void print_mft(const struct mft *p);
+void print_roa(const struct roa *p);
+void print_tal(const struct tal *p);
+
 #endif

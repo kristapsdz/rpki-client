@@ -16,12 +16,6 @@
  */
 #include "config.h"
 
-#include <arpa/inet.h>
-#include <sys/socket.h>
-
-#include <assert.h>
-#include <err.h>
-#include <inttypes.h>
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
@@ -34,84 +28,6 @@
 #include "test-core.h"
 
 int	 verbose;
-
-static void
-cert_print(const struct cert *p)
-{
-	size_t	 i;
-	char	 buf1[64], buf2[64];
-	int	 sockt;
-	char caNotAfter[64], caNotBefore[64], caNow[64];
-	time_t now;
-	struct tm *tm;
-
-	assert(p != NULL);
-
-    now = time(NULL);
-	tm = gmtime(&now);
-	strftime(caNow, sizeof(caNow)-1, "%Y-%m-%d %H:%M:%S GMT", tm);
-
-	tm = gmtime(&p->basic.notBefore);
-	strftime(caNotBefore, sizeof(caNotBefore)-1, "%Y-%m-%d %H:%M:%S GMT", tm);
-
-	tm = gmtime(&p->basic.notAfter);
-	strftime(caNotAfter, sizeof(caNotAfter)-1, "%Y-%m-%d %H:%M:%S GMT", tm);
-
-	printf("%*.*s: %s\n", TAB, TAB, "Now", caNow);
-	print_sep_line("Certificate", 110);
-	printf("%*.*s: %ld\n", TAB, TAB, "Version", p->basic.version);
-	printf("%*.*s: %s\n", TAB, TAB, "Serial", p->basic.serial);
-	printf("%*.*s: %s\n", TAB, TAB, "Issuer", p->basic.issuerName);
-	printf("%*.*s: %s\n", TAB, TAB, "Subject", p->basic.subject);
-	printf("%*.*s: %s\n", TAB, TAB, "Not Before", caNotBefore);
-	printf("%*.*s: %s\n", TAB, TAB, "Not After", caNotAfter);
-	printf("%*.*s: %s\n", TAB, TAB, "Subject key identifier", p->basic.ski);
-	if (p->basic.aki != NULL) {
-		printf("%*.*s: %s\n", TAB, TAB, "Authority key identifier", p->basic.aki);
-	}
-
-	printf("%*.*s: %s\n", TAB, TAB, "Manifest", p->mft);
-	if (p->rep != NULL) {
-		printf("%*.*s: %s\n", TAB, TAB, "Repository", p->rep);
-	}
-	if (p->crl != NULL) {
-		printf("%*.*s: %s\n", TAB, TAB, "Revocation list", p->crl);
-	}
-	for (i = 0; i < p->asz; i++)
-		switch (p->as[i].type) {
-		case CERT_AS_ID:
-			printf("%*zu: AS: %"
-				PRIu32 "\n", TAB, i + 1, p->as[i].id);
-			break;
-		case CERT_AS_INHERIT:
-			printf("%*zu: AS: inherit\n", TAB, i + 1);
-			break;
-		case CERT_AS_RANGE:
-			printf("%*zu: AS: %"
-				PRIu32 "-%" PRIu32 "\n", TAB, i + 1,
-				p->as[i].range.min, p->as[i].range.max);
-			break;
-		}
-
-	for (i = 0; i < p->ipsz; i++)
-		switch (p->ips[i].type) {
-		case CERT_IP_INHERIT:
-			printf("%*zu: IP: inherit\n", TAB, i + 1);
-			break;
-		case CERT_IP_ADDR:
-			ip_addr_print(&p->ips[i].ip,
-				p->ips[i].afi, buf1, sizeof(buf1));
-			printf("%*zu: IP: %s\n",TAB,  i + 1, buf1);
-			break;
-		case CERT_IP_RANGE:
-			sockt = (p->ips[i].afi == AFI_IPV4) ?
-				AF_INET : AF_INET6;
-			inet_ntop(sockt, p->ips[i].min, buf1, sizeof(buf1));
-			inet_ntop(sockt, p->ips[i].max, buf2, sizeof(buf2));
-			printf("%*zu: IP: %s-%s\n", TAB, i + 1, buf1, buf2);
-			break;
-		}
-}
 
 int
 main(int argc, char *argv[])
@@ -146,7 +62,7 @@ main(int argc, char *argv[])
 		if (p == NULL)
 			break;
 		if (verbose)
-			cert_print(p);
+			print_cert(p);
 		cert_free(p);
 		X509_free(xp);
 	}

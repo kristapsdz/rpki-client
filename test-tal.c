@@ -16,10 +16,7 @@
  */
 #include "config.h"
 
-#include <assert.h>
-#include <err.h>
 #include <stdio.h>
-#include <stdint.h>
 #include <stdlib.h>
 #include <string.h>
 #include <unistd.h>
@@ -28,19 +25,9 @@
 #include <openssl/ssl.h>
 
 #include "extern.h"
+#include "test-core.h"
 
 int	verbose;
-
-static void
-tal_print(const struct tal *p)
-{
-	size_t	 i;
-
-	assert(p != NULL);
-
-	for (i = 0; i < p->urisz; i++)
-		printf("%5zu: URI: %s\n", i + 1, p->uri[i]);
-}
 
 int
 main(int argc, char *argv[])
@@ -68,7 +55,7 @@ main(int argc, char *argv[])
 		if ((tal = tal_parse(argv[i])) == NULL)
 			break;
 		if (verbose)
-			tal_print(tal);
+			print_tal(tal);
 		tal_free(tal);
 	}
 
