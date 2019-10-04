@@ -393,7 +393,6 @@ static int x509_get_extensions(X509 *x, const char *fn, struct basicCertificate 
 	X509_EXTENSION		*ext = NULL;
 	const ASN1_OBJECT	*obj;
 	int			 extsz, i;
-	int rc = 0;
 
 	cert->ski = cert->aki = NULL;
 
