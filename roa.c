@@ -276,12 +276,12 @@ roa_parse_econtent(const unsigned char *d, size_t dsz, struct parse *p)
 		 * overflowing number will be definition be wrong.
 		 */
 
-		if (t->type != V_ASN1_INTEGER) {
+		if (t->type != V_ASN1_INTEGER && t->type != V_ASN1_OTHER) {
 			warnx("%s: RFC 6482 section 3.1: version: "
 			    "want ASN.1 integer, have %s (NID %d)",
 			    p->fn, ASN1_tag2str(t->type), t->type);
 			goto out;
-		} else if (ASN1_INTEGER_get(t->value.integer) != 0) {
+		} else if (t->type == V_ASN1_INTEGER && ASN1_INTEGER_get(t->value.integer) != 0) {
 			warnx("%s: RFC 6482 section 3.1: version: "
 			    "want version 0, have %ld",
 			    p->fn, ASN1_INTEGER_get(t->value.integer));

@@ -57,6 +57,7 @@ cryptoerrx(const char *fmt, ...)
 		va_end(ap);
 	}
 
+    // should review this, abruptly exit may leave untied finalizations
 	exit(EXIT_FAILURE);
 }
 

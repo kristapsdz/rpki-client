@@ -23,12 +23,14 @@ ALLOBJS	 = $(OBJS) \
 	   test-crl.o \
 	   test-mft.o \
 	   test-roa.o \
+	   test-rpki.o \
 	   test-tal.o
 BINS	 = rpki-client \
 	   test-cert \
 	   test-crl \
 	   test-mft \
 	   test-roa \
+	   test-rpki \
 	   test-tal
 
 ARCH=$(shell uname -s|tr A-Z a-z)
@@ -57,19 +59,7 @@ uninstall:
 rpki-client: main.o $(OBJS)
 	$(CC) -o $@ $^ $(LDFLAGS) $(LDADD)
 
-test-tal: test-tal.o $(OBJS)
-	$(CC) -o $@ $^ $(LDFLAGS) $(LDADD)
-
-test-mft: test-mft.o $(OBJS)
-	$(CC) -o $@ $^ $(LDFLAGS) $(LDADD)
-
-test-roa: test-roa.o $(OBJS)
-	$(CC) -o $@ $^ $(LDFLAGS) $(LDADD)
-
-test-cert: test-cert.o $(OBJS)
-	$(CC) -o $@ $^ $(LDFLAGS) $(LDADD)
-
-test-crl: test-crl.o $(OBJS)
+test-%: test-%.o $(OBJS)
 	$(CC) -o $@ $^ $(LDFLAGS) $(LDADD)
 
 clean:
