@@ -49,7 +49,7 @@ ip_addr_afi_parse(const char *fn, const ASN1_OCTET_STRING *p, enum afi *afi)
 	short	 v;
 
 	if (p->length == 0 || p->length > 3) {
-		warnx("%s: invalid field length, want 1--3, have %d",
+		log_warnx("%s: invalid field length, want 1--3, have %d",
 		    fn, p->length);
 		return 0;
 	}
@@ -60,7 +60,7 @@ ip_addr_afi_parse(const char *fn, const ASN1_OCTET_STRING *p, enum afi *afi)
 	/* Only accept IPv4 and IPv6 AFIs. */
 
 	if (v != AFI_IPV4 && v != AFI_IPV6) {
-		warnx("%s: only AFI for IPV4 (1) and IPV6 (2) allowed: "
+		log_warnx("%s: only AFI for IPV4 (1) and IPV6 (2) allowed: "
 		    "have %hd", fn, v);
 		return 0;
 	}
@@ -68,7 +68,7 @@ ip_addr_afi_parse(const char *fn, const ASN1_OCTET_STRING *p, enum afi *afi)
 	/* Disallow the optional SAFI. */
 
 	if (p->length == 3) {
-		warnx("%s: SAFI not allowed", fn);
+		log_warnx("%s: SAFI not allowed", fn);
 		return 0;
 	}
 
@@ -145,7 +145,7 @@ ip_addr_check_overlap(const struct cert_ip *ip, const char *fn,
 	     ip->type == CERT_IP_INHERIT) ||
 	    (has_v6 && ip->afi == AFI_IPV6 &&
 	     ip->type == CERT_IP_INHERIT)) {
-		warnx("%s: RFC 3779 section 2.2.3.5: "
+		log_warnx("%s: RFC 3779 section 2.2.3.5: "
 		    "cannot have multiple inheritence or inheritence and "
 		    "addresses of the same class", fn);
 		return 0;
@@ -160,18 +160,18 @@ ip_addr_check_overlap(const struct cert_ip *ip, const char *fn,
 		    memcmp(ips[i].min, ip->max, sz) >= 0)
 			continue;
 		socktype = (ips[i].afi == AFI_IPV4) ? AF_INET : AF_INET6,
-		warnx("%s: RFC 3779 section 2.2.3.5: "
+		log_warnx("%s: RFC 3779 section 2.2.3.5: "
 		    "cannot have overlapping IP addresses", fn);
 		ip_addr_print(&ip->ip, ip->afi, buf, sizeof(buf));
-		warnx("%s: certificate IP: %s", fn, buf);
+		log_warnx("%s: certificate IP: %s", fn, buf);
 		inet_ntop(socktype, ip->min, buf, sizeof(buf));
-		warnx("%s: certificate IP minimum: %s", fn, buf);
+		log_warnx("%s: certificate IP minimum: %s", fn, buf);
 		inet_ntop(socktype, ip->max, buf, sizeof(buf));
-		warnx("%s: certificate IP maximum: %s", fn, buf);
+		log_warnx("%s: certificate IP maximum: %s", fn, buf);
 		inet_ntop(socktype, ips[i].min, buf, sizeof(buf));
-		warnx("%s: offending IP minimum: %s", fn, buf);
+		log_warnx("%s: offending IP minimum: %s", fn, buf);
 		inet_ntop(socktype, ips[i].max, buf, sizeof(buf));
-		warnx("%s: offending IP maximum: %s", fn, buf);
+		log_warnx("%s: offending IP maximum: %s", fn, buf);
 		return 0;
 	}
 
@@ -194,15 +194,15 @@ ip_addr_parse(const ASN1_BIT_STRING *p,
 		unused = p->flags & ~ASN1_STRING_FLAG_BITS_LEFT;
 
 	if (unused < 0) {
-		warnx("%s: RFC 3779 section 2.2.3.8: "
+		log_warnx("%s: RFC 3779 section 2.2.3.8: "
 		    "unused bit count must be non-negative", fn);
 		return 0;
 	} else if (unused >= 8) {
-		warnx("%s: RFC 3779 section 2.2.3.8: "
+		log_warnx("%s: RFC 3779 section 2.2.3.8: "
 		    "unused bit count must mask an unsigned char", fn);
 		return 0;
 	} else if (p->length == 0 && unused != 0) {
-		warnx("%s: RFC 3779 section 2.2.3.8: "
+		log_warnx("%s: RFC 3779 section 2.2.3.8: "
 		    "unused bit count must be zero if length is zero", fn);
 		return 0;
 	}
@@ -215,7 +215,7 @@ ip_addr_parse(const ASN1_BIT_STRING *p,
 
 	if (p->length != 0 &&
 	    (p->data[p->length - 1] & ((1 << unused) - 1))) {
-		warnx("%s: RFC 3779 section 2.2.3.8: "
+		log_warnx("%s: RFC 3779 section 2.2.3.8: "
 		    "unused bits must be set to zero", fn);
 		return 0;
 	}
@@ -224,7 +224,7 @@ ip_addr_parse(const ASN1_BIT_STRING *p,
 
 	if ((afi == AFI_IPV4 && p->length > 4) ||
 	    (afi == AFI_IPV6 && p->length > 16)) {
-		warnx("%s: RFC 3779 section 2.2.3.8: "
+		log_warnx("%s: RFC 3779 section 2.2.3.8: "
 		    "IP address too long", fn);
 		return 0;
 	}

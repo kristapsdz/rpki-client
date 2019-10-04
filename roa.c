@@ -62,7 +62,7 @@ roa_parse_addr(const ASN1_OCTET_STRING *os, enum afi afi, struct parse *p)
 
 	if (sk_ASN1_TYPE_num(seq) != 1 &&
 	    sk_ASN1_TYPE_num(seq) != 2) {
-		warnx("%s: RFC 6482 section 3.3: adddress: "
+		log_warnx("%s: RFC 6482 section 3.3: adddress: "
 		    "want 1 or 2 elements, have %d",
 		    p->fn, sk_ASN1_TYPE_num(seq));
 		goto out;
@@ -70,13 +70,13 @@ roa_parse_addr(const ASN1_OCTET_STRING *os, enum afi afi, struct parse *p)
 
 	t = sk_ASN1_TYPE_value(seq, 0);
 	if (t->type != V_ASN1_BIT_STRING) {
-		warnx("%s: RFC 6482 section 3.3: address: "
+		log_warnx("%s: RFC 6482 section 3.3: address: "
 		    "want ASN.1 bit string, have %s (NID %d)",
 		    p->fn, ASN1_tag2str(t->type), t->type);
 		goto out;
 	}
 	if (!ip_addr_parse(t->value.bit_string, afi, p->fn, &addr)) {
-		warnx("%s: RFC 6482 section 3.3: address: "
+		log_warnx("%s: RFC 6482 section 3.3: address: "
 		    "invalid IP address", p->fn);
 		goto out;
 	}
@@ -89,7 +89,7 @@ roa_parse_addr(const ASN1_OCTET_STRING *os, enum afi afi, struct parse *p)
 	if (sk_ASN1_TYPE_num(seq) == 2) {
 		t = sk_ASN1_TYPE_value(seq, 1);
 		if (t->type != V_ASN1_INTEGER) {
-			warnx("%s: RFC 6482 section 3.1: maxLength: "
+			log_warnx("%s: RFC 6482 section 3.1: maxLength: "
 			    "want ASN.1 integer, have %s (NID %d)",
 			    p->fn, ASN1_tag2str(t->type), t->type);
 			goto out;
@@ -103,7 +103,7 @@ roa_parse_addr(const ASN1_OCTET_STRING *os, enum afi afi, struct parse *p)
 		 */
 
 		if (ASN1_INTEGER_get(maxlength) < 0) {
-			warnx("%s: RFC 6482 section 3.2: maxLength: "
+			log_warnx("%s: RFC 6482 section 3.2: maxLength: "
 			    "want positive integer, have %ld",
 			    p->fn, ASN1_INTEGER_get(maxlength));
 			goto out;
@@ -148,7 +148,7 @@ roa_parse_ipfam(const ASN1_OCTET_STRING *os, struct parse *p)
 		    "failed ASN.1 sequence parse", p->fn);
 		goto out;
 	} else if (sk_ASN1_TYPE_num(seq) != 2) {
-		warnx("%s: RFC 6482 section 3.3: ROAIPAddressFamily: "
+		log_warnx("%s: RFC 6482 section 3.3: ROAIPAddressFamily: "
 		    "want 2 elements, have %d",
 		    p->fn, sk_ASN1_TYPE_num(seq));
 		goto out;
@@ -156,20 +156,20 @@ roa_parse_ipfam(const ASN1_OCTET_STRING *os, struct parse *p)
 
 	t = sk_ASN1_TYPE_value(seq, 0);
 	if (t->type != V_ASN1_OCTET_STRING) {
-		warnx("%s: RFC 6482 section 3.3: addressFamily: "
+		log_warnx("%s: RFC 6482 section 3.3: addressFamily: "
 		    "want ASN.1 octet string, have %s (NID %d)",
 		    p->fn, ASN1_tag2str(t->type), t->type);
 		goto out;
 	}
 	if (!ip_addr_afi_parse(p->fn, t->value.octet_string, &afi)) {
-		warnx("%s: RFC 6482 section 3.3: addressFamily: "
+		log_warnx("%s: RFC 6482 section 3.3: addressFamily: "
 		    "invalid", p->fn);
 		goto out;
 	}
 
 	t = sk_ASN1_TYPE_value(seq, 1);
 	if (t->type != V_ASN1_SEQUENCE) {
-		warnx("%s: RFC 6482 section 3.3: addresses: "
+		log_warnx("%s: RFC 6482 section 3.3: addresses: "
 		    "want ASN.1 sequence, have %s (NID %d)",
 		    p->fn, ASN1_tag2str(t->type), t->type);
 		goto out;
@@ -187,7 +187,7 @@ roa_parse_ipfam(const ASN1_OCTET_STRING *os, struct parse *p)
 	for (i = 0; i < sk_ASN1_TYPE_num(sseq); i++) {
 		t = sk_ASN1_TYPE_value(sseq, i);
 		if (t->type != V_ASN1_SEQUENCE) {
-			warnx("%s: RFC 6482 section 3.3: ROAIPAddress: "
+			log_warnx("%s: RFC 6482 section 3.3: ROAIPAddress: "
 			    "want ASN.1 sequence, have %s (NID %d)",
 			    p->fn, ASN1_tag2str(t->type), t->type);
 			goto out;
@@ -225,7 +225,7 @@ roa_parse_ipblocks(const ASN1_OCTET_STRING *os, struct parse *p)
 	for (i = 0; i < sk_ASN1_TYPE_num(seq); i++) {
 		t = sk_ASN1_TYPE_value(seq, i);
 		if (t->type != V_ASN1_SEQUENCE) {
-			warnx("%s: RFC 6482 section 3.3: ROAIPAddressFamily: "
+			log_warnx("%s: RFC 6482 section 3.3: ROAIPAddressFamily: "
 			    "want ASN.1 sequence, have %s (NID %d)",
 			    p->fn, ASN1_tag2str(t->type), t->type);
 			goto out;
@@ -259,7 +259,7 @@ roa_parse_econtent(const unsigned char *d, size_t dsz, struct parse *p)
 	}
 
 	if ((sz = sk_ASN1_TYPE_num(seq)) != 2 && sz != 3) {
-		warnx("%s: RFC 6482 section 3: RouteOriginAttestation: "
+		log_warnx("%s: RFC 6482 section 3: RouteOriginAttestation: "
 		    "want 2 or 3 elements, have %d",
 		    p->fn, sk_ASN1_TYPE_num(seq));
 		goto out;
@@ -277,12 +277,12 @@ roa_parse_econtent(const unsigned char *d, size_t dsz, struct parse *p)
 		 */
 
 		if (t->type != V_ASN1_INTEGER && t->type != V_ASN1_OTHER) {
-			warnx("%s: RFC 6482 section 3.1: version: "
+			log_warnx("%s: RFC 6482 section 3.1: version: "
 			    "want ASN.1 integer, have %s (NID %d)",
 			    p->fn, ASN1_tag2str(t->type), t->type);
 			goto out;
 		} else if (t->type == V_ASN1_INTEGER && ASN1_INTEGER_get(t->value.integer) != 0) {
-			warnx("%s: RFC 6482 section 3.1: version: "
+			log_warnx("%s: RFC 6482 section 3.1: version: "
 			    "want version 0, have %ld",
 			    p->fn, ASN1_INTEGER_get(t->value.integer));
 			goto out;
@@ -297,12 +297,12 @@ roa_parse_econtent(const unsigned char *d, size_t dsz, struct parse *p)
 
 	t = sk_ASN1_TYPE_value(seq, i++);
 	if (t->type != V_ASN1_INTEGER) {
-		warnx("%s: RFC 6482 section 3.2: asID: "
+		log_warnx("%s: RFC 6482 section 3.2: asID: "
 		    "want ASN.1 integer, have %s (NID %d)",
 		    p->fn, ASN1_tag2str(t->type), t->type);
 		goto out;
 	} else if (!as_id_parse(t->value.integer, &p->res->asid)) {
-		warnx("%s: RFC 6482 section 3.2: asID: "
+		log_warnx("%s: RFC 6482 section 3.2: asID: "
 		    "malformed AS identifier", p->fn);
 		goto out;
 	}
@@ -311,7 +311,7 @@ roa_parse_econtent(const unsigned char *d, size_t dsz, struct parse *p)
 
 	t = sk_ASN1_TYPE_value(seq, i++);
 	if (t->type != V_ASN1_SEQUENCE) {
-		warnx("%s: RFC 6482 section 3.3: ipAddrBlocks: "
+		log_warnx("%s: RFC 6482 section 3.3: ipAddrBlocks: "
 		    "want ASN.1 sequence, have %s (NID %d)",
 		    p->fn, ASN1_tag2str(t->type), t->type);
 		goto out;

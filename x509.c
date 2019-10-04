@@ -82,14 +82,14 @@ x509_get_aki_ext(X509_EXTENSION *ext, const char *fn)
 		goto out;
 	}
 	if (sk_ASN1_TYPE_num(seq) != 1) {
-		warnx("%s: RFC 6487 section 4.8.3: AKI: "
+		log_warnx("%s: RFC 6487 section 4.8.3: AKI: "
 		    "want 1 element, have %d", fn, sk_ASN1_TYPE_num(seq));
 		goto out;
 	}
 
 	t = sk_ASN1_TYPE_value(seq, 0);
 	if (t->type != V_ASN1_OTHER) {
-		warnx("%s: RFC 6487 section 4.8.3: AKI: "
+		log_warnx("%s: RFC 6487 section 4.8.3: AKI: "
 		    "want ASN.1 external, have %s (NID %d)",
 		    fn, ASN1_tag2str(t->type), t->type);
 		goto out;
@@ -149,7 +149,7 @@ x509_get_ski_ext(X509_EXTENSION *ext, const char *fn)
 	dsz = oss->length;
 
 	if (dsz != 20) {
-		warnx("%s: RFC 6487 section 4.8.2: SKI: "
+		log_warnx("%s: RFC 6487 section 4.8.2: SKI: "
 		    "want 20 B SHA1 hash, have %d B", fn, dsz);
 		goto out;
 	}
@@ -193,7 +193,7 @@ x509_sia_resource_mft(const char *fn, struct basicCertificate *cert,
 	}
 	numElem = sk_ASN1_TYPE_num(seq);
 	if (numElem != 2 && numElem != 3) {
-		warnx("%s: RFC 5280 section A.1: Extension: "
+		log_warnx("%s: RFC 5280 section A.1: Extension: "
 		    "want 2 or 3 elements, have %d",
 		    fn, sk_ASN1_TYPE_num(seq));
 		goto out;
@@ -202,7 +202,7 @@ x509_sia_resource_mft(const char *fn, struct basicCertificate *cert,
 
 	t = sk_ASN1_TYPE_value(seq, 0);
 	if (t->type != V_ASN1_OBJECT) {
-		warnx("%s: RFC 6487 section 4.8.8: SIA: "
+		log_warnx("%s: RFC 6487 section 4.8.8: SIA: "
 		    "want ASN.1 object, have %s (NID %d)",
 		    fn, ASN1_tag2str(t->type), t->type);
 		goto out;
@@ -217,14 +217,14 @@ x509_sia_resource_mft(const char *fn, struct basicCertificate *cert,
 		goto out;
 	}
 	if (cert->eeLocation != NULL) {
-		warnx("%s: RFC 6487 section 4.8.8: SIA: "
+		log_warnx("%s: RFC 6487 section 4.8.8: SIA: "
 			"MFT location already specified", fn);
 		goto out;
 	}
 
 	t = sk_ASN1_TYPE_value(seq, numElem - 1);
 	if (t->type != V_ASN1_OTHER) {
-		warnx("%s: RFC 6487 section 4.8.8: SIA: "
+		log_warnx("%s: RFC 6487 section 4.8.8: SIA: "
 			"want ASN.1 external, have %s (NID %d)",
 			fn, ASN1_tag2str(t->type), t->type);
 		goto out;
@@ -244,7 +244,7 @@ x509_sia_resource_mft(const char *fn, struct basicCertificate *cert,
 
 	if (!rsync_uri_parse(NULL, NULL, NULL,
 		NULL, NULL, NULL, &rt, cert->eeLocation)) {
-		warnx("%s: RFC 6487 section 4.8.8: SIA: "
+		log_warnx("%s: RFC 6487 section 4.8.8: SIA: "
 			"failed to parse rsync URI", fn);
 		free(cert->eeLocation);
 		cert->eeLocation = NULL;
@@ -254,7 +254,7 @@ x509_sia_resource_mft(const char *fn, struct basicCertificate *cert,
 	// ToDo: Should validate the extension?
 	/*
 	if (rt != RTYPE_MFT && rt != RTYPE_ROA) {
-		warnx("%s: RFC 6487 section 4.8.8: SIA: "
+		log_warnx("%s: RFC 6487 section 4.8.8: SIA: "
 			"invalid rsync URI suffix [%s]", fn, cert->eeLocation);
 		free(cert->eeLocation);
 		cert->eeLocation = NULL;
@@ -288,7 +288,7 @@ x509_sia_resource(const char *fn, struct basicCertificate *cert, const unsigned 
 	for (i = 0; i < sk_ASN1_TYPE_num(seq); i++) {
 		t = sk_ASN1_TYPE_value(seq, i);
 		if (t->type != V_ASN1_SEQUENCE) {
-			warnx("%s: RFC 6487 section 4.8.8: SIA: "
+			log_warnx("%s: RFC 6487 section 4.8.8: SIA: "
 			    "want ASN.1 sequence, have %s (NID %d)",
 			    fn, ASN1_tag2str(t->type), t->type);
 			goto out;
@@ -335,20 +335,20 @@ x509_get_sia_ext(X509_EXTENSION *ext, const char *fn, struct basicCertificate *c
     numElem = sk_ASN1_TYPE_num(seq);
     // Optionally may have a BOOL at position 1 (0-based)
 	if (numElem != 2 && numElem != 3) {
-		warnx("%s: RFC 5280 section A.1: Extension: "
+		log_warnx("%s: RFC 5280 section A.1: Extension: "
 		    "want 2 or 3 elements, have %d", fn,
 		    sk_ASN1_TYPE_num(seq));
 		goto out;
 	}
 	t = sk_ASN1_TYPE_value(seq, 0);
 	if (t->type != V_ASN1_OBJECT) {
-		warnx("%s: RFC 6487 section 4.8.8: SIA: "
+		log_warnx("%s: RFC 6487 section 4.8.8: SIA: "
 		    "want ASN.1 object, have %s (NID %d)",
 		    fn, ASN1_tag2str(t->type), t->type);
 		goto out;
 	}
 	if (OBJ_obj2nid(t->value.object) != NID_sinfo_access) {
-		warnx("%s: RFC 6487 section A.1 Extension: "
+		log_warnx("%s: RFC 6487 section A.1 Extension: "
 			"want BOOL, have %s (NID %d)",
 			fn, ASN1_tag2str(t->type), t->type);
 		goto out;
@@ -357,7 +357,7 @@ x509_get_sia_ext(X509_EXTENSION *ext, const char *fn, struct basicCertificate *c
     if (numElem == 3) {
 		t = sk_ASN1_TYPE_value(seq, 1);
 		if (t->type != V_ASN1_BOOLEAN) {
-			warnx("%s: RFC 5280 section 4.8.8: SIA: "
+			log_warnx("%s: RFC 5280 section 4.8.8: SIA: "
 				"want ASN.1 object, have %s (NID %d)",
 				fn, ASN1_tag2str(t->type), t->type);
 			goto out;
@@ -366,7 +366,7 @@ x509_get_sia_ext(X509_EXTENSION *ext, const char *fn, struct basicCertificate *c
 
 	t = sk_ASN1_TYPE_value(seq, numElem - 1);
 	if (t->type != V_ASN1_OCTET_STRING) {
-		warnx("%s: RFC 6487 section 4.8.8: SIA: "
+		log_warnx("%s: RFC 6487 section 4.8.8: SIA: "
 		    "want ASN.1 octet string, have %s (NID %d)",
 		    fn, ASN1_tag2str(t->type), t->type);
 		goto out;

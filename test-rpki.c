@@ -67,19 +67,19 @@ main(int argc, char *argv[])
 			}
 		}
 		else {
-			crypto_set_silent(1);
+			log_set_silent(1);
 			// Try checking a TAL
 			tal = tal_parse(fn);
-			crypto_set_silent(0);
+			log_set_silent(0);
 			if (tal != NULL) {
 				print_tal(tal);
 				tal_free(tal);
 			}
 			else {
-				crypto_set_silent(1);
+				log_set_silent(1);
 				// Try checking a TA cert
 				cert = ta_parse(&xp, fn, NULL, 0);
-				crypto_set_silent(0);
+				log_set_silent(0);
 				if (cert != NULL) {
 					print_cert(cert);
 					cert_free(cert);

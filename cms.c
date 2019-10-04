@@ -101,7 +101,7 @@ cms_parse_validate(X509 **xp, const char *fn,
 		assert(sz == SHA256_DIGEST_LENGTH);
 
 		if (memcmp(mdbuf, dgst, SHA256_DIGEST_LENGTH)) {
-			warnx("%s: RFC 6488: bad message digest", fn);
+			log_warnx("%s: RFC 6488: bad message digest", fn);
 			goto out;
 		}
 	}
@@ -124,11 +124,11 @@ cms_parse_validate(X509 **xp, const char *fn,
 		cryptoerrx("OBJ_obj2txt");
 
 	if ((size_t)sz >= sizeof(buf)) {
-		warnx("%s: RFC 6488 section 2.1.3.1: "
+		log_warnx("%s: RFC 6488 section 2.1.3.1: "
 		    "eContentType: OID too long", fn);
 		goto out;
 	} else if (strcmp(buf, oid)) {
-		warnx("%s: RFC 6488 section 2.1.3.1: eContentType: "
+		log_warnx("%s: RFC 6488 section 2.1.3.1: eContentType: "
 		    "unknown OID: %s, want %s", fn, buf, oid);
 		goto out;
 	}
@@ -141,7 +141,7 @@ cms_parse_validate(X509 **xp, const char *fn,
 
 	certs = CMS_get0_signers(cms);
 	if (certs == NULL || sk_X509_num(certs) != 1) {
-		warnx("%s: RFC 6488 section 2.1.4: eContent: "
+		log_warnx("%s: RFC 6488 section 2.1.4: eContent: "
 		    "want 1 signer, have %d", fn, sk_X509_num(certs));
 		goto out;
 	}
@@ -150,7 +150,7 @@ cms_parse_validate(X509 **xp, const char *fn,
 	/* Verify that we have eContent to disseminate. */
 
 	if ((os = CMS_get0_content(cms)) == NULL || *os == NULL) {
-		warnx("%s: RFC 6488 section 2.1.4: "
+		log_warnx("%s: RFC 6488 section 2.1.4: "
 		    "eContent: zero-length content", fn);
 		goto out;
 	}

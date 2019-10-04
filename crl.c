@@ -84,7 +84,7 @@ crl_parse(const char *fn, const unsigned char *dgst)
 
 		if (memcmp(mdbuf, dgst, SHA256_DIGEST_LENGTH)) {
 			if (verbose > 0)
-				warnx("%s: bad message digest", fn);
+				log_warnx("%s: bad message digest", fn);
 			goto out;
 		}
 	}

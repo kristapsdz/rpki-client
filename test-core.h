@@ -19,10 +19,7 @@
 
 #include <stdlib.h>
 
-#define TAB 30
-
 void hex_encode (unsigned char *lpcAsc, unsigned char *lpcBcd, size_t szBcd);
-void print_sep_line (const char *title, size_t count);
 
 void print_cert(const struct cert *p);
 void print_crl(const X509_CRL *p);

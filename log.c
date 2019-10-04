@@ -28,11 +28,22 @@
 
 static int silent = 0; // When enabled, do not print messages, neither exit()
 
-void crypto_set_silent(int value)
+void log_set_silent(int value)
 {
 	silent = (value) ? 1 : 0;
 }
 
+void log_warnx(const char *fmt, ...)
+{
+	va_list		 ap;
+
+	if (silent) {
+		return;
+	}
+	va_start(ap, fmt);
+	vwarnx(fmt, ap);
+	va_end(ap);
+}
 /*
  * Print the chain of openssl errors that led to the current one.
  * This should only be invoked in the event that OpenSSL fails with

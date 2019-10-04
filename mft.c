@@ -56,7 +56,7 @@ mft_parse_filehash(struct parse *p, const ASN1_OCTET_STRING *os)
 		    "failed ASN.1 sequence parse", p->fn);
 		goto out;
 	} else if (sk_ASN1_TYPE_num(seq) != 2) {
-		warnx("%s: RFC 6486 section 4.2.1: FileAndHash: "
+		log_warnx("%s: RFC 6486 section 4.2.1: FileAndHash: "
 		    "want 2 elements, have %d", p->fn,
 		    sk_ASN1_TYPE_num(seq));
 		goto out;
@@ -66,7 +66,7 @@ mft_parse_filehash(struct parse *p, const ASN1_OCTET_STRING *os)
 
 	file = sk_ASN1_TYPE_value(seq, 0);
 	if (file->type != V_ASN1_IA5STRING) {
-		warnx("%s: RFC 6486 section 4.2.1: FileAndHash: "
+		log_warnx("%s: RFC 6486 section 4.2.1: FileAndHash: "
 		    "want ASN.1 IA5 string, have %s (NID %d)",
 		    p->fn, ASN1_tag2str(file->type), file->type);
 		goto out;
@@ -84,11 +84,11 @@ mft_parse_filehash(struct parse *p, const ASN1_OCTET_STRING *os)
 	 */
 
 	if (strchr(fn, '/') != NULL) {
-		warnx("%s: path components disallowed in filename: %s",
+		log_warnx("%s: path components disallowed in filename: %s",
 		    p->fn, fn);
 		goto out;
 	} else if ((sz = strlen(fn)) <= 4) {
-		warnx("%s: filename must be large enough for suffix part: %s",
+		log_warnx("%s: filename must be large enough for suffix part: %s",
 		    p->fn, fn);
 		goto out;
 	}
@@ -107,14 +107,14 @@ mft_parse_filehash(struct parse *p, const ASN1_OCTET_STRING *os)
 
 	hash = sk_ASN1_TYPE_value(seq, 1);
 	if (hash->type != V_ASN1_BIT_STRING) {
-		warnx("%s: RFC 6486 section 4.2.1: FileAndHash: "
+		log_warnx("%s: RFC 6486 section 4.2.1: FileAndHash: "
 		    "want ASN.1 bit string, have %s (NID %d)",
 		    p->fn, ASN1_tag2str(hash->type), hash->type);
 		goto out;
 	}
 
 	if (hash->value.bit_string->length != SHA256_DIGEST_LENGTH) {
-		warnx("%s: RFC 6486 section 4.2.1: hash: "
+		log_warnx("%s: RFC 6486 section 4.2.1: hash: "
 		    "invalid SHA256 length, have %d",
 		    p->fn, hash->value.bit_string->length);
 		goto out;
@@ -163,7 +163,7 @@ mft_parse_flist(struct parse *p, const ASN1_OCTET_STRING *os)
 	for (i = 0; i < sk_ASN1_TYPE_num(seq); i++) {
 		t = sk_ASN1_TYPE_value(seq, i);
 		if (t->type != V_ASN1_SEQUENCE) {
-			warnx("%s: RFC 6486 section 4.2: fileList: "
+			log_warnx("%s: RFC 6486 section 4.2: fileList: "
 			    "want ASN.1 sequence, have %s (NID %d)",
 			    p->fn, ASN1_tag2str(t->type), t->type);
 			goto out;
@@ -202,7 +202,7 @@ mft_parse_econtent(const unsigned char *d, size_t dsz, struct parse *p, int forc
 
 	if (sk_ASN1_TYPE_num(seq) != 5 &&
 	    sk_ASN1_TYPE_num(seq) != 6) {
-		warnx("%s: RFC 6486 section 4.2: Manifest: "
+		log_warnx("%s: RFC 6486 section 4.2: Manifest: "
 		    "want 5 or 6 elements, have %d", p->fn,
 		    sk_ASN1_TYPE_num(seq));
 		goto out;
@@ -214,7 +214,7 @@ mft_parse_econtent(const unsigned char *d, size_t dsz, struct parse *p, int forc
 	if (sk_ASN1_TYPE_num(seq) == 6) {
 		t = sk_ASN1_TYPE_value(seq, i++);
 		if (t->type != V_ASN1_INTEGER && t->type != V_ASN1_OTHER) {
-			warnx("%s: RFC 6486 section 4.2.1: version: "
+			log_warnx("%s: RFC 6486 section 4.2.1: version: "
 			    "want ASN.1 integer, have %s (NID %d)",
 			    p->fn, ASN1_tag2str(t->type), t->type);
 			goto out;
@@ -225,7 +225,7 @@ mft_parse_econtent(const unsigned char *d, size_t dsz, struct parse *p, int forc
 
 	t = sk_ASN1_TYPE_value(seq, i++);
 	if (t->type != V_ASN1_INTEGER) {
-		warnx("%s: RFC 6486 section 4.2.1: manifestNumber: "
+		log_warnx("%s: RFC 6486 section 4.2.1: manifestNumber: "
 		    "want ASN.1 integer, have %s (NID %d)",
 		    p->fn, ASN1_tag2str(t->type), t->type);
 		goto out;
@@ -244,7 +244,7 @@ mft_parse_econtent(const unsigned char *d, size_t dsz, struct parse *p, int forc
 
 	t = sk_ASN1_TYPE_value(seq, i++);
 	if (t->type != V_ASN1_GENERALIZEDTIME) {
-		warnx("%s: RFC 6486 section 4.2.1: thisUpdate: "
+		log_warnx("%s: RFC 6486 section 4.2.1: thisUpdate: "
 		    "want ASN.1 generalised time, have %s (NID %d)",
 		    p->fn, ASN1_tag2str(t->type), t->type);
 		goto out;
@@ -255,7 +255,7 @@ mft_parse_econtent(const unsigned char *d, size_t dsz, struct parse *p, int forc
 
 	t = sk_ASN1_TYPE_value(seq, i++);
 	if (t->type != V_ASN1_GENERALIZEDTIME) {
-		warnx("%s: RFC 6486 section 4.2.1: nextUpdate: "
+		log_warnx("%s: RFC 6486 section 4.2.1: nextUpdate: "
 		    "want ASN.1 generalised time, have %s (NID %d)",
 		    p->fn, ASN1_tag2str(t->type), t->type);
 		goto out;
@@ -271,34 +271,34 @@ mft_parse_econtent(const unsigned char *d, size_t dsz, struct parse *p, int forc
 	memcpy(&p->res->nextUpdate, &next, sizeof (time_t));
 
 	if (this >= next) {
-		warnx("%s: bad update interval [%s] >= [%s]", p->fn, caThis, caNext);
+		log_warnx("%s: bad update interval [%s] >= [%s]", p->fn, caThis, caNext);
 		goto out;
 	} else if (now < this) {
-		warnx("%s: before date interval (clock drift?) [%s] < [%s]", p->fn, caNow, caThis);
+		log_warnx("%s: before date interval (clock drift?) [%s] < [%s]", p->fn, caNow, caThis);
 		goto out;
 	} else if (now >= next) {
 		ctime_r(&next, buf);
 		buf[strlen(buf) - 1] = '\0';
 		if (!force) {
 			if (verbose > 0)
-				warnx("%s: stale: expired %s", p->fn, buf);
+				log_warnx("%s: stale: expired %s", p->fn, buf);
 			rc = 0;
 			goto out;
 		}
 		if (verbose > 0)
-			warnx("%s: stale: expired %s (ignoring)", p->fn, buf);
+			log_warnx("%s: stale: expired %s (ignoring)", p->fn, buf);
 	}
 
 	/* File list algorithm. */
 
 	t = sk_ASN1_TYPE_value(seq, i++);
 	if (t->type != V_ASN1_OBJECT) {
-		warnx("%s: RFC 6486 section 4.2.1: fileHashAlg: "
+		log_warnx("%s: RFC 6486 section 4.2.1: fileHashAlg: "
 		    "want ASN.1 object time, have %s (NID %d)",
 		    p->fn, ASN1_tag2str(t->type), t->type);
 		goto out;
 	} else if (OBJ_obj2nid(t->value.object) != NID_sha256) {
-		warnx("%s: RFC 6486 section 4.2.1: fileHashAlg: "
+		log_warnx("%s: RFC 6486 section 4.2.1: fileHashAlg: "
 		    "want SHA256 object, have %s (NID %d)", p->fn,
 		    ASN1_tag2str(OBJ_obj2nid(t->value.object)),
 		    OBJ_obj2nid(t->value.object));
@@ -309,7 +309,7 @@ mft_parse_econtent(const unsigned char *d, size_t dsz, struct parse *p, int forc
 
 	t = sk_ASN1_TYPE_value(seq, i++);
 	if (t->type != V_ASN1_SEQUENCE) {
-		warnx("%s: RFC 6486 section 4.2.1: fileList: "
+		log_warnx("%s: RFC 6486 section 4.2.1: fileList: "
 		    "want ASN.1 sequence, have %s (NID %d)",
 		    p->fn, ASN1_tag2str(t->type), t->type);
 		goto out;

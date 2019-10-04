@@ -30,6 +30,9 @@
 #include "extern.h"
 #include "test-core.h"
 
+#define TAB 30
+#define SEP_LINE_SIZE 110
+
 static unsigned char ToAsc (unsigned char c)
 {
 	unsigned char nib = c & 0x0f;
@@ -47,10 +50,12 @@ void hex_encode (unsigned char *lpcAsc, unsigned char *lpcBcd, size_t szBcd)
 	}
 }
 
-void print_sep_line (const char *title, size_t count)
+static void print_sep_line (const char *title)
 {
+	size_t count;
 	size_t i;
 
+	count = SEP_LINE_SIZE;
 	if (title && *title) {
 		printf ("%s ", title);
 		count -= strlen(title) + 1;
@@ -83,7 +88,7 @@ void print_cert(const struct cert *p)
 	strftime(caNotAfter, sizeof(caNotAfter)-1, "%Y-%m-%d %H:%M:%S GMT", tm);
 
 	printf("%*.*s: %s\n", TAB, TAB, "Now", caNow);
-	print_sep_line("Certificate", 110);
+	print_sep_line("Certificate");
 	printf("%*.*s: %ld\n", TAB, TAB, "Version", p->basic.version);
 	printf("%*.*s: %s\n", TAB, TAB, "Serial", p->basic.serial);
 	printf("%*.*s: %s\n", TAB, TAB, "Issuer", p->basic.issuerName);
@@ -163,7 +168,7 @@ void print_crl (const X509_CRL *p)
 	strftime(caNext, sizeof(caNext)-1, "%Y-%m-%d %H:%M:%S GMT", &tm);
 
 	printf("%*.*s: %s\n", TAB, TAB, "Now", caNow);
-	print_sep_line("Certificate Revocation List", 110);
+	print_sep_line("Certificate Revocation List");
 	printf("%*.*s: %ld\n", TAB, TAB, "Version", ASN1_INTEGER_get(p->crl->version) + 1);
 	printf("%*.*s: %ld\n", TAB, TAB, "CRL Number", ASN1_INTEGER_get(p->crl_number));
 
@@ -178,7 +183,7 @@ void print_crl (const X509_CRL *p)
 
 	numRevoked = sk_X509_REVOKED_num(revoked);
 	if (numRevoked > 0) {
-		print_sep_line("Revoked Certificates", 110);
+		print_sep_line("Revoked Certificates");
 		for (i = 0; i < numRevoked; i++) {
 			X509_REVOKED *rev = sk_X509_REVOKED_value(revoked, i);
 			if (rev != NULL) {
@@ -226,7 +231,7 @@ void print_mft(const struct mft *p)
 	strftime(caNotAfter, sizeof(caNotAfter)-1, "%Y-%m-%d %H:%M:%S GMT", tm);
 
 	printf("%*.*s: %s\n", TAB, TAB, "Now", caNow);
-	print_sep_line("EE Certificate", 110);
+	print_sep_line("EE Certificate");
 	printf("%*.*s: %ld\n", TAB, TAB, "Version", p->eeCert.version);
 	printf("%*.*s: %s\n", TAB, TAB, "Serial", p->eeCert.serial);
 	printf("%*.*s: %s\n", TAB, TAB, "Issuer", p->eeCert.issuerName);
@@ -236,7 +241,7 @@ void print_mft(const struct mft *p)
 	printf("%*.*s: %s\n", TAB, TAB, "Subject Info Access", p->eeCert.eeLocation);
 	printf("%*.*s: %s\n", TAB, TAB, "Subject key identifier", p->eeCert.ski);
 	printf("%*.*s: %s\n", TAB, TAB, "Authority key identifier", p->eeCert.aki);
-	print_sep_line("Manifest", 110);
+	print_sep_line("Manifest");
 
 	printf("%*.*s: %ld\n", TAB, TAB, "Manifest Number", p->manifestNumber);
 	printf("%*.*s: %s\n", TAB, TAB, "This Update", caThis);
@@ -270,7 +275,7 @@ void print_roa(const struct roa *p)
 	strftime(caNotAfter, sizeof(caNotAfter)-1, "%Y-%m-%d %H:%M:%S GMT", tm);
 
 	printf("%*.*s: %s\n", TAB, TAB, "Now", caNow);
-	print_sep_line("EE Certificate", 110);
+	print_sep_line("EE Certificate");
 	printf("%*.*s: %ld\n", TAB, TAB, "Version", p->eeCert.version);
 	printf("%*.*s: %s\n", TAB, TAB, "Serial", p->eeCert.serial);
 	printf("%*.*s: %s\n", TAB, TAB, "Issuer", p->eeCert.issuerName);
@@ -280,7 +285,7 @@ void print_roa(const struct roa *p)
 	printf("%*.*s: %s\n", TAB, TAB, "Subject Info Access", p->eeCert.eeLocation);
 	printf("%*.*s: %s\n", TAB, TAB, "Subject key identifier", p->eeCert.ski);
 	printf("%*.*s: %s\n", TAB, TAB, "Authority key identifier", p->eeCert.aki);
-	print_sep_line("ROA", 110);
+	print_sep_line("ROA");
 	printf("%*.*s: %" PRIu32 "\n", TAB, TAB, "asID", p->asid);
 	for (i = 0; i < p->ipsz; i++) {
 		ip_addr_print(&p->ips[i].addr,

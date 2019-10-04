@@ -64,7 +64,7 @@ rsync_uri_parse(const char **hostp, size_t *hostsz,
 	/* Case-insensitive rsync URI. */
 
 	if (strncasecmp(uri, "rsync://", 8)) {
-		warnx("%s: not using rsync schema", uri);
+		log_warnx("%s: not using rsync schema", uri);
 		return 0;
 	}
 
@@ -73,10 +73,10 @@ rsync_uri_parse(const char **hostp, size_t *hostsz,
 	host = uri + 8;
 
 	if ((module = strchr(host, '/')) == NULL) {
-		warnx("%s: missing rsync module", uri);
+		log_warnx("%s: missing rsync module", uri);
 		return 0;
 	} else if (module == host) {
-		warnx("%s: zero-length rsync host", uri);
+		log_warnx("%s: zero-length rsync host", uri);
 		return 0;
 	}
 
@@ -88,7 +88,7 @@ rsync_uri_parse(const char **hostp, size_t *hostsz,
 	/* The non-zero-length module follows the hostname. */
 
 	if (module[1] == '\0') {
-		warnx("%s: zero-length rsync module", uri);
+		log_warnx("%s: zero-length rsync module", uri);
 		return 0;
 	}
 
@@ -104,7 +104,7 @@ rsync_uri_parse(const char **hostp, size_t *hostsz,
 			*modulesz = strlen(module);
 		return 1;
 	} else if (path == module) {
-		warnx("%s: zero-length module", uri);
+		log_warnx("%s: zero-length module", uri);
 		return 0;
 	}
 

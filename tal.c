@@ -54,7 +54,7 @@ tal_parse_stream(const char *fn, FILE *f)
 		lineno++;
 		assert(linelen);
 		if (line[linelen - 1] != '\n') {
-			warnx("%s: RFC 7730 section 2.1: "
+			log_warnx("%s: RFC 7730 section 2.1: "
 			    "failed to parse URL", fn);
 			goto out;
 		}
@@ -84,11 +84,11 @@ tal_parse_stream(const char *fn, FILE *f)
 
 		if (!rsync_uri_parse(NULL, NULL,
 		    NULL, NULL, NULL, NULL, &rp, line)) {
-			warnx("%s: RFC 7730 section 2.1: "
+			log_warnx("%s: RFC 7730 section 2.1: "
 			    "failed to parse URL: %s", fn, line);
 			goto out;
 		} else if (rp != RTYPE_CER) {
-			warnx("%s: RFC 7730 section 2.1: "
+			log_warnx("%s: RFC 7730 section 2.1: "
 			    "not a certificate URL: %s", fn, line);
 			goto out;
 		}
@@ -98,10 +98,10 @@ tal_parse_stream(const char *fn, FILE *f)
 		err(EXIT_FAILURE, "%s: getline", fn);
 
 	if (tal->urisz == 0) {
-		warnx("%s: no URIs in manifest part", fn);
+		log_warnx("%s: no URIs in manifest part", fn);
 		goto out;
 	} else if (tal->urisz > 1) {
-		warnx("%s: multiple URIs: using the first", fn);
+		log_warnx("%s: multiple URIs: using the first", fn);
 		goto out;
 	}
 
@@ -111,7 +111,7 @@ tal_parse_stream(const char *fn, FILE *f)
 		lineno++;
 		assert(linelen);
 		if (line[linelen - 1] != '\n') {
-			warnx("%s: RFC 7730 section 2.1: "
+			log_warnx("%s: RFC 7730 section 2.1: "
 			    "failed to parse public key", fn);
 			goto out;
 		}
@@ -144,7 +144,7 @@ tal_parse_stream(const char *fn, FILE *f)
 		err(EXIT_FAILURE, "%s: getline", fn);
 
 	if (b64sz == 0) {
-		warnx("%s: RFC 7730 section 2.1: subjectPublicKeyInfo: "
+		log_warnx("%s: RFC 7730 section 2.1: subjectPublicKeyInfo: "
 		    "zero-length public key", fn);
 		goto out;
 	}
