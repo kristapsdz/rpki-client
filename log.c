@@ -26,6 +26,13 @@
 
 #include "extern.h"
 
+static int silent = 0; // When enabled, do not print messages, neither exit()
+
+void crypto_set_silent(int value)
+{
+	silent = (value) ? 1 : 0;
+}
+
 /*
  * Print the chain of openssl errors that led to the current one.
  * This should only be invoked in the event that OpenSSL fails with
@@ -63,14 +70,16 @@ cryptowarnx(const char *fmt, ...)
 	char		 buf[BUFSIZ];
 	va_list		 ap;
 
-	while ((er = ERR_get_error()) > 0) {
-		ERR_error_string_n(er, buf, sizeof(buf));
-		warnx(" ...trace: %s", buf);
-	}
+	if (!silent) {
+		while ((er = ERR_get_error()) > 0) {
+			ERR_error_string_n(er, buf, sizeof(buf));
+			warnx(" ...trace: %s", buf);
+		}
 
-	if (fmt != NULL) {
-		va_start(ap, fmt);
-		vwarnx(fmt, ap);
-		va_end(ap);
+		if (fmt != NULL) {
+			va_start(ap, fmt);
+			vwarnx(fmt, ap);
+			va_end(ap);
+		}
 	}
 }
