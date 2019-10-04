@@ -189,7 +189,6 @@ mft_parse_econtent(const unsigned char *d, size_t dsz, struct parse *p, int forc
 	struct tm			tm;
 	int			 i, rc = -1;
 	time_t			 this, next, now = time(NULL);
-	char			 buf[64];
 	char			 caThis[64], caNow[64], caNext[64];
 
 	if ((seq = d2i_ASN1_SEQUENCE_ANY(NULL, &d, dsz)) == NULL) {
