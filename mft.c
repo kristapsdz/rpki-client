@@ -75,8 +75,8 @@ gentime2time(struct parse *p, const ASN1_GENERALIZEDTIME *tp)
 	memset(&tm, 0, sizeof(struct tm));
 	if (strptime(buf, "%b %d %T %Y %Z", &tm) == NULL)
 		errx(EXIT_FAILURE, "%s: strptime", buf);
-	if ((t = mktime(&tm)) == -1)
-		errx(EXIT_FAILURE, "%s: mktime", buf);
+	if ((t = timegm(&tm)) == -1)
+		errx(EXIT_FAILURE, "%s: timegm", buf);
 
 	return t;
 }
