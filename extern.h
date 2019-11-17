@@ -132,6 +132,7 @@ struct	tal {
 	size_t		 urisz; /* number of URIs */
 	unsigned char	*pkey; /* DER-encoded public key */
 	size_t		 pkeysz; /* length of pkey */
+	char		*descr; /* basename of tal file */
 };
 
 /*
@@ -180,6 +181,7 @@ struct	roa {
 	int		 valid; /* validated resources */
 	char		*ski; /* SKI */
 	char		*aki; /* AKI */
+	char		*tal; /* basename of TAL for this cert */
 };
 
 /*
@@ -191,6 +193,7 @@ struct	auth {
 	struct cert	*cert; /* owner information */
 	size_t		 id; /* self-index */
 	size_t		 parent; /* index of parent pair (or self) */
+	char		*tal; /* basename of TAL for this cert */
 	char		*fn; /* FIXME: debugging */
 };
 
@@ -214,7 +217,8 @@ extern int verbose;
 
 void		 tal_buffer(char **, size_t *, size_t *, const struct tal *);
 void		 tal_free(struct tal *);
-struct tal	*tal_parse(const char *);
+struct tal	*tal_parse(const char *, char *);
+char 		*tal_read_file(const char *);
 struct tal	*tal_read(int);
 
 void		 cert_buffer(char **, size_t *, size_t *, const struct cert *);
@@ -238,7 +242,7 @@ X509_CRL	*crl_parse(const char *, const unsigned char *);
 /* Validation of our objects. */
 
 ssize_t		 valid_cert(const char *, const struct auth *, size_t, const struct cert *);
-int		 valid_roa(const char *, const struct auth *, size_t, const struct roa *);
+ssize_t		 valid_roa(const char *, const struct auth *, size_t, const struct roa *);
 ssize_t		 valid_ta(const char *, const struct auth *, size_t, const struct cert *);
 
 /* Working with CMS files. */
