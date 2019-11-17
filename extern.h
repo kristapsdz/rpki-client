@@ -336,5 +336,7 @@ int		 x509_get_ski_aki(X509 *, const char *, char **, char **);
 
 void		 output_bgpd(FILE *, struct vrp_tree *);
 void		 output_bird(FILE *, struct vrp_tree *, const char *);
+void		 output_csv(FILE *, struct vrp_tree *);
+void		 output_json(FILE *, struct vrp_tree *);
 
 #endif /* ! EXTERN_H */

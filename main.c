@@ -135,6 +135,8 @@ static void	 logx(const char *fmt, ...)
 enum output_fmt {
 	BGPD,
 	BIRD,
+	CSV,
+	JSON
 };
 
 int	 verbose;
@@ -1338,7 +1340,7 @@ main(int argc, char *argv[])
 	if (pledge("stdio rpath wpath cpath proc exec unveil", NULL) == -1)
 		err(EXIT_FAILURE, "pledge");
 
-	while ((c = getopt(argc, argv, "b:Be:fnrt:T:v")) != -1)
+	while ((c = getopt(argc, argv, "b:Bce:fjnrt:T:v")) != -1)
 		switch (c) {
 		case 'b':
 			bind_addr = optarg;
@@ -1346,11 +1348,17 @@ main(int argc, char *argv[])
 		case 'B':
 			outfmt = BIRD;
 			break;
+		case 'c':
+			outfmt = CSV;
+			break;
 		case 'e':
 			rsync_prog = optarg;
 			break;
 		case 'f':
 			force = 1;
+			break;
+		case 'j':
+			outfmt = JSON;
 			break;
 		case 'n':
 			noop = 1;
@@ -1564,6 +1572,12 @@ main(int argc, char *argv[])
 		break;
 	case BIRD:
 		output_bird(output, &v, tablename);
+		break;
+	case CSV:
+		output_csv(output, &v);
+		break;
+	case JSON:
+		output_json(output, &v);
 		break;
 	}
 
