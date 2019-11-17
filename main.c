@@ -1612,7 +1612,7 @@ main(int argc, char *argv[])
 
 usage:
 	fprintf(stderr,
-	    "usage: rpki-client [-Bfnrv] [-b bind_addr] [-e rsync_prog] "
+	    "usage: rpki-client [-Bcfjnrv] [-b bind_addr] [-e rsync_prog] "
 	    "[-T table] [-t tal] output\n");
 	return EXIT_FAILURE;
 }
