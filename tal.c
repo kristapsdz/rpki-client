@@ -16,6 +16,10 @@
  */
 #include "config.h"
 
+#ifdef __FreeBSD__
+# define _WITH_GETLINE
+#endif
+
 #include <netinet/in.h>
 #include <assert.h>
 #include <ctype.h>
