@@ -63,14 +63,19 @@ It must be writable by the operator of **rpki-client**.
 You'll also need TAL ("trust anchor locator") files.
 There are some in the [tals](tals) directory of this system, but you can
 download them on your own.
+For default operation, load these into */etc/rpki*.
 
-To run **rpki-client**, just point it at your TAL files.
 You'll also need the [openrsync(1)](https://man.openbsd.org/openrsync.1)
 (or [rsync](https://rsync.samba.org/), which may be specified with the
 **-e** argument) executable installed.
 
+In the following, the first uses a custom TAL file, while the second
+loads all TAL files from their default location.  Output is written into
+*bgpd-rpki.conf*.
+
 ```
-% ./rpki-client -v ./tals/*.tal > bgpd-rpki.conf
+% ./rpki-client -v -t sometal.tal bgpd-rpki.conf
+% ./rpki-client -v bgpd-rpki.conf
 ```
 
 If you later want to uninstall the system, simply run
