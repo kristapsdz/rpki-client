@@ -11,6 +11,8 @@ OBJS	 = as.o \
 	   mft.o \
 	   output-bird.o \
 	   output-bgpd.o \
+	   output-csv.o \
+	   output-json.o \
 	   roa.o \
 	   rsync.o \
 	   tal.o \
