@@ -16,6 +16,7 @@
  */
 #include "config.h"
 
+#include <stdint.h>
 #include <stdlib.h>
 #include <openssl/ssl.h>
 
