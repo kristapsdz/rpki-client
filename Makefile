@@ -60,7 +60,7 @@ test-cert: $(OBJS) test-cert.o
 	$(CC) -o $@ test-cert.o $(OBJS) $(LDFLAGS) $(LDADD)
 
 clean:
-	rm -f $(BINS) $(ALLOBJS)
+	rm -f $(BINS) $(ALLOBJS) rpki-client.install.8
 
 distclean: clean
 	rm -f config.h config.log Makefile.configure
