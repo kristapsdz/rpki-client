@@ -53,9 +53,14 @@ The installation rule will install into `PREFIX`, defaulting to
 # make install
 ```
 
-Linux installations will need to uncomment the [Makefile](Makfile)
-components following the `Linux` comment.  For OpenBSD, those following
-`OpenBSD`.  FreeBSD should work without modification (untested).
+It may be necessary to pass `pkg-config` values for OpenSSL to the
+configure script.
+
+```
+% ./configure CPPFLAGS="`pkg-config --cflags eopenssl`" \
+> LDFLAGS="`pkg-config --libs-only-L eopenssl`" \
+> LDADD="`pkg-config --libs-only-l eopenssl`"
+```
 
 Next, you'll need the */var/cache/rpki-client* directory in place.
 It must be writable by the operator of **rpki-client**.
@@ -68,6 +73,10 @@ For default operation, load these into */etc/rpki*.
 You'll also need the [openrsync(1)](https://man.openbsd.org/openrsync.1)
 (or [rsync](https://rsync.samba.org/), which may be specified with the
 **-e** argument) executable installed.
+
+To hardcode an alternate rsync implementation, override the `RSYNC`
+variable in the
+[Makefile](https://github.com/kristapsdz/rpki-client/blob/master/Makefile).
 
 In the following, the first uses a custom TAL file, while the second
 loads all TAL files from their default location.  Output is written into
