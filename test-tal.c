@@ -48,6 +48,7 @@ main(int argc, char *argv[])
 	int		 c;
 	struct tal	*tal;
 	size_t		 i;
+	char		*f;
 
 	SSL_library_init();
 	SSL_load_error_strings();
@@ -65,7 +66,11 @@ main(int argc, char *argv[])
 	argc -= optind;
 
 	for (i = 0; i < (size_t)argc; i++) {
-		if ((tal = tal_parse(argv[i])) == NULL)
+		f = tal_read_file(argv[i]);
+		assert(f != NULL);
+		tal = tal_parse(argv[i], f);
+		free(f);
+		if (tal == NULL)
 			break;
 		if (verbose)
 			tal_print(tal);

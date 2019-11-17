@@ -120,7 +120,8 @@ roa_parse_addr(const ASN1_OCTET_STRING *os, enum afi afi, struct parse *p)
 
 	res->addr = addr;
 	res->afi = afi;
-	res->maxlength = (maxlength == NULL) ? 0: ASN1_INTEGER_get(maxlength);
+	res->maxlength = (maxlength == NULL) ? addr.prefixlen :
+	    ASN1_INTEGER_get(maxlength);
 	ip_roa_compose_ranges(res);
 
 	rc = 1;
@@ -381,6 +382,7 @@ roa_free(struct roa *p)
 	free(p->aki);
 	free(p->ski);
 	free(p->ips);
+	free(p->tal);
 	free(p);
 }
 
@@ -411,6 +413,7 @@ roa_buffer(char **b, size_t *bsz, size_t *bmax, const struct roa *p)
 
 	io_str_buffer(b, bsz, bmax, p->aki);
 	io_str_buffer(b, bsz, bmax, p->ski);
+	io_str_buffer(b, bsz, bmax, p->tal);
 }
 
 /*
@@ -444,5 +447,6 @@ roa_read(int fd)
 
 	io_str_read(fd, &p->aki);
 	io_str_read(fd, &p->ski);
+	io_str_read(fd, &p->tal);
 	return p;
 }

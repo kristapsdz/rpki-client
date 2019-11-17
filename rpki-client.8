@@ -27,7 +27,8 @@ for Origin Validation
 .Op Fl fnrv
 .Op Fl b Ar bind_addr
 .Op Fl e Ar rsync_prog
-.Ar tal1 tal2 ...
+.Op Fl t Ar tal
+.Ar output
 .Sh DESCRIPTION
 The
 .Nm
@@ -37,7 +38,8 @@ It uses
 .Xr openrsync 1
 to fetch certificates, manifests, revocation lists, and route
 announcements themselves.
-Its arguments are as follows:
+.Pp
+The options are as follows:
 .Bl -tag -width Ds
 .It Fl b Ar bind_addr
 Tell the rsync client to use the specified
@@ -63,13 +65,25 @@ Assume that all requested repositories exist: don't update.
 .It Fl r
 Don't parse certificate revocation files.
 This additional step can take a long time.
+.It Fl t Ar tal
+Specify a trust anchor locator (TAL) file to be used.
+This option can be used multiple times to load multiple TALs.
+By default
+.Nm
+will load all TAL files in
+.Pa /etc/rpki .
 .It Fl v
 Specified once, prints information about status.
 Twice, prints each filename as it's processed.
-.It Ar tal
-A trust anchor locator (TAL) file.
+.It Ar output
+The file
+.Nm
+will write the
+.Li roa-set
+to.
 .El
 .Pp
+By default
 .Nm
 produces a list of unique
 .Li roa-set
@@ -77,7 +91,13 @@ statements as specified by
 .Xr bgpd.conf 5 .
 .\" .Sh ENVIRONMENT
 .\" For sections 1, 6, 7, and 8 only.
-.\" .Sh FILES
+.Sh FILES
+.Bl -tag -width "/etc/rpki/*.talXXX" -compact
+.It Pa /etc/rpki/*.tal
+default TAL files used unless
+.Fl t Ar tal
+is specified.
+.El
 .Sh EXIT STATUS
 .Ex -std
 .\" For sections 1, 6, and 8 only.
