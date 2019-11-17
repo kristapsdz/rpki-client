@@ -64,6 +64,8 @@ systems it's simply `openssl`.
 ```
 
 Most Linux systems additionally need `-lresolv` for `LDADD`.
+Contrarily, FreeBSD only needs `LDADD="-lssl -lcrypto"` as the required
+libraries are in the base system.
 
 Next, you'll need the */var/cache/rpki-client* directory in place.
 It must be writable by the operator of **rpki-client**.
@@ -294,6 +296,7 @@ checking.
 
 The **rpki-client** is portable to the extent that it will compile and
 run on most modern UNIX systems.
+To date it is known to compile on GNU/Linux, FreeBSD, and OpenBSD.
 It uses [oconfigure](https://github.com/kristapsdz/oconfigure) for its
 compatibility layer.
 
