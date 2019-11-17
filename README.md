@@ -67,6 +67,16 @@ Most Linux systems additionally need `-lresolv` for `LDADD`.
 Contrarily, FreeBSD only needs `LDADD="-lssl -lcrypto"` as the required
 libraries are in the base system.
 
+If you're packaging the software, these may be put directly into a
+*configure.local* script, which overrides the variables during
+configuration, for example, on OpenBSD:
+
+```
+CPPFLAGS="`pkg-config --cflags eopenssl`"
+LDFLAGS="`pkg-config --libs-only-L eopenssl`"
+LDADD="`pkg-config --libs-only-l eopenssl`"
+```
+
 Next, you'll need the */var/cache/rpki-client* directory in place.
 It must be writable by the operator of **rpki-client**.
 
