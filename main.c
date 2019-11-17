@@ -1193,7 +1193,7 @@ out:
 static void
 entity_process(int proc, int rsync, struct stats *st,
     struct entityq *q, const struct entity *ent, struct repotab *rt,
-    size_t *eid, struct roa ***out, size_t *outsz)
+    size_t *eid, struct vrp_tree *tree)
 {
 	struct tal	*tal;
 	struct cert	*cert;
@@ -1264,18 +1264,11 @@ entity_process(int proc, int rsync, struct stats *st,
 			break;
 		}
 		roa = roa_read(proc);
-		if (roa->valid) {
-			*out = reallocarray(*out,
-			    *outsz + 1, sizeof(struct roa *));
-			if (*out == NULL)
-				err(EXIT_FAILURE, "reallocarray");
-			(*out)[*outsz] = roa;
-			(*outsz)++;
-			/* We roa_free() on exit. */
-		} else {
+		if (roa->valid)
+			roa_insert_vrps(tree, roa, &st->vrps, &st->uniqs);
+		else
 			st->roas_invalid++;
-			roa_free(roa);
-		}
+		roa_free(roa);
 		break;
 	default:
 		abort();
@@ -1333,6 +1326,7 @@ main(int argc, char *argv[])
 	const char	*bind_addr = NULL;
 	const char	*tals[TALSZ_MAX];
 	FILE		*output = NULL;
+	struct vrp_tree	 v = RB_INITIALIZER(&v);
 
 	if (pledge("stdio rpath wpath cpath proc exec unveil", NULL) == -1)
 		err(EXIT_FAILURE, "pledge");
@@ -1518,7 +1512,7 @@ main(int argc, char *argv[])
 		if ((pfd[1].revents & POLLIN)) {
 			ent = entityq_next(proc, &q);
 			entity_process(proc, rsync, &stats,
-			    &q, ent, &rt, &eid, &out, &outsz);
+			    &q, ent, &rt, &eid, &v);
 			if (verbose > 1)
 				fprintf(stderr, "%s\n", ent->uri);
 			entity_free(ent);
@@ -1553,8 +1547,7 @@ main(int argc, char *argv[])
 
 	/* Output and statistics. */
 
-	output_bgpd(output, (const struct roa **)out,
-	    outsz, &stats.vrps, &stats.uniqs);
+	output_bgpd(output, &v);
 	logx("Route Origin Authorizations: %zu (%zu failed parse, %zu invalid)",
 	    stats.roas, stats.roas_fail, stats.roas_invalid);
 	logx("Certificates: %zu (%zu failed parse, %zu invalid)",

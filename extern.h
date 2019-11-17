@@ -17,6 +17,9 @@
 #ifndef EXTERN_H
 #define EXTERN_H
 
+#if HAVE_SYS_TREE
+# include <sys/tree.h>
+#endif
 #if !HAVE_PLEDGE
 # define pledge(x, y) (1)
 #endif
@@ -185,6 +188,24 @@ struct	roa {
 };
 
 /*
+ * A single VRP element (including ASID)
+ */
+struct vrp {
+	RB_ENTRY(vrp)	entry;
+	struct ip_addr	addr;
+	uint32_t	asid;
+	char		*tal; /* basename of TAL for this cert */
+	enum afi	afi;
+	unsigned char	maxlength;
+};
+
+/*
+ * Tree of VRP sorted by afi, addr, maxlength and asid
+ */
+RB_HEAD(vrp_tree, vrp);
+RB_PROTOTYPE(vrp_tree, vrp, entry, vrpcmp);
+
+/*
  * An authentication tuple.
  * This specifies a public key and a subject key identifier used to
  * verify children nodes in the tree of entities.
@@ -236,6 +257,7 @@ void		 roa_buffer(char **, size_t *, size_t *, const struct roa *);
 void		 roa_free(struct roa *);
 struct roa	*roa_parse(X509 **, const char *, const unsigned char *);
 struct roa	*roa_read(int);
+void		 roa_insert_vrps(struct vrp_tree *, struct roa *, size_t *, size_t *);
 
 X509_CRL	*crl_parse(const char *, const unsigned char *);
 
@@ -312,7 +334,6 @@ int		 x509_get_ski_aki(X509 *, const char *, char **, char **);
 
 /* Output! */
 
-void		 output_bgpd(FILE *, const struct roa **, size_t,
-			size_t *, size_t *);
+void		 output_bgpd(FILE *, struct vrp_tree *);
 
 #endif /* ! EXTERN_H */
