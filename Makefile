@@ -26,22 +26,19 @@ BINS	 = rpki-client \
 	   test-mft \
 	   test-roa \
 	   test-tal
+RSYNC 	 = rsync
 
-# Linux.
-#LDADD += `pkg-config --libs openssl` -lresolv
-#CFLAGS += `pkg-config --cflags openssl`
+# Our rsync binary defaulting to openrsync.
 
-# OpenBSD.
-CFLAGS += -I/usr/local/include/eopenssl
-LDADD += /usr/local/lib/eopenssl/libssl.a /usr/local/lib/eopenssl/libcrypto.a
+CFLAGS	+= -DRSYNC=\"$(RSYNC)\"
 
-all: $(BINS)
+all: $(BINS) rpki-client.install.8
 
 install: all
 	mkdir -p $(DESTDIR)$(BINDIR)
 	mkdir -p $(DESTDIR)$(MANDIR)/man8
 	$(INSTALL_PROGRAM) rpki-client $(DESTDIR)$(BINDIR)
-	$(INSTALL_MAN) rpki-client.8 $(DESTDIR)$(MANDIR)/man8
+	$(INSTALL_MAN) rpki-client.install.8 $(DESTDIR)$(MANDIR)/man8/rpki-client.8
 
 uninstall:
 	rm -f $(DESTDIR)$(BINDIR)/rpki-client
@@ -69,3 +66,6 @@ distclean: clean
 	rm -f config.h config.log Makefile.configure
 
 $(ALLOBJS): extern.h config.h
+
+rpki-client.install.8: rpki-client.8
+	sed "s!@RSYNC@!$(RSYNC)!g" rpki-client.8 >$@

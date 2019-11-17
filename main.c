@@ -37,9 +37,15 @@
 #include <unistd.h>
 
 #include <openssl/err.h>
-#include <openssl/ssl.h>
+#include <openssl/evp.h>
+#include <openssl/x509v3.h>
 
 #include "extern.h"
+
+/*
+ * Maximum number of TAL files we'll load.
+ */
+#define	TALSZ_MAX	8
 
 /*
  * Base directory for where we'll look for all media.
@@ -1016,8 +1022,9 @@ proc_parser(int fd, int force, int norev)
 	X509_STORE_CTX	*ctx;
 	struct auth	*auths = NULL;
 
-	SSL_library_init();
-	SSL_load_error_strings();
+	ERR_load_crypto_strings();
+	OpenSSL_add_all_ciphers();
+	OpenSSL_add_all_digests();
 
 	if ((store = X509_STORE_new()) == NULL)
 		cryptoerrx("X509_STORE_new");
@@ -1275,8 +1282,12 @@ entity_process(int proc, int rsync, struct stats *st,
 	}
 }
 
-#define	TALSZ_MAX	8
-
+/*
+ * Assign filenames ending in ".tal" in "/etc/rpki" into "tals",
+ * returning the number of files found and filled-in.
+ * This may be zero.
+ * Don't exceded "max" filenames.
+ */
 static size_t
 tal_load_default(const char *tals[], size_t max)
 {
@@ -1318,7 +1329,7 @@ main(int argc, char *argv[])
 	struct repotab	 rt;
 	struct stats	 stats;
 	struct roa	**out = NULL;
-	const char	*rsync_prog = "openrsync";
+	const char	*rsync_prog = RSYNC;
 	const char	*bind_addr = NULL;
 	const char	*tals[TALSZ_MAX];
 	FILE		*output = NULL;
