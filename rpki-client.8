@@ -24,9 +24,10 @@
 for Origin Validation
 .Sh SYNOPSIS
 .Nm
-.Op Fl fnrv
+.Op Fl Bfnrv
 .Op Fl b Ar bind_addr
 .Op Fl e Ar rsync_prog
+.Op Fl T Ar table
 .Op Fl t Ar tal
 .Ar output
 .Sh DESCRIPTION
@@ -41,6 +42,8 @@ announcements themselves.
 .Pp
 The options are as follows:
 .Bl -tag -width Ds
+.It Fl B
+Format the output suitable for the BIRD internet routing daemon.
 .It Fl b Ar bind_addr
 Tell the rsync client to use the specified
 .Ar bind_addr
@@ -65,6 +68,12 @@ Assume that all requested repositories exist: don't update.
 .It Fl r
 Don't parse certificate revocation files.
 This additional step can take a long time.
+.It Fl T Ar table
+For BIRD
+.Fl B
+output use
+.Ar table
+as roa table name instead of the default 'roa'.
 .It Fl t Ar tal
 Specify a trust anchor locator (TAL) file to be used.
 This option can be used multiple times to load multiple TALs.

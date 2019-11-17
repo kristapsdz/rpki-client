@@ -9,6 +9,7 @@ OBJS	 = as.o \
 	   ip.o \
 	   log.o \
 	   mft.o \
+	   output-bird.o \
 	   output-bgpd.o \
 	   roa.o \
 	   rsync.o \

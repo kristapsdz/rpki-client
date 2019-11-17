@@ -132,6 +132,11 @@ static void	 proc_rsync(const char *, const char *, int, int)
 static void	 logx(const char *fmt, ...)
 			__attribute__((format(printf, 1, 2)));
 
+enum output_fmt {
+	BGPD,
+	BIRD,
+};
+
 int	 verbose;
 
 /*
@@ -1325,16 +1330,21 @@ main(int argc, char *argv[])
 	const char	*rsync_prog = RSYNC;
 	const char	*bind_addr = NULL;
 	const char	*tals[TALSZ_MAX];
+	const char	*tablename = "roa";
 	FILE		*output = NULL;
 	struct vrp_tree	 v = RB_INITIALIZER(&v);
+	enum output_fmt	 outfmt = BGPD;
 
 	if (pledge("stdio rpath wpath cpath proc exec unveil", NULL) == -1)
 		err(EXIT_FAILURE, "pledge");
 
-	while ((c = getopt(argc, argv, "b:e:fnrt:v")) != -1)
+	while ((c = getopt(argc, argv, "b:Be:fnrt:T:v")) != -1)
 		switch (c) {
 		case 'b':
 			bind_addr = optarg;
+			break;
+		case 'B':
+			outfmt = BIRD;
 			break;
 		case 'e':
 			rsync_prog = optarg;
@@ -1353,6 +1363,9 @@ main(int argc, char *argv[])
 				err(EXIT_FAILURE,
 				    "too many tal files specified");
 			tals[talsz++] = optarg;
+			break;
+		case 'T':
+			tablename = optarg;
 			break;
 		case 'v':
 			verbose++;
@@ -1545,9 +1558,15 @@ main(int argc, char *argv[])
 		rc = 0;
 	}
 
-	/* Output and statistics. */
+	switch (outfmt) {
+	case BGPD:
+		output_bgpd(output, &v);
+		break;
+	case BIRD:
+		output_bird(output, &v, tablename);
+		break;
+	}
 
-	output_bgpd(output, &v);
 	logx("Route Origin Authorizations: %zu (%zu failed parse, %zu invalid)",
 	    stats.roas, stats.roas_fail, stats.roas_invalid);
 	logx("Certificates: %zu (%zu failed parse, %zu invalid)",
@@ -1579,7 +1598,7 @@ main(int argc, char *argv[])
 
 usage:
 	fprintf(stderr,
-	    "usage: rpki-client [-fnrv] [-b bind_addr] [-e rsync_prog] "
-	    "[-t tal] output\n");
+	    "usage: rpki-client [-Bfnrv] [-b bind_addr] [-e rsync_prog] "
+	    "[-T table] [-t tal] output\n");
 	return EXIT_FAILURE;
 }
