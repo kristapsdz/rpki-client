@@ -229,6 +229,7 @@ ip_addr_parse(const ASN1_BIT_STRING *p,
 		return 0;
 	}
 
+	memset (addr, 0, sizeof(struct ip_addr));
 	addr->prefixlen = p->length * 8 - unused;
 	memcpy(addr->addr, p->data, p->length);
 	return 1;
@@ -241,7 +242,7 @@ ip_addr_parse(const ASN1_BIT_STRING *p,
 static void
 ip4_addr2str(const struct ip_addr *addr, char *b, size_t bsz)
 {
-	char	buf[16];
+	char buf[16];
 
 	snprintf(b, bsz, "%s/%hhu", inet_ntop(AF_INET, addr->addr, buf,
 	    sizeof(buf)), addr->prefixlen);
@@ -255,7 +256,7 @@ ip4_addr2str(const struct ip_addr *addr, char *b, size_t bsz)
 static void
 ip6_addr2str(const struct ip_addr *addr, char *b, size_t bsz)
 {
-	char	buf[44];
+	char	 buf[44];
 
 	snprintf(b, bsz, "%s/%hhu", inet_ntop(AF_INET6, addr->addr, buf,
 	    sizeof(buf)), addr->prefixlen);
@@ -341,7 +342,7 @@ ip_addr_range_read(int fd, struct ip_addr_range *p)
 int
 ip_cert_compose_ranges(struct cert_ip *p)
 {
-	size_t	sz;
+	size_t sz;
 
 	switch (p->type) {
 	case CERT_IP_ADDR:
