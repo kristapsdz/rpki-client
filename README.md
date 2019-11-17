@@ -54,13 +54,16 @@ The installation rule will install into `PREFIX`, defaulting to
 ```
 
 It may be necessary to pass `pkg-config` values for OpenSSL to the
-configure script.
+configure script.  On OpenBSD, the package is `eopenssl`.  On most other
+systems it's simply `openssl`.
 
 ```
-% ./configure CPPFLAGS="`pkg-config --cflags eopenssl`" \
-> LDFLAGS="`pkg-config --libs-only-L eopenssl`" \
-> LDADD="`pkg-config --libs-only-l eopenssl`"
+% ./configure CPPFLAGS="`pkg-config --cflags openssl`" \
+> LDFLAGS="`pkg-config --libs-only-L openssl`" \
+> LDADD="`pkg-config --libs-only-l openssl`"
 ```
+
+Most Linux systems additionally need `-lresolv` for `LDADD`.
 
 Next, you'll need the */var/cache/rpki-client* directory in place.
 It must be writable by the operator of **rpki-client**.
