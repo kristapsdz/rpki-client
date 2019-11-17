@@ -335,5 +335,6 @@ int		 x509_get_ski_aki(X509 *, const char *, char **, char **);
 /* Output! */
 
 void		 output_bgpd(FILE *, struct vrp_tree *);
+void		 output_bird(FILE *, struct vrp_tree *, const char *);
 
 #endif /* ! EXTERN_H */
