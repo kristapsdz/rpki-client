@@ -19,9 +19,7 @@
 .Os
 .Sh NAME
 .Nm rpki-client
-.Nd validates the RPKI tree and produces VRPs to be used in
-.Xr bgpd 8
-for Origin Validation
+.Nd RPKI validation for Route Origin Validation
 .Sh SYNOPSIS
 .Nm
 .Op Fl Bcfjnrv
@@ -60,9 +58,9 @@ instead of
 to fetch repositories.
 It must accept the
 .Fl rlt ,
-.Fl \&-address
+.Fl -address
 and
-.Fl \&-delete
+.Fl -delete
 flags and connect with rsync-protocol locations.
 .It Fl f
 Accept out-of-date manifests.
