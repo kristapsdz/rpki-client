@@ -26,7 +26,7 @@ BINS	 = rpki-client \
 	   test-mft \
 	   test-roa \
 	   test-tal
-RSYNC 	 = rsync
+RSYNC 	 = openrsync
 
 # Our rsync binary defaulting to openrsync.
 
