@@ -152,11 +152,11 @@ as_check_covered(uint32_t min, uint32_t max,
 	uint32_t amin, amax;
 
 	for (i = 0; i < asz; i++) {
-		if (CERT_AS_INHERIT == as[i].type)
+		if (as[i].type == CERT_AS_INHERIT)
 			return 0;
-		amin = CERT_AS_RANGE == as[i].type ?
+		amin = as[i].type == CERT_AS_RANGE ?
 			as[i].range.min : as[i].id;
-		amax = CERT_AS_RANGE == as[i].type ?
+		amax = as[i].type == CERT_AS_RANGE?
 			as[i].range.max : as[i].id;
 		if (min >= amin && max <= amax)
 			return 1;

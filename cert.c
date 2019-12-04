@@ -89,7 +89,7 @@ append_ip(struct parse *p, const struct cert_ip *ip)
 	res->ips = reallocarray(res->ips, res->ipsz + 1,
 	    sizeof(struct cert_ip));
 	if (res->ips == NULL)
-		err(EXIT_FAILURE, NULL);
+		err(1, NULL);
 	res->ips[res->ipsz++] = *ip;
 	return 1;
 }
@@ -108,7 +108,7 @@ append_as(struct parse *p, const struct cert_as *as)
 	p->res->as = reallocarray(p->res->as, p->res->asz + 1,
 	    sizeof(struct cert_as));
 	if (p->res->as == NULL)
-		err(EXIT_FAILURE, NULL);
+		err(1, NULL);
 	p->res->as[p->res->asz++] = *as;
 	return 1;
 }
@@ -208,7 +208,7 @@ sbgp_sia_resource_mft(struct parse *p,
 		goto out;
 
 	if ((p->res->mft = strndup((const char *)d, plen)) == NULL)
-		err(EXIT_FAILURE, NULL);
+		err(1, NULL);
 
 	/* Make sure it's an MFT rsync address. */
 
@@ -1118,7 +1118,7 @@ cert_parse_inner(X509 **xp, const char *fn, const unsigned char *dgst, int ta)
 	memset(&p, 0, sizeof(struct parse));
 	p.fn = fn;
 	if ((p.res = calloc(1, sizeof(struct cert))) == NULL)
-		err(EXIT_FAILURE, NULL);
+		err(1, NULL);
 
 	/*
 	 * If we have a digest specified, create an MD chain that will
@@ -1437,20 +1437,20 @@ cert_read(int fd)
 	int		 has_crl, has_aki;
 
 	if ((p = calloc(1, sizeof(struct cert))) == NULL)
-		err(EXIT_FAILURE, NULL);
+		err(1, NULL);
 
 	io_simple_read(fd, &p->valid, sizeof(int));
 	io_simple_read(fd, &p->ipsz, sizeof(size_t));
 	p->ips = calloc(p->ipsz, sizeof(struct cert_ip));
 	if (p->ips == NULL)
-		err(EXIT_FAILURE, NULL);
+		err(1, NULL);
 	for (i = 0; i < p->ipsz; i++)
 		cert_ip_read(fd, &p->ips[i]);
 
 	io_simple_read(fd, &p->asz, sizeof(size_t));
 	p->as = calloc(p->asz, sizeof(struct cert_as));
 	if (p->as == NULL)
-		err(EXIT_FAILURE, NULL);
+		err(1, NULL);
 	for (i = 0; i < p->asz; i++)
 		cert_as_read(fd, &p->as[i]);
 

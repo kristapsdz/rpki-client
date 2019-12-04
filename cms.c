@@ -162,7 +162,7 @@ cms_parse_validate(X509 **xp, const char *fn,
 	 */
 
 	if ((res = malloc((*os)->length)) == NULL)
-		err(EXIT_FAILURE, NULL);
+		err(1, NULL);
 	memcpy(res, (*os)->data, (*os)->length);
 	*rsz = (*os)->length;
 
