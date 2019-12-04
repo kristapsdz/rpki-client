@@ -36,9 +36,9 @@ io_socket_blocking(int fd)
 	int	 fl;
 
 	if ((fl = fcntl(fd, F_GETFL, 0)) == -1)
-		err(EXIT_FAILURE, "fcntl");
+		err(1, "fcntl");
 	if (fcntl(fd, F_SETFL, fl & ~O_NONBLOCK) == -1)
-		err(EXIT_FAILURE, "fcntl");
+		err(1, "fcntl");
 }
 
 void
@@ -47,9 +47,9 @@ io_socket_nonblocking(int fd)
 	int	 fl;
 
 	if ((fl = fcntl(fd, F_GETFL, 0)) == -1)
-		err(EXIT_FAILURE, "fcntl");
+		err(1, "fcntl");
 	if (fcntl(fd, F_SETFL, fl | O_NONBLOCK) == -1)
-		err(EXIT_FAILURE, "fcntl");
+		err(1, "fcntl");
 }
 
 /*
@@ -64,9 +64,9 @@ io_simple_write(int fd, const void *res, size_t sz)
 	if (sz == 0)
 		return;
 	if ((ssz = write(fd, res, sz)) == -1)
-		err(EXIT_FAILURE, "write");
+		err(1, "write");
 	else if ((size_t)ssz != sz)
-		errx(EXIT_FAILURE, "write: short write");
+		errx(1, "write: short write");
 }
 
 /*
@@ -79,7 +79,7 @@ io_simple_buffer(char **b, size_t *bsz,
 
 	if (*bsz + sz > *bmax) {
 		if ((*b = realloc(*b, *bsz + sz)) == NULL)
-			err(EXIT_FAILURE, NULL);
+			err(1, NULL);
 		*bmax = *bsz + sz;
 	}
 
@@ -147,9 +147,9 @@ again:
 	if (sz == 0)
 		return;
 	if ((ssz = read(fd, res, sz)) == -1)
-		err(EXIT_FAILURE, "read");
+		err(1, "read");
 	else if (ssz == 0)
-		errx(EXIT_FAILURE, "read: unexpected end of file");
+		errx(1, "read: unexpected end of file");
 	else if ((size_t)ssz == sz)
 		return;
 	sz -= ssz;
@@ -171,7 +171,7 @@ io_buf_read_alloc(int fd, void **res, size_t *sz)
 	if (*sz == 0)
 		return;
 	if ((*res = malloc(*sz)) == NULL)
-		err(EXIT_FAILURE, NULL);
+		err(1, NULL);
 	io_simple_read(fd, *res, *sz);
 }
 
@@ -186,6 +186,6 @@ io_str_read(int fd, char **res)
 
 	io_simple_read(fd, &sz, sizeof(size_t));
 	if ((*res = calloc(sz + 1, 1)) == NULL)
-		err(EXIT_FAILURE, NULL);
+		err(1, NULL);
 	io_simple_read(fd, *res, sz);
 }

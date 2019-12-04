@@ -104,7 +104,7 @@ x509_get_aki_ext(X509_EXTENSION *ext, const char *fn)
 	/* Make room for [hex1, hex2, ":"]*, NUL. */
 
 	if ((res = calloc(plen * 3 + 1, 1)) == NULL)
-		err(EXIT_FAILURE, NULL);
+		err(1, NULL);
 
 	for (i = 0; i < plen; i++) {
 		snprintf(buf, sizeof(buf), "%02X:", d[i]);
@@ -157,7 +157,7 @@ x509_get_ski_ext(X509_EXTENSION *ext, const char *fn)
 	/* Make room for [hex1, hex2, ":"]*, NUL. */
 
 	if ((res = calloc(dsz * 3 + 1, 1)) == NULL)
-		err(EXIT_FAILURE, NULL);
+		err(1, NULL);
 
 	for (i = 0; i < dsz; i++) {
 		snprintf(buf, sizeof(buf), "%02X:", d[i]);

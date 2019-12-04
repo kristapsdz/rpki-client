@@ -50,7 +50,7 @@ cryptoerrx(const char *fmt, ...)
 		va_end(ap);
 	}
 
-	exit(EXIT_FAILURE);
+	exit(1);
 }
 
 /*

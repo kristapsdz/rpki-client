@@ -218,7 +218,7 @@ repo_lookup(int fd, struct repotab *rt, const char *uri)
 
 	if (!rsync_uri_parse(&host, &hostsz,
 	    &mod, &modsz, NULL, NULL, NULL, uri))
-		errx(EXIT_FAILURE, "%s: malformed", uri);
+		errx(1, "%s: malformed", uri);
 
 	/* Look up in repository table. */
 
@@ -237,7 +237,7 @@ repo_lookup(int fd, struct repotab *rt, const char *uri)
 	rt->repos = reallocarray(rt->repos,
 		rt->reposz + 1, sizeof(struct repo));
 	if (rt->repos == NULL)
-		err(EXIT_FAILURE, "reallocarray");
+		err(1, "reallocarray");
 
 	rp = &rt->repos[rt->reposz++];
 	memset(rp, 0, sizeof(struct repo));
@@ -245,7 +245,7 @@ repo_lookup(int fd, struct repotab *rt, const char *uri)
 
 	if ((rp->host = strndup(host, hostsz)) == NULL ||
 	    (rp->module = strndup(mod, modsz)) == NULL)
-		err(EXIT_FAILURE, "strndup");
+		err(1, "strndup");
 
 	i = rt->reposz - 1;
 
@@ -351,7 +351,7 @@ entityq_add(int fd, struct entityq *q, char *file, enum rtype type,
 	struct entity	*p;
 
 	if ((p = calloc(1, sizeof(struct entity))) == NULL)
-		err(EXIT_FAILURE, "calloc");
+		err(1, "calloc");
 
 	p->id = (*eid)++;
 	p->type = type;
@@ -365,12 +365,12 @@ entityq_add(int fd, struct entityq *q, char *file, enum rtype type,
 	if (p->has_pkey) {
 		p->pkeysz = pkeysz;
 		if ((p->pkey = malloc(pkeysz)) == NULL)
-			err(EXIT_FAILURE, "malloc");
+			err(1, "malloc");
 		memcpy(p->pkey, pkey, pkeysz);
 	}
 	if (p->has_descr)
 		if ((p->descr = strdup(descr)) == NULL)
-			err(EXIT_FAILURE, "strdup");
+			err(1, "strdup");
 
 	TAILQ_INSERT_TAIL(q, p, entries);
 
@@ -400,7 +400,7 @@ queue_add_from_mft(int fd, struct entityq *q, const char *mft,
 
 	sz = strlen(file->file) + strlen(mft);
 	if ((nfile = calloc(sz + 1, 1)) == NULL)
-		err(EXIT_FAILURE, "calloc");
+		err(1, "calloc");
 
 	/* We know this is BASE_DIR/host/module/... */
 
@@ -471,7 +471,7 @@ queue_add_tal(int fd, struct entityq *q, const char *file, size_t *eid)
 	char	*nfile, *buf;
 
 	if ((nfile = strdup(file)) == NULL)
-		err(EXIT_FAILURE, "strdup");
+		err(1, "strdup");
 	buf = tal_read_file(file);
 
 	/* Not in a repository, so directly add to queue. */
@@ -503,7 +503,7 @@ queue_add_from_tal(int proc, int rsync, struct entityq *q,
 
 	if (asprintf(&nfile, "%s/%s/%s/%s",
 	    BASE_DIR, repo->host, repo->module, uri) == -1)
-		err(EXIT_FAILURE, "asprintf");
+		err(1, "asprintf");
 
 	entityq_add(proc, q, nfile, RTYPE_CER, repo, NULL, tal->pkey,
 	    tal->pkeysz, tal->descr, eid);
@@ -521,9 +521,9 @@ queue_add_from_cert(int proc, int rsync, struct entityq *q,
 	const struct repo	*repo;
 
 	if ((type = rtype_resolve(uri)) == RTYPE_EOF)
-		errx(EXIT_FAILURE, "%s: unknown file type", uri);
+		errx(1, "%s: unknown file type", uri);
 	if (type != RTYPE_MFT && type != RTYPE_CRL)
-		errx(EXIT_FAILURE, "%s: invalid file type", uri);
+		errx(1, "%s: invalid file type", uri);
 
 	/* Look up the repository. */
 
@@ -532,7 +532,7 @@ queue_add_from_cert(int proc, int rsync, struct entityq *q,
 
 	if (asprintf(&nfile, "%s/%s/%s/%s",
 	    BASE_DIR, repo->host, repo->module, uri) == -1)
-		err(EXIT_FAILURE, "asprintf");
+		err(1, "asprintf");
 
 	entityq_add(proc, q, nfile, type, repo, NULL, NULL, 0, NULL, eid);
 }
@@ -566,7 +566,7 @@ proc_rsync(const char *prog, const char *bind_addr, int fd, int noop)
 	const char		*pp;
 	pid_t			 pid;
 	char			*args[32];
-	int			 st, rc = 0;
+	int			 st, rc = 1;
 	struct stat		 stt;
 	struct pollfd		 pfd;
 	sigset_t		 mask, oldmask;
@@ -585,50 +585,50 @@ proc_rsync(const char *prog, const char *bind_addr, int fd, int noop)
 	if (!noop) {
 		if (strchr(prog, '/') == NULL) {
 			if (getenv("PATH") == NULL)
-				errx(EXIT_FAILURE, "PATH is unset");
+				errx(1, "PATH is unset");
 			if ((path = strdup(getenv("PATH"))) == NULL)
-				err(EXIT_FAILURE, "strdup");
+				err(1, "strdup");
 			save = path;
 			while ((pp = strsep(&path, ":")) != NULL) {
 				if (*pp == '\0')
 					continue;
 				if (asprintf(&cmd, "%s/%s", pp, prog) == -1)
-					err(EXIT_FAILURE, "asprintf");
+					err(1, "asprintf");
 				if (lstat(cmd, &stt) == -1) {
 					free(cmd);
 					continue;
 				} else if (unveil(cmd, "x") == -1)
-					err(EXIT_FAILURE, "%s: unveil", cmd);
+					err(1, "%s: unveil", cmd);
 				free(cmd);
 				break;
 			}
 			free(save);
 		} else if (unveil(prog, "x") == -1)
-			err(EXIT_FAILURE, "%s: unveil", prog);
+			err(1, "%s: unveil", prog);
 
 		/* Unveil the repository directory and terminate unveiling. */
 
 		if (unveil(BASE_DIR, "c") == -1)
-			err(EXIT_FAILURE, "%s: unveil", BASE_DIR);
+			err(1, "%s: unveil", BASE_DIR);
 		if (unveil(NULL, NULL) == -1)
-			err(EXIT_FAILURE, "unveil");
+			err(1, "unveil");
 	}
 
 	/* Initialise retriever for children exiting. */
 
 	if (sigemptyset(&mask) == -1)
-		err(EXIT_FAILURE, NULL);
+		err(1, NULL);
 	if (signal(SIGCHLD, proc_child) == SIG_ERR)
-		err(EXIT_FAILURE, NULL);
+		err(1, NULL);
 	if (sigaddset(&mask, SIGCHLD) == -1)
-		err(EXIT_FAILURE, NULL);
+		err(1, NULL);
 	if (sigprocmask(SIG_BLOCK, &mask, &oldmask) == -1)
-		err(EXIT_FAILURE, NULL);
+		err(1, NULL);
 
 	for (;;) {
 		if (ppoll(&pfd, 1, NULL, &oldmask) == -1) {
 			if (errno != EINTR)
-				err(EXIT_FAILURE, "ppoll");
+				err(1, "ppoll");
 
 			/*
 			 * If we've received an EINTR, it means that one
@@ -638,7 +638,7 @@ proc_rsync(const char *prog, const char *bind_addr, int fd, int noop)
 			 */
 
 			if ((pid = waitpid(WAIT_ANY, &st, 0)) == -1)
-				err(EXIT_FAILURE, "waitpid");
+				err(1, "waitpid");
 
 			for (i = 0; i < idsz; i++)
 				if (ids[i].pid == pid)
@@ -648,7 +648,7 @@ proc_rsync(const char *prog, const char *bind_addr, int fd, int noop)
 			if (!WIFEXITED(st)) {
 				warnx("rsync %s did not exit", ids[i].uri);
 				goto out;
-			} else if (WEXITSTATUS(st) != EXIT_SUCCESS) {
+			} else if (WEXITSTATUS(st) != 0) {
 				warnx("rsync %s failed", ids[i].uri);
 				goto out;
 			}
@@ -667,7 +667,7 @@ proc_rsync(const char *prog, const char *bind_addr, int fd, int noop)
 		 */
 
 		if ((ssz = read(fd, &id, sizeof(size_t))) == -1)
-			err(EXIT_FAILURE, "read");
+			err(1, "read");
 		if (ssz == 0)
 			break;
 
@@ -690,27 +690,27 @@ proc_rsync(const char *prog, const char *bind_addr, int fd, int noop)
 		 */
 
 		if (asprintf(&dst, "%s/%s", BASE_DIR, host) == -1)
-			err(EXIT_FAILURE, NULL);
+			err(1, NULL);
 		if (mkdir(dst, 0700) == -1 && EEXIST != errno)
-			err(EXIT_FAILURE, "%s", dst);
+			err(1, "%s", dst);
 		free(dst);
 
 		if (asprintf(&dst, "%s/%s/%s", BASE_DIR, host, mod) == -1)
-			err(EXIT_FAILURE, NULL);
+			err(1, NULL);
 		if (mkdir(dst, 0700) == -1 && EEXIST != errno)
-			err(EXIT_FAILURE, "%s", dst);
+			err(1, "%s", dst);
 
 		if (asprintf(&uri, "rsync://%s/%s", host, mod) == -1)
-			err(EXIT_FAILURE, NULL);
+			err(1, NULL);
 
 		/* Run process itself, wait for exit, check error. */
 
 		if ((pid = fork()) == -1)
-			err(EXIT_FAILURE, "fork");
+			err(1, "fork");
 
 		if (pid == 0) {
 			if (pledge("stdio exec", NULL) == -1)
-				err(EXIT_FAILURE, "pledge");
+				err(1, "pledge");
 			i = 0;
 			args[i++] = (char *)prog;
 			args[i++] = "-rlt";
@@ -723,7 +723,7 @@ proc_rsync(const char *prog, const char *bind_addr, int fd, int noop)
 			args[i++] = dst;
 			args[i] = NULL;
 			execvp(args[0], args);
-			err(EXIT_FAILURE, "%s: execvp", prog);
+			err(1, "%s: execvp", prog);
 		}
 
 		/* Augment the list of running processes. */
@@ -734,7 +734,7 @@ proc_rsync(const char *prog, const char *bind_addr, int fd, int noop)
 		if (i == idsz) {
 			ids = reallocarray(ids, idsz + 1, sizeof(*ids));
 			if (ids == NULL)
-				err(EXIT_FAILURE, NULL);
+				err(1, NULL);
 			idsz++;
 		}
 
@@ -748,7 +748,7 @@ proc_rsync(const char *prog, const char *bind_addr, int fd, int noop)
 		free(dst);
 		free(host);
 	}
-	rc = 1;
+	rc = 0;
 out:
 
 	/* No need for these to be hanging around. */
@@ -760,7 +760,7 @@ out:
 		}
 
 	free(ids);
-	exit(rc ? EXIT_SUCCESS : EXIT_FAILURE);
+	exit(rc);
 	/* NOTREACHED */
 }
 
@@ -821,7 +821,7 @@ proc_parser_roa(struct entity *entp, int norev,
 	if (aidx != -1) {
 		roa->valid = 1;
 		if ((roa->tal = strdup(auths[aidx].tal)) == NULL)
-			err(EXIT_FAILURE, NULL);
+			err(1, NULL);
 	}
 	return roa;
 }
@@ -1020,7 +1020,7 @@ proc_parser(int fd, int force, int norev)
 	struct roa	*roa;
 	struct entity	*entp;
 	struct entityq	 q;
-	int		 c, rc = 0;
+	int		 c, rc = 1;
 	struct pollfd	 pfd;
 	char		*b = NULL;
 	size_t		 i, bsz = 0, bmax = 0, bpos = 0, authsz = 0;
@@ -1047,9 +1047,9 @@ proc_parser(int fd, int force, int norev)
 
 	for (;;) {
 		if (poll(&pfd, 1, INFTIM) == -1)
-			err(EXIT_FAILURE, "poll");
+			err(1, "poll");
 		if ((pfd.revents & (POLLERR|POLLNVAL)))
-			errx(EXIT_FAILURE, "poll: bad descriptor");
+			errx(1, "poll: bad descriptor");
 
 		/* If the parent closes, return immediately. */
 
@@ -1068,7 +1068,7 @@ proc_parser(int fd, int force, int norev)
 			io_socket_blocking(fd);
 			entp = calloc(1, sizeof(struct entity));
 			if (entp == NULL)
-				err(EXIT_FAILURE, NULL);
+				err(1, NULL);
 			entity_read_req(fd, entp);
 			TAILQ_INSERT_TAIL(&q, entp, entries);
 			pfd.events |= POLLOUT;
@@ -1088,7 +1088,7 @@ proc_parser(int fd, int force, int norev)
 		if (bsz) {
 			assert(bpos < bmax);
 			if ((ssz = write(fd, b + bpos, bsz)) == -1)
-				err(EXIT_FAILURE, "write");
+				err(1, "write");
 			bpos += ssz;
 			bsz -= ssz;
 			if (bsz)
@@ -1163,7 +1163,7 @@ proc_parser(int fd, int force, int norev)
 		entity_free(entp);
 	}
 
-	rc = 1;
+	rc = 0;
 out:
 	while ((entp = TAILQ_FIRST(&q)) != NULL) {
 		TAILQ_REMOVE(&q, entp, entries);
@@ -1188,7 +1188,7 @@ out:
 	ERR_remove_state(0);
 	ERR_free_strings();
 
-	exit(rc ? EXIT_SUCCESS : EXIT_FAILURE);
+	exit(rc);
 }
 
 /*
@@ -1299,15 +1299,15 @@ tal_load_default(const char *tals[], size_t max)
 
 	dirp = opendir(basedir);
 	if (dirp == NULL)
-		err(EXIT_FAILURE, "open %s", basedir);
+		err(1, "open %s", basedir);
 	while ((dp = readdir(dirp)) != NULL) {
 		if (fnmatch("*.tal", dp->d_name, FNM_PERIOD) == FNM_NOMATCH)
 			continue;
 		if (s >= max)
-			err(EXIT_FAILURE, "too many tal files found in %s",
+			err(1, "too many tal files found in %s",
 			    basedir);
 		if (asprintf(&path, "%s/%s", basedir, dp->d_name) == -1)
-			err(EXIT_FAILURE, "asprintf");
+			err(1, "asprintf");
 		tals[s++] = path;
 	}
 	closedir (dirp);
@@ -1317,7 +1317,7 @@ tal_load_default(const char *tals[], size_t max)
 int
 main(int argc, char *argv[])
 {
-	int		 rc = 0, c, proc, st, rsync,
+	int		 rc = 1, c, proc, st, rsync,
 			 fl = SOCK_STREAM | SOCK_CLOEXEC, noop = 0,
 			 force = 0, norev = 0;
 	size_t		 i, j, eid = 1, outsz = 0, talsz = 0;
@@ -1338,7 +1338,7 @@ main(int argc, char *argv[])
 	enum output_fmt	 outfmt = BGPD;
 
 	if (pledge("stdio rpath wpath cpath proc exec unveil", NULL) == -1)
-		err(EXIT_FAILURE, "pledge");
+		err(1, "pledge");
 
 	while ((c = getopt(argc, argv, "b:Bce:fjnrt:T:v")) != -1)
 		switch (c) {
@@ -1388,12 +1388,12 @@ main(int argc, char *argv[])
 		goto usage;
 	output = fopen(argv[0], "we");
 	if (output == NULL)
-		err(EXIT_FAILURE, "failed to open %s", argv[0]);
+		err(1, "failed to open %s", argv[0]);
 
 	if (talsz == 0)
 		talsz = tal_load_default(tals, TALSZ_MAX);
 	if (talsz == 0)
-		err(EXIT_FAILURE, "no TAL files found in %s", "/etc/rpki");
+		err(1, "no TAL files found in %s", "/etc/rpki");
 
 	memset(&rt, 0, sizeof(struct repotab));
 	memset(&stats, 0, sizeof(struct stats));
@@ -1406,19 +1406,19 @@ main(int argc, char *argv[])
 	 */
 
 	if (socketpair(AF_UNIX, fl, 0, fd) == -1)
-		err(EXIT_FAILURE, "socketpair");
+		err(1, "socketpair");
 	if ((procpid = fork()) == -1)
-		err(EXIT_FAILURE, "fork");
+		err(1, "fork");
 
 	if (procpid == 0) {
 		close(fd[1]);
 		/* Only allow access to BASE_DIR. */
 		if (unveil(BASE_DIR, "r") == -1)
-			err(EXIT_FAILURE, "%s: unveil", BASE_DIR);
+			err(1, "%s: unveil", BASE_DIR);
 		if (unveil(NULL, NULL) == -1)
-			err(EXIT_FAILURE, "unveil");
+			err(1, "unveil");
 		if (pledge("stdio rpath", NULL) == -1)
-			err(EXIT_FAILURE, "pledge");
+			err(1, "pledge");
 		proc_parser(fd[0], force, norev);
 		/* NOTREACHED */
 	}
@@ -1434,20 +1434,20 @@ main(int argc, char *argv[])
 	 */
 
 	if (socketpair(AF_UNIX, fl, 0, fd) == -1)
-		err(EXIT_FAILURE, "socketpair");
+		err(1, "socketpair");
 	if ((rsyncpid = fork()) == -1)
-		err(EXIT_FAILURE, "fork");
+		err(1, "fork");
 
 	if (rsyncpid == 0) {
 		close(proc);
 		close(fd[1]);
 		if (pledge("stdio rpath cpath proc exec unveil", NULL) == -1)
-			err(EXIT_FAILURE, "pledge");
+			err(1, "pledge");
 
 		/* If -n, we don't exec or mkdir. */
 
 		if (noop && pledge("stdio", NULL) == -1)
-			err(EXIT_FAILURE, "pledge");
+			err(1, "pledge");
 		proc_rsync(rsync_prog, bind_addr, fd[0], noop);
 		/* NOTREACHED */
 	}
@@ -1458,7 +1458,7 @@ main(int argc, char *argv[])
 	assert(rsync != proc);
 
 	if (pledge("stdio rpath", NULL) == -1)
-		err(EXIT_FAILURE, "pledge");
+		err(1, "pledge");
 
 	/*
 	 * Prime the process with our TAL file.
@@ -1476,7 +1476,7 @@ main(int argc, char *argv[])
 	 */
 
 	if (pledge("stdio", NULL) == -1)
-		err(EXIT_FAILURE, "pledge");
+		err(1, "pledge");
 
 	pfd[0].fd = rsync;
 	pfd[1].fd = proc;
@@ -1484,7 +1484,7 @@ main(int argc, char *argv[])
 
 	while (!TAILQ_EMPTY(&q)) {
 		if ((c = poll(pfd, 2, verbose ? 10000 : INFTIM)) == -1)
-			err(EXIT_FAILURE, "poll");
+			err(1, "poll");
 
 		/* Debugging: print some statistics if we stall. */
 
@@ -1502,7 +1502,7 @@ main(int argc, char *argv[])
 
 		if ((pfd[0].revents & (POLLERR|POLLNVAL)) ||
 		    (pfd[1].revents & (POLLERR|POLLNVAL)))
-			errx(EXIT_FAILURE, "poll: bad fd");
+			errx(1, "poll: bad fd");
 		if ((pfd[0].revents & POLLHUP) ||
 		    (pfd[1].revents & POLLHUP))
 			errx(EXIT_FAILURE, "poll: hangup");
@@ -1542,7 +1542,7 @@ main(int argc, char *argv[])
 
 	assert(TAILQ_EMPTY(&q));
 	logx("all files parsed: exiting");
-	rc = 1;
+	rc = 0;
 
 	/*
 	 * For clean-up, close the input for the parser and rsync
@@ -1554,16 +1554,16 @@ main(int argc, char *argv[])
 	close(rsync);
 
 	if (waitpid(procpid, &st, 0) == -1)
-		err(EXIT_FAILURE, "waitpid");
-	if (!WIFEXITED(st) || WEXITSTATUS(st) != EXIT_SUCCESS) {
+		err(1, "waitpid");
+	if (!WIFEXITED(st) || WEXITSTATUS(st) != 0) {
 		warnx("parser process exited abnormally");
-		rc = 0;
+		rc = 1;
 	}
 	if (waitpid(rsyncpid, &st, 0) == -1)
-		err(EXIT_FAILURE, "waitpid");
-	if (!WIFEXITED(st) || WEXITSTATUS(st) != EXIT_SUCCESS) {
+		err(1, "waitpid");
+	if (!WIFEXITED(st) || WEXITSTATUS(st) != 0) {
 		warnx("rsync process exited abnormally");
-		rc = 0;
+		rc = 1;
 	}
 
 	switch (outfmt) {
@@ -1611,11 +1611,11 @@ main(int argc, char *argv[])
 	ERR_free_strings();
 #endif
 
-	return rc ? EXIT_SUCCESS : EXIT_FAILURE;
+	return rc;
 
 usage:
 	fprintf(stderr,
 	    "usage: rpki-client [-Bcfjnrv] [-b bind_addr] [-e rsync_prog] "
 	    "[-T table] [-t tal] output\n");
-	return EXIT_FAILURE;
+	return 1;
 }

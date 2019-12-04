@@ -114,7 +114,7 @@ int
 ip_addr_check_overlap(const struct cert_ip *ip, const char *fn,
     const struct cert_ip *ips, size_t ipsz)
 {
-	size_t	 i, sz = AFI_IPV4 == ip->afi ? 4 : 16;
+	size_t	 i, sz = ip->afi == AFI_IPV4 ? 4 : 16;
 	int	 inherit_v4 = 0, inherit_v6 = 0;
 	int	 has_v4 = 0, has_v6 = 0, socktype;
 	char	 buf[64];
