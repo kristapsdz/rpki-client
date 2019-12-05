@@ -59,6 +59,9 @@
 #include <poll.h>
 #ifdef PRIVDROP
 # include <pwd.h>
+# ifdef __linux__
+#  include <grp.h>
+# endif
 #endif
 #include <signal.h>
 #include <stdio.h>
