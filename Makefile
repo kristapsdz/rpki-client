@@ -36,6 +36,9 @@ RSYNC 	 = openrsync
 
 CFLAGS	+= -DRSYNC=\"$(RSYNC)\"
 
+# This is for situations of (char *) and (const char []).
+CFLAGS	+= -Wno-incompatible-pointer-types-discards-qualifiers
+
 all: $(BINS) rpki-client.install.8
 
 install: all

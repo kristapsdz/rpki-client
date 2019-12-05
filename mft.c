@@ -97,7 +97,7 @@ check_validity(const ASN1_GENERALIZEDTIME *from,
 static int
 mft_parse_filehash(struct parse *p, const ASN1_OCTET_STRING *os)
 {
-	const ASN1_SEQUENCE_ANY *seq;
+	ASN1_SEQUENCE_ANY	*seq;
 	const ASN1_TYPE		*file, *hash;
 	char			*fn = NULL;
 	const unsigned char	*d = os->data;

@@ -22,32 +22,43 @@
 .Nd RPKI validation for Route Origin Validation
 .Sh SYNOPSIS
 .Nm
-.Op Fl Bcfjnrv
+.Op Fl Bcfjnov
 .Op Fl b Ar bind_addr
 .Op Fl e Ar rsync_prog
 .Op Fl T Ar table
 .Op Fl t Ar tal
-.Ar output
+.Op Ar outputdir
 .Sh DESCRIPTION
 The
 .Nm
-utility produces all route announcements starting with trust anchor
-locators.
-It uses
+utility queries the RPKI repository system with
 .Xr @RSYNC@ 1
-to fetch certificates, manifests, revocation lists, and route
-announcements themselves.
+to fetch all X.509 certificates, manifests, and revocation lists under a given
+.Em Trust Anchor .
+.Nm
+subsequently validates each
+.Em Route Origin Authorization Pq ROA
+by constructing and verifying a certification path for the certificate
+associated with the ROA (including checking relevant CRLs).
+.Nm
+produces lists of the
+.Em Validated ROA Payloads Pq VRPs
+in various formats.
 .Pp
 The options are as follows:
 .Bl -tag -width Ds
 .It Fl B
-Format the output suitable for the BIRD internet routing daemon.
+Create output in the file
+.Pa bird
+in the output directory which is suitable for the BIRD internet routing daemon.
 .It Fl b Ar bind_addr
 Tell the rsync client to use the specified
 .Ar bind_addr
 as the source address for connections.
 .It Fl c
-Format the output as comma-separated values of the prefix in slash notation,
+Create output in the file
+.Pa csv
+in the output directory as comma-separated values of the prefix in slash notation,
 the maximum prefix length, the autonomous system number, and an abbreviation
 for the trust anchor the entry is derived from.
 .It Fl e Ar rsync_prog
@@ -66,20 +77,35 @@ flags and connect with rsync-protocol locations.
 Accept out-of-date manifests.
 This will still report if a manifest has expired.
 .It Fl j
-Format the output as JSON object.
+Create output in the file
+.Pa json
+in the output directory as JSON object.
 This format is identical to that
 produced by the RIPE NCC RPKI Validator and NLnet Labs routinator.
 .It Fl n
 Assume that all requested repositories exist: don't update.
-.It Fl r
-Don't parse certificate revocation files.
-This additional step can take a long time.
+.It Fl o
+Create output in the file
+.Pa openbgpd
+in the output directory as
+.Xr bgpd 8
+compatible input.
+If the
+.Fl b ,
+.Fl c ,
+and
+.Fl j
+options are not specified this is the default.
 .It Fl T Ar table
-For BIRD output use
+For BIRD output generated with the
+.Fl b
+option use
 .Ar table
 as roa table name instead of the default 'roa'.
 .It Fl t Ar tal
-Specify a trust anchor locator (TAL) file to be used.
+Specify a
+.Em Trust Anchor Location Pq TAL
+file to be used.
 This option can be used multiple times to load multiple TALs.
 By default
 .Nm
@@ -88,28 +114,33 @@ will load all TAL files in
 .It Fl v
 Specified once, prints information about status.
 Twice, prints each filename as it's processed.
-.It Ar output
-The file
+.It Ar outputdir
+The directory where
 .Nm
-will write the
-.Li roa-set
-to.
+will write the output files.
+Defaults to
+.Pa /var/db/rpki-client/ .
 .El
 .Pp
 By default
 .Nm
 produces a list of unique
 .Li roa-set
-statements as specified by
-.Xr bgpd.conf 5 .
+statements in
+.Fl o
+(OpenBGPD compatible) output.
 .\" .Sh ENVIRONMENT
 .\" For sections 1, 6, 7, and 8 only.
 .Sh FILES
-.Bl -tag -width "/etc/rpki/*.talXXX" -compact
+.Bl -tag -width "/var/db/rpki-client/roaXXX" -compact
 .It Pa /etc/rpki/*.tal
 default TAL files used unless
 .Fl t Ar tal
 is specified.
+.It Pa /var/cache/rpki-client
+cached repository data.
+.It Pa /var/db/rpki-client/openbsd
+default roa-set output file.
 .El
 .Sh EXIT STATUS
 .Ex -std

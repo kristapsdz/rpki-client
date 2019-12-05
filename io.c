@@ -142,18 +142,20 @@ void
 io_simple_read(int fd, void *res, size_t sz)
 {
 	ssize_t	 ssz;
+	char	*tmp;
 
+	tmp = res; /* arithmetic on a pointer to void is a GNU extension */
 again:
 	if (sz == 0)
 		return;
-	if ((ssz = read(fd, res, sz)) == -1)
+	if ((ssz = read(fd, tmp, sz)) == -1)
 		err(1, "read");
 	else if (ssz == 0)
 		errx(1, "read: unexpected end of file");
 	else if ((size_t)ssz == sz)
 		return;
 	sz -= ssz;
-	res += ssz;
+	tmp += ssz;
 	goto again;
 }
 
