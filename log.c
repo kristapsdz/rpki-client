@@ -27,6 +27,28 @@
 #include "extern.h"
 
 /*
+ * 0 for no output but results, 1 for status, 2 for detailed debugging
+ * messages during operation.
+ */
+int	 verbose;
+
+/*
+ * Log a message to stderr if and only if "verbose" is non-zero.
+ * This uses the err(3) functionality.
+ */
+void
+logx(const char *fmt, ...)
+{
+	va_list		 ap;
+
+	if (verbose && fmt != NULL) {
+		va_start(ap, fmt);
+		vwarnx(fmt, ap);
+		va_end(ap);
+	}
+}
+
+/*
  * Print the chain of openssl errors that led to the current one.
  * This should only be invoked in the event that OpenSSL fails with
  * something.

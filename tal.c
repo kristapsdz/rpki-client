@@ -102,6 +102,7 @@ tal_parse_buffer(const char *fn, char *buf)
 		goto out;
 	} else if (tal->urisz > 1)
 		warnx("%s: multiple URIs: using the first", fn);
+		/* XXX no support for TAL files with multiple TALs yet */
 
 	sz = strlen(buf);
 	if (sz == 0) {

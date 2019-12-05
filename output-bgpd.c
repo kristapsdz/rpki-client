@@ -22,13 +22,14 @@
 
 #include "extern.h"
 
-void
-output_bgpd(FILE *out, struct vrp_tree *vrps)
+int
+output_bgpd(FILE *out, struct vrp_tree *vrps, void *arg)
 {
 	char		 buf1[64], buf2[32];
 	struct vrp	*v;
 
-	fprintf(out, "roa-set {\n");
+	if (fprintf(out, "roa-set {\n") < 0)
+		return (-1);
 
 	RB_FOREACH(v, vrp_tree, vrps) {
 		ip_addr_print(&v->addr, v->afi, buf1, sizeof(buf1));
@@ -37,8 +38,11 @@ output_bgpd(FILE *out, struct vrp_tree *vrps)
 			    v->maxlength);
 		else
 			buf2[0] = '\0';
-		fprintf(out, "\t%s %ssource-as %u\n", buf1, buf2, v->asid);
+		if (fprintf(out, "\t%s %ssource-as %u\n", buf1, buf2, v->asid) < 0)
+			return (-1);
 	}
 
-	fprintf(out, "}\n");
+	if (fprintf(out, "}\n") < 0)
+		return (-1);
+	return (0);
 }
