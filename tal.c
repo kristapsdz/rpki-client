@@ -154,8 +154,18 @@ tal_parse(const char *fn, char *buf)
 	if (p == NULL)
 		return NULL;
 
-	/* extract the TAL basename (without .tal suffix) */
+	/* 
+	 * Extract the TAL basename (without .tal suffix).
+	 * On non-OpenBSD we do a manual cast because POSIX basename
+	 * accepts a non-const argument.
+	 */
+
+#ifndef __OpenBSD__
+	d = basename((char *)fn);
+#else
 	d = basename(fn);
+#endif
+
 	if (d == NULL)
 		err(1, "%s: basename", fn);
 	dlen = strlen(d);
