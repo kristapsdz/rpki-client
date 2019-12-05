@@ -38,6 +38,8 @@ PRIVDROP = _rpki-client
 CFLAGS	+= -DRSYNC=\"$(RSYNC)\" -DPRIVDROP=\"$(PRIVDROP)\"
 
 # This is for situations of (char *) and (const char []).
+# It's for the clang compiler (I don't know the gcc one).
+
 CFLAGS	+= -Wno-incompatible-pointer-types-discards-qualifiers
 
 all: $(BINS) rpki-client.install.8

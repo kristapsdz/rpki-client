@@ -3,7 +3,8 @@
 **This system has been merged into OpenBSD base.  If you'd like to
 contribute to rpki-client, please mail your patches to tech@openbsd.org.
 This repository is simply the OpenBSD version plus some glue for
-portability.**
+portability.  It is updated from time to time to keep in sync with
+OpenBSD's version.**
 
 **rpki-client** is an implementation of RPKI (resource public key
 infrastructure) described in [RFC
@@ -43,10 +44,9 @@ It was funded by [NetNod](https://www.netnod.se),
 # Installation
 
 First, you'll need a recent [OpenSSL](https://www.openssl.org/) library
-(version 1.1 and above) on your operating system.
-At this point, just run the following.
-The installation rule will install into `PREFIX`, defaulting to
-*/usr/local*.
+(version 1.1 and above) on your operating system.  At this point, just
+run the following.  The installation rule will install into `PREFIX`,
+defaulting to */usr/local*.
 
 ```
 % ./configure
@@ -65,21 +65,22 @@ configure script.
 
 On OpenBSD, the package is `eopenssl11`, but using `pkg-config` for this
 will produce the wrong values for OpenBSD 6.6 and before.  You'll need
-to hardcode the values yourself.
-
-Most Linux systems additionally need `-lresolv` for `LDADD`.
-Contrarily, FreeBSD only needs `LDADD="-lssl -lcrypto"` as the required
-libraries are in the base system.
+to hardcode the values yourself.  On FreeBSD, you'll need to install
+both the `openssl111` and `pkgconf` packages.
 
 If you're packaging the software, these may be put directly into a
 *configure.local* script, which overrides the variables during
-configuration, for example:
+configuration.  For example:
 
 ```
 CPPFLAGS="`pkg-config --cflags openssl`"
+# FreeBSD's make(1) doesn't respect CPPFLAGS.
+# CFLAGS="${CFLAGS} `pkg-config --cflags openssl`"
 LDFLAGS="`pkg-config --libs-only-L openssl`"
 LDADD="`pkg-config --libs-only-l openssl`"
 ```
+
+Most Linux systems additionally need `-lresolv` for `LDADD`.
 
 Next, you'll need the */var/cache/rpki-client* directory in place.
 It must be writable by the operator of **rpki-client**.  The default
