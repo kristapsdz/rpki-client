@@ -18,7 +18,8 @@ statements and omits superfluities (such as, for example, which X509
 certificate sections must be labelled "Critical").
 
 The system runs on modern UNIX operating systems with the the
-[OpenSSL](https://www.openssl.org) external library installed.
+[OpenSSL](https://www.openssl.org) external library installed, version
+1.1 and above.
 See [Portability](#portability) for details.
 The reference operating system is [OpenBSD](https://www.openbsd.org),
 which we strongly suggest for all installations for security reasons.
@@ -54,8 +55,7 @@ The installation rule will install into `PREFIX`, defaulting to
 ```
 
 It may be necessary to pass `pkg-config` values for OpenSSL to the
-configure script.  On OpenBSD, the package is `eopenssl`.  On most other
-systems it's simply `openssl`.
+configure script.
 
 ```
 % ./configure CPPFLAGS="`pkg-config --cflags openssl`" \
@@ -63,18 +63,22 @@ systems it's simply `openssl`.
 > LDADD="`pkg-config --libs-only-l openssl`"
 ```
 
+On OpenBSD, the package is `eopenssl11`, but using `pkg-config` for this
+will produce the wrong values for OpenBSD 6.6 and before.  You'll need
+to hardcode the values yourself.
+
 Most Linux systems additionally need `-lresolv` for `LDADD`.
 Contrarily, FreeBSD only needs `LDADD="-lssl -lcrypto"` as the required
 libraries are in the base system.
 
 If you're packaging the software, these may be put directly into a
 *configure.local* script, which overrides the variables during
-configuration, for example, on OpenBSD:
+configuration, for example:
 
 ```
-CPPFLAGS="`pkg-config --cflags eopenssl`"
-LDFLAGS="`pkg-config --libs-only-L eopenssl`"
-LDADD="`pkg-config --libs-only-l eopenssl`"
+CPPFLAGS="`pkg-config --cflags openssl`"
+LDFLAGS="`pkg-config --libs-only-L openssl`"
+LDADD="`pkg-config --libs-only-l openssl`"
 ```
 
 Next, you'll need the */var/cache/rpki-client* directory in place.
@@ -299,8 +303,7 @@ OpenSSL's `X509_STORE` functionality.
 
 Some repositories, however, contain enormous CRL files with thousands
 and thousands of entries.
-Since these take quite some time to parse, the **-r** flag disables CRL
-checking.
+These take quite some time to parse.
 
 # Portability
 
