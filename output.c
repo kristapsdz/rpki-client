@@ -61,7 +61,7 @@ struct outputs {
 	{ FORMAT_BIRD, "bird", output_bird },
 	{ FORMAT_CSV, "csv", output_csv },
 	{ FORMAT_JSON, "json", output_json },
-	{ 0, NULL }
+	{ 0, NULL, NULL }
 };
 
 void		 sig_handler(int);
@@ -80,7 +80,7 @@ outputfiles(struct vrp_tree *v, const char *bird_output)
 		FILE *fout = output_createtmp(outputs[i].name);
 
 		arg = (outputs[i].format & FORMAT_BIRD) ?
-			bird_output : NULL;
+			(void *)bird_output : NULL;
 
 		if (fout) {
 			if ((*outputs[i].fn)(fout, v, arg) == 0)

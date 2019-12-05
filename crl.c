@@ -99,3 +99,18 @@ out:
 	return x;
 }
 
+static inline int
+crlcmp(struct crl *a, struct crl *b)
+{
+	return strcmp(a->aki, b->aki);
+}
+
+RB_GENERATE(crl_tree, crl, entry, crlcmp);
+
+void
+free_crl(struct crl *crl)
+{
+	free(crl->aki);
+	X509_CRL_free(crl->x509_crl);
+	free(crl);
+}
