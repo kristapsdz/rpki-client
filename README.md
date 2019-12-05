@@ -319,6 +319,16 @@ untrusted content.
 Those running on a non-OpenBSD operating system should be aware that
 this additional protection is not available.
 
+## Privilege dropping
+
+If the `PRIVDROP` macro is defined in the
+[Makefile](https://github.com/kristapsdz/rpki-client/blob/master/Makefile), it
+is used as the username into which to privilege-drop.
+On OpenBSD, this is *_rpki-client*.
+Privilege dropping only occurs when running the utility as root.
+
+If the `PRIVDROP` macro is not defined, no privilege dropping occurs.
+
 ## Pledge
 
 **rpki-client** makes significant use of
