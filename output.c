@@ -16,32 +16,16 @@
  */
 #include "config.h"
 
-#include <sys/queue.h>
-#include <sys/socket.h>
 #include <sys/stat.h>
-#include <sys/tree.h>
-#include <sys/types.h>
-#include <sys/wait.h>
 
-#include <assert.h>
 #include <err.h>
-#include <dirent.h>
 #include <fcntl.h>
-#include <fnmatch.h>
-#include <fts.h>
-#include <inttypes.h>
-#include <poll.h>
-#include <pwd.h>
 #include <signal.h>
-#include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
-#include <limits.h>
 #include <unistd.h>
 
-#include <openssl/err.h>
-#include <openssl/evp.h>
-#include <openssl/x509v3.h>
+#include <openssl/ssl.h>
 
 #include "extern.h"
 
