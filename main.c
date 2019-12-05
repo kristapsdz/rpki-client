@@ -57,7 +57,9 @@
 #include <fts.h>
 #include <inttypes.h>
 #include <poll.h>
-#include <pwd.h>
+#ifdef PRIVDROP
+# include <pwd.h>
+#endif
 #include <signal.h>
 #include <stdio.h>
 #include <stdlib.h>
@@ -1385,18 +1387,24 @@ main(int argc, char *argv[])
 	const char	*bird_tablename = "roa";
 	struct vrp_tree	 v = RB_INITIALIZER(&v);
 
-	/* If started as root, priv-drop to _rpki-client */
+	/* 
+	 * If started as root and the PRIVDROP token is defined, drop
+	 * privileges to the user named PRIVDROP.
+	 */
+
+#ifdef PRIVDROP
 	if (getuid() == 0) {
 		struct passwd *pw;
 
-		pw = getpwnam("_rpki-client");
+		pw = getpwnam(PRIVDROP);
 		if (!pw)
-			errx(1, "no _rpki-client user to revoke to");
+			errx(1, "no " PRIVDROP " user to revoke to");
 		if (setgroups(1, &pw->pw_gid) == -1 ||
 		    setresgid(pw->pw_gid, pw->pw_gid, pw->pw_gid) == -1 ||
 		    setresuid(pw->pw_uid, pw->pw_uid, pw->pw_uid) == -1)
 			err(1, "unable to revoke privs");
 	}
+#endif
 
 	if (pledge("stdio rpath wpath cpath fattr proc exec unveil", NULL) == -1)
 		err(1, "pledge");

@@ -31,10 +31,11 @@ BINS	 = rpki-client \
 	   test-roa \
 	   test-tal
 RSYNC 	 = openrsync
+PRIVDROP = _rpki-client
 
 # Our rsync binary defaulting to openrsync.
 
-CFLAGS	+= -DRSYNC=\"$(RSYNC)\"
+CFLAGS	+= -DRSYNC=\"$(RSYNC)\" -DPRIVDROP=\"$(PRIVDROP)\"
 
 # This is for situations of (char *) and (const char []).
 CFLAGS	+= -Wno-incompatible-pointer-types-discards-qualifiers
