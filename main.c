@@ -129,8 +129,6 @@ static void	 proc_parser(int, int, int)
 			__attribute__((noreturn));
 static void	 proc_rsync(const char *, const char *, int, int)
 			__attribute__((noreturn));
-static void	 logx(const char *fmt, ...)
-			__attribute__((format(printf, 1, 2)));
 
 enum output_fmt {
 	BGPD,
@@ -138,24 +136,6 @@ enum output_fmt {
 	CSV,
 	JSON
 };
-
-int	 verbose;
-
-/*
- * Log a message to stderr if and only if "verbose" is non-zero.
- * This uses the err(3) functionality.
- */
-static void
-logx(const char *fmt, ...)
-{
-	va_list		 ap;
-
-	if (verbose && fmt != NULL) {
-		va_start(ap, fmt);
-		vwarnx(fmt, ap);
-		va_end(ap);
-	}
-}
 
 /*
  * Resolve the media type of a resource by looking at its suffice.
@@ -1332,10 +1312,8 @@ main(int argc, char *argv[])
 	const char	*rsync_prog = RSYNC;
 	const char	*bind_addr = NULL;
 	const char	*tals[TALSZ_MAX];
-	const char	*tablename = "roa";
-	FILE		*output = NULL;
+	const char	*bird_tablename = "roa";
 	struct vrp_tree	 v = RB_INITIALIZER(&v);
-	enum output_fmt	 outfmt = BGPD;
 
 	if (pledge("stdio rpath wpath cpath proc exec unveil", NULL) == -1)
 		err(1, "pledge");
@@ -1346,10 +1324,10 @@ main(int argc, char *argv[])
 			bind_addr = optarg;
 			break;
 		case 'B':
-			outfmt = BIRD;
+			outformats |= FORMAT_BIRD;
 			break;
 		case 'c':
-			outfmt = CSV;
+			outformats |= FORMAT_CSV;
 			break;
 		case 'e':
 			rsync_prog = optarg;
@@ -1358,10 +1336,13 @@ main(int argc, char *argv[])
 			force = 1;
 			break;
 		case 'j':
-			outfmt = JSON;
+			outformats |= FORMAT_JSON;
 			break;
 		case 'n':
 			noop = 1;
+			break;
+		case 'o':
+			outformats |= FORMAT_OPENBGPD;
 			break;
 		case 'r':
 			norev = 1;
@@ -1373,7 +1354,7 @@ main(int argc, char *argv[])
 			tals[talsz++] = optarg;
 			break;
 		case 'T':
-			tablename = optarg;
+			bird_tablename = optarg;
 			break;
 		case 'v':
 			verbose++;
@@ -1384,11 +1365,13 @@ main(int argc, char *argv[])
 
 	argv += optind;
 	argc -= optind;
-	if (argc != 1)
+	if (argc == 1)
+		outputdir = argv[0];
+	else if (argc > 1)
 		goto usage;
-	output = fopen(argv[0], "we");
-	if (output == NULL)
-		err(1, "failed to open %s", argv[0]);
+
+	if (outformats == 0)
+		outformats = FORMAT_OPENBGPD;
 
 	if (talsz == 0)
 		talsz = tal_load_default(tals, TALSZ_MAX);
@@ -1566,20 +1549,8 @@ main(int argc, char *argv[])
 		rc = 1;
 	}
 
-	switch (outfmt) {
-	case BGPD:
-		output_bgpd(output, &v);
-		break;
-	case BIRD:
-		output_bird(output, &v, tablename);
-		break;
-	case CSV:
-		output_csv(output, &v);
-		break;
-	case JSON:
-		output_json(output, &v);
-		break;
-	}
+	if (outputfiles(&v, bird_tablename))
+		rc = 1;
 
 	logx("Route Origin Authorizations: %zu (%zu failed parse, %zu invalid)",
 	    stats.roas, stats.roas_fail, stats.roas_invalid);

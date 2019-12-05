@@ -22,19 +22,24 @@
 
 #include "extern.h"
 
-void
-output_bird(FILE *out, struct vrp_tree *vrps, const char *tablename)
+int
+output_bird(FILE *out, struct vrp_tree *vrps, void *arg)
 {
+	const char	*bird_tablename = arg;
 	char		 buf[64];
 	struct vrp	*v;
 
-	fprintf(out, "roa table %s {\n", tablename);
+	if (fprintf(out, "roa table %s {\n", bird_tablename) < 0)
+		return (-1);
 
 	RB_FOREACH(v, vrp_tree, vrps) {
 		ip_addr_print(&v->addr, v->afi, buf, sizeof(buf));
-		fprintf(out, "\troa %s max %u as %u;\n", buf, v->maxlength,
-		    v->asid);
+		if (fprintf(out, "\troa %s max %u as %u;\n", buf, v->maxlength,
+		    v->asid) < 0)
+			return(-1);
 	}
 
-	fprintf(out, "}\n");
+	if (fprintf(out, "}\n") < 0)
+		return (-1);
+	return (0);
 }
