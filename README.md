@@ -43,7 +43,7 @@ It was funded by [NetNod](https://www.netnod.se),
 # Installation
 
 First, you'll need a recent [OpenSSL](https://www.openssl.org/) library
-on your operating system.
+(version 1.1 and above) on your operating system.
 At this point, just run the following.
 The installation rule will install into `PREFIX`, defaulting to
 */usr/local*.
@@ -82,28 +82,29 @@ LDADD="`pkg-config --libs-only-l openssl`"
 ```
 
 Next, you'll need the */var/cache/rpki-client* directory in place.
-It must be writable by the operator of **rpki-client**.
+It must be writable by the operator of **rpki-client**.  The default
+output directory is */var/db/rpki-client*, which must also be writable
+(if not overriden).
 
 You'll also need TAL ("trust anchor locator") files.
 There are some in the [tals](tals) directory of this system, but you can
 download them on your own.
 For default operation, load these into */etc/rpki*.
 
-You'll also need the [openrsync(1)](https://man.openbsd.org/openrsync.1)
-(or [rsync](https://rsync.samba.org/), which may be specified with the
-**-e** argument) executable installed.
-
+You'll also need [openrsync(1)](https://man.openbsd.org/openrsync.1) or
+[rsync](https://rsync.samba.org/) as specified with the **-e** argument.
 To hardcode an alternate rsync implementation, override the `RSYNC`
 variable in the
 [Makefile](https://github.com/kristapsdz/rpki-client/blob/master/Makefile).
 
 In the following, the first uses a custom TAL file, while the second
-loads all TAL files from their default location.  Output is written into
-*bgpd-rpki.conf*.
+loads all TAL files from their default location.  Output for the first
+is written into *./openbgpd* and */var/db/rpki-client/openbgpd* for the
+second.
 
 ```
-% ./rpki-client -v -t sometal.tal bgpd-rpki.conf
-% ./rpki-client -v bgpd-rpki.conf
+% ./rpki-client -v -t sometal.tal .
+% ./rpki-client -v
 ```
 
 If you later want to uninstall the system, simply run
@@ -156,9 +157,9 @@ repository is fetched or refreshed.
 When the repository is fetched, those pending entries are flushed into
 the parser.
 
-The master process also outputs valid routes.
-At this time, it does so only in the
-[bgpd.conf(5)](https://man.openbsd.org/bgpd.conf.5) format.
+The master process also outputs valid routes.  At this time, it does so
+in [bgpd.conf(5)](https://man.openbsd.org/bgpd.conf.5),
+[BIRD](https://bird.network.cz), RIPE NCC RPKI JSON, or CSV formats.
 
 ## Future security
 
@@ -302,8 +303,7 @@ performed in [validate.c](validate.c).
 OpenSSL's `X509_STORE` functionality.
 
 Some repositories, however, contain enormous CRL files with thousands
-and thousands of entries.
-These take quite some time to parse.
+and thousands of entries.  These take quite some time to parse.
 
 # Portability
 
