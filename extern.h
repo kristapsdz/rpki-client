@@ -27,6 +27,13 @@
 # define unveil(x, y) (1)
 #endif
 
+/*
+ * Not all systems support __unused.
+ */
+#ifndef __unused
+# define __unused
+#endif
+
 enum cert_as_type {
 	CERT_AS_ID, /* single identifier */
 	CERT_AS_INHERIT, /* inherit from parent */
