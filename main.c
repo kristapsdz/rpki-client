@@ -1637,7 +1637,7 @@ main(int argc, char *argv[])
 		rc = 1;
 	}
 
-	if (outputfiles(&v, bird_tablename))
+	if (outputfiles(&v))
 		rc = 1;
 
 	logx("Route Origin Authorizations: %zu (%zu failed parse, %zu invalid)",

@@ -40,47 +40,46 @@ int		outformats;
 struct outputs {
 	int	format;
 	char	*name;
-	int	(*fn)(FILE *, struct vrp_tree *, void *);
+	int	(*fn)(FILE *, struct vrp_tree *);
 } outputs[] = {
 	{ FORMAT_OPENBGPD, "openbgpd", output_bgpd },
 	{ FORMAT_BIRD, "bird", output_bird },
 	{ FORMAT_CSV, "csv", output_csv },
 	{ FORMAT_JSON, "json", output_json },
-	{ 0, NULL, NULL }
+	{ 0, NULL }
 };
 
 void		 sig_handler(int);
 void		 set_signal_handler(void);
 
 int
-outputfiles(struct vrp_tree *v, const char *bird_output)
+outputfiles(struct vrp_tree *v)
 {
 	int i, rc = 0;
-	void	*arg;
 
 	atexit(output_cleantmp);
 	set_signal_handler();
 
-	for (i = 0; outputs[i].name && (outformats & outputs[i].format); i++) {
-		FILE *fout = output_createtmp(outputs[i].name);
+	for (i = 0; outputs[i].name; i++) {
+		FILE *fout;
 
-		arg = (outputs[i].format & FORMAT_BIRD) ?
-			(void *)bird_output : NULL;
+		if (!(outformats & outputs[i].format))
+			continue;
 
-		if (fout) {
-			if ((*outputs[i].fn)(fout, v, arg) == 0)
-				output_finish(fout);
-			else {
-				logx("output for %s format failed\n", outputs[i].name);
-				fclose(fout);
-				output_cleantmp();
-				rc = 1;
-			}
-		} else {
-			logx("cannot create %s\n", outputs[i].name);
+		fout = output_createtmp(outputs[i].name);
+		if (fout == NULL) {
+			logx("cannot create %s", outputs[i].name);
 			rc = 1;
 			continue;
 		}
+		if ((*outputs[i].fn)(fout, v) != 0) {
+			logx("output for %s format failed", outputs[i].name);
+			fclose(fout);
+			output_cleantmp();
+			rc = 1;
+			continue;
+		}
+		output_finish(fout);
 	}
 
 	return (rc);
