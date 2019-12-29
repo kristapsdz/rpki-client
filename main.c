@@ -67,6 +67,7 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
+#include <limits.h>
 #include <unistd.h>
 
 #include <openssl/err.h>
@@ -79,11 +80,6 @@
  * Maximum number of TAL files we'll load.
  */
 #define	TALSZ_MAX	8
-
-/*
- * Base directory for where we'll look for all media.
- */
-#define	BASE_DIR "/var/cache/rpki-client"
 
 /*
  * Statistics collected during run-time.
@@ -160,7 +156,7 @@ TAILQ_HEAD(entityq, entity);
  */
 static void	proc_parser(int, int) __attribute__((noreturn));
 static void	proc_rsync(char *, char *, int, int)
-			__attribute__((noreturn));
+		    __attribute__((noreturn));
 static void	build_chain(const struct auth *, STACK_OF(X509) **);
 static void	build_crls(const struct auth *, struct crl_tree *,
 		    STACK_OF(X509_CRL) **);
@@ -403,15 +399,13 @@ queue_add_from_mft(int fd, struct entityq *q, const char *mft,
 	size_t		 sz;
 	char		*cp, *nfile;
 
-	assert(strncmp(mft, BASE_DIR, strlen(BASE_DIR)) == 0);
-
 	/* Construct local path from filename. */
 
 	sz = strlen(file->file) + strlen(mft);
 	if ((nfile = calloc(sz + 1, 1)) == NULL)
 		err(1, "calloc");
 
-	/* We know this is BASE_DIR/host/module/... */
+	/* We know this is host/module/... */
 
 	strlcpy(nfile, mft, sz + 1);
 	cp = strrchr(nfile, '/');
@@ -510,8 +504,7 @@ queue_add_from_tal(int proc, int rsync, struct entityq *q,
 	repo = repo_lookup(rsync, rt, uri);
 	uri += 8 + strlen(repo->host) + 1 + strlen(repo->module) + 1;
 
-	if (asprintf(&nfile, "%s/%s/%s/%s",
-	    BASE_DIR, repo->host, repo->module, uri) == -1)
+	if (asprintf(&nfile, "%s/%s/%s", repo->host, repo->module, uri) == -1)
 		err(1, "asprintf");
 
 	entityq_add(proc, q, nfile, RTYPE_CER, repo, NULL, tal->pkey,
@@ -543,8 +536,7 @@ queue_add_from_cert(int proc, int rsync, struct entityq *q,
 	repo = repo_lookup(rsync, rt, uri);
 	uri += 8 + strlen(repo->host) + 1 + strlen(repo->module) + 1;
 
-	if (asprintf(&nfile, "%s/%s/%s/%s",
-	    BASE_DIR, repo->host, repo->module, uri) == -1)
+	if (asprintf(&nfile, "%s/%s/%s", repo->host, repo->module, uri) == -1)
 		err(1, "asprintf");
 
 	entityq_add(proc, q, nfile, type, repo, NULL, NULL, 0, NULL, eid);
@@ -621,8 +613,8 @@ proc_rsync(char *prog, char *bind_addr, int fd, int noop)
 
 		/* Unveil the repository directory and terminate unveiling. */
 
-		if (unveil(BASE_DIR, "c") == -1)
-			err(1, "%s: unveil", BASE_DIR);
+		if (unveil(".", "c") == -1)
+			err(1, "unveil");
 		if (unveil(NULL, NULL) == -1)
 			err(1, "unveil");
 	}
@@ -702,13 +694,10 @@ proc_rsync(char *prog, char *bind_addr, int fd, int noop)
 		 * will not build the destination for us.
 		 */
 
-		if (asprintf(&dst, "%s/%s", BASE_DIR, host) == -1)
-			err(1, NULL);
-		if (mkdir(dst, 0700) == -1 && EEXIST != errno)
-			err(1, "%s", dst);
-		free(dst);
+		if (mkdir(host, 0700) == -1 && EEXIST != errno)
+			err(1, "%s", host);
 
-		if (asprintf(&dst, "%s/%s/%s", BASE_DIR, host, mod) == -1)
+		if (asprintf(&dst, "%s/%s", host, mod) == -1)
 			err(1, NULL);
 		if (mkdir(dst, 0700) == -1 && EEXIST != errno)
 			err(1, "%s", dst);
@@ -1241,6 +1230,7 @@ out:
 
 	EVP_cleanup();
 	CRYPTO_cleanup_all_ex_data();
+	ERR_remove_state(0);
 	ERR_free_strings();
 
 	exit(rc);
@@ -1343,22 +1333,22 @@ entity_process(int proc, int rsync, struct stats *st,
 static size_t
 tal_load_default(const char *tals[], size_t max)
 {
-	static const char *basedir = "/etc/rpki";
+	static const char *confdir = "/etc/rpki";
 	size_t s = 0;
 	char *path;
 	DIR *dirp;
 	struct dirent *dp;
 
-	dirp = opendir(basedir);
+	dirp = opendir(confdir);
 	if (dirp == NULL)
-		err(1, "open %s", basedir);
+		err(1, "open %s", confdir);
 	while ((dp = readdir(dirp)) != NULL) {
 		if (fnmatch("*.tal", dp->d_name, FNM_PERIOD) == FNM_NOMATCH)
 			continue;
 		if (s >= max)
 			err(1, "too many tal files found in %s",
-			    basedir);
-		if (asprintf(&path, "%s/%s", basedir, dp->d_name) == -1)
+			    confdir);
+		if (asprintf(&path, "%s/%s", confdir, dp->d_name) == -1)
 			err(1, "asprintf");
 		tals[s++] = path;
 	}
@@ -1381,8 +1371,9 @@ main(int argc, char *argv[])
 	struct repotab	 rt;
 	struct stats	 stats;
 	struct roa	**out = NULL;
-	char		 *rsync_prog = RSYNC;
-	char		 *bind_addr = NULL;
+	char		*rsync_prog = RSYNC;
+	char		*bind_addr = NULL;
+	const char	*cachedir = NULL;
 	const char	*tals[TALSZ_MAX];
 	const char	*bird_tablename = "roa";
 	struct vrp_tree	 v = RB_INITIALIZER(&v);
@@ -1403,13 +1394,16 @@ main(int argc, char *argv[])
 		    setresgid(pw->pw_gid, pw->pw_gid, pw->pw_gid) == -1 ||
 		    setresuid(pw->pw_uid, pw->pw_uid, pw->pw_uid) == -1)
 			err(1, "unable to revoke privs");
+
+		cachedir = RPKI_PATH_BASE_DIR;
+		outputdir = RPKI_PATH_OUT_DIR;
 	}
 #endif
 
 	if (pledge("stdio rpath wpath cpath fattr proc exec unveil", NULL) == -1)
 		err(1, "pledge");
 
-	while ((c = getopt(argc, argv, "b:Bce:fjnot:T:v")) != -1)
+	while ((c = getopt(argc, argv, "b:Bcd:e:fjnot:T:v")) != -1)
 		switch (c) {
 		case 'b':
 			bind_addr = optarg;
@@ -1419,6 +1413,9 @@ main(int argc, char *argv[])
 			break;
 		case 'c':
 			outformats |= FORMAT_CSV;
+			break;
+		case 'd':
+			cachedir = optarg;
 			break;
 		case 'e':
 			rsync_prog = optarg;
@@ -1458,6 +1455,15 @@ main(int argc, char *argv[])
 	else if (argc > 1)
 		goto usage;
 
+	if (cachedir == NULL) {
+		warnx("cache directory required");
+		goto usage;
+	}
+	if (outputdir == NULL) {
+		warnx("output directory required");
+		goto usage;
+	}
+
 	if (outformats == 0)
 		outformats = FORMAT_OPENBGPD;
 
@@ -1483,11 +1489,14 @@ main(int argc, char *argv[])
 
 	if (procpid == 0) {
 		close(fd[1]);
-		/* Only allow access to BASE_DIR. */
-		if (unveil(BASE_DIR, "r") == -1)
-			err(1, "%s: unveil", BASE_DIR);
-		if (unveil(NULL, NULL) == -1)
-			err(1, "unveil");
+
+		/* change working directory to the cache directory */
+		if (chdir(cachedir) == -1)
+			err(1, "%s: chdir", cachedir);
+
+		/* Only allow access to the cache directory. */
+		if (unveil(cachedir, "r") == -1)
+			err(1, "%s: unveil", cachedir);
 		if (pledge("stdio rpath", NULL) == -1)
 			err(1, "pledge");
 		proc_parser(fd[0], force);
@@ -1512,6 +1521,11 @@ main(int argc, char *argv[])
 	if (rsyncpid == 0) {
 		close(proc);
 		close(fd[1]);
+
+		/* change working directory to the cache directory */
+		if (chdir(cachedir) == -1)
+			err(1, "%s: chdir", cachedir);
+
 		if (pledge("stdio rpath cpath proc exec unveil", NULL) == -1)
 			err(1, "pledge");
 
@@ -1587,8 +1601,8 @@ main(int argc, char *argv[])
 			assert(i < rt.reposz);
 			assert(!rt.repos[i].loaded);
 			rt.repos[i].loaded = 1;
-			logx("%s/%s/%s: loaded", BASE_DIR,
-			    rt.repos[i].host, rt.repos[i].module);
+			logx("%s/%s: loaded", rt.repos[i].host,
+			    rt.repos[i].module);
 			stats.repos++;
 			entityq_flush(proc, &q, &rt.repos[i]);
 		}
@@ -1609,7 +1623,7 @@ main(int argc, char *argv[])
 	}
 
 	assert(TAILQ_EMPTY(&q));
-	logx("all files parsed: exiting");
+	logx("all files parsed: generating output");
 	rc = 0;
 
 	/*
@@ -1634,7 +1648,7 @@ main(int argc, char *argv[])
 		rc = 1;
 	}
 
-	if (outputfiles(&v))
+	if (outputfiles(&v, bird_tablename))
 		rc = 1;
 
 	logx("Route Origin Authorizations: %zu (%zu failed parse, %zu invalid)",
@@ -1670,7 +1684,8 @@ main(int argc, char *argv[])
 
 usage:
 	fprintf(stderr,
-	    "usage: rpki-client [-Bcfjnov] [-b bind_addr] [-e rsync_prog]\n"
+	    "usage: rpki-client [-Bcfjnov] [-b bind_addr] [-d cachedir]"
+	    " [-e rsync_prog]\n"
 	    "            [-T table] [-t tal] [outputdir]\n");
 	return 1;
 }

@@ -286,7 +286,7 @@ void		 roa_free(struct roa *);
 struct roa	*roa_parse(X509 **, const char *, const unsigned char *);
 struct roa	*roa_read(int);
 void		 roa_insert_vrps(struct vrp_tree *, struct roa *, size_t *,
-			size_t *);
+		    size_t *);
 
 /* crl.c */
 X509_CRL	*crl_parse(const char *, const unsigned char *);
@@ -384,7 +384,7 @@ extern int	 outformats;
 #define FORMAT_JSON	0x08
 extern char	*outputdir;
 
-int		 outputfiles(struct vrp_tree *v);
+int		 outputfiles(struct vrp_tree *v, const char *);
 FILE		*output_createtmp(char *);
 void		 output_cleantmp(void);
 void		 output_finish(FILE *);
@@ -396,6 +396,7 @@ int		 output_json(FILE *, struct vrp_tree *, void *arg);
 void		 logx(const char *fmt, ...)
 			__attribute__((format(printf, 1, 2)));
 
-#define		_PATH_ROA_DIR	"/var/db/rpki-client"
+#define		RPKI_PATH_OUT_DIR	"/var/db/rpki-client"
+#define		RPKI_PATH_BASE_DIR	"/var/cache/rpki-client"
 
 #endif /* ! EXTERN_H */
