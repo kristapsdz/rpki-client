@@ -1230,7 +1230,7 @@ out:
 
 	EVP_cleanup();
 	CRYPTO_cleanup_all_ex_data();
-	ERR_remove_state(0);
+	/*ERR_remove_state(0);*/
 	ERR_free_strings();
 
 	exit(rc);
