@@ -579,7 +579,7 @@ proc_rsync(char *prog, char *bind_addr, int fd, int noop)
 	const char		*pp;
 	pid_t			 pid;
 	char			*args[32];
-	int			 st, rc = 1;
+	int			 st, rc = 0;
 	struct stat		 stt;
 	struct pollfd		 pfd;
 	sigset_t		 mask, oldmask;
@@ -659,11 +659,11 @@ proc_rsync(char *prog, char *bind_addr, int fd, int noop)
 			assert(i < idsz);
 
 			if (!WIFEXITED(st)) {
-				warnx("rsync %s did not exit", ids[i].uri);
-				goto out;
+				warnx("rsync %s terminated abnormally",
+				    ids[i].uri);
+				rc = 1;
 			} else if (WEXITSTATUS(st) != 0) {
 				warnx("rsync %s failed", ids[i].uri);
-				goto out;
 			}
 
 			io_simple_write(fd, &ids[i].id, sizeof(size_t));
@@ -761,11 +761,8 @@ proc_rsync(char *prog, char *bind_addr, int fd, int noop)
 		free(dst);
 		free(host);
 	}
-	rc = 0;
-out:
 
 	/* No need for these to be hanging around. */
-
 	for (i = 0; i < idsz; i++)
 		if (ids[i].pid > 0) {
 			kill(ids[i].pid, SIGTERM);
