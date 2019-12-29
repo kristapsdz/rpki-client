@@ -29,13 +29,13 @@ output_csv(FILE *out, struct vrp_tree *vrps, void *arg)
 	struct vrp	*v;
 
 	if (fprintf(out, "ASN,IP Prefix,Max Length,Trust Anchor\n") < 0)
-		return (-1);
+		return -1;
 
 	RB_FOREACH(v, vrp_tree, vrps) {
 		ip_addr_print(&v->addr, v->afi, buf, sizeof(buf));
 		if (fprintf(out, "AS%u,%s,%u,%s\n", v->asid, buf, v->maxlength,
 		    v->tal) < 0)
-			return (-1);
+			return -1;
 	}
-	return (0);
+	return 0;
 }

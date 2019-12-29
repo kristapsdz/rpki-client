@@ -30,16 +30,16 @@ output_bird(FILE *out, struct vrp_tree *vrps, void *arg)
 	struct vrp	*v;
 
 	if (fprintf(out, "roa table %s {\n", bird_tablename) < 0)
-		return (-1);
+		return -1;
 
 	RB_FOREACH(v, vrp_tree, vrps) {
 		ip_addr_print(&v->addr, v->afi, buf, sizeof(buf));
 		if (fprintf(out, "\troa %s max %u as %u;\n", buf, v->maxlength,
 		    v->asid) < 0)
-			return(-1);
+		return -1;
 	}
 
 	if (fprintf(out, "}\n") < 0)
-		return (-1);
-	return (0);
+		return -1;
+	return 0;
 }

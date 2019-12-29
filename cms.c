@@ -24,7 +24,6 @@
 #include <string.h>
 #include <unistd.h>
 
-#include <openssl/x509.h>
 #include <openssl/cms.h>
 
 #include "extern.h"

@@ -24,6 +24,7 @@
 .Nm
 .Op Fl Bcfjnov
 .Op Fl b Ar bind_addr
+.Op Fl d Ar cachedir
 .Op Fl e Ar rsync_prog
 .Op Fl T Ar table
 .Op Fl t Ar tal
@@ -61,6 +62,12 @@ Create output in the file
 in the output directory as comma-separated values of the prefix in slash notation,
 the maximum prefix length, the autonomous system number, and an abbreviation
 for the trust anchor the entry is derived from.
+.It Fl d Ar cachedir
+The directory where
+.Nm
+will store the cached repository data.
+Defaults to
+.Pa /var/db/rpki-client/ .
 .It Fl e Ar rsync_prog
 Use
 .Ar rsync_prog
@@ -91,7 +98,7 @@ in the output directory as
 .Xr bgpd 8
 compatible input.
 If the
-.Fl b ,
+.Fl B ,
 .Fl c ,
 and
 .Fl j
@@ -132,14 +139,14 @@ statements in
 .\" .Sh ENVIRONMENT
 .\" For sections 1, 6, 7, and 8 only.
 .Sh FILES
-.Bl -tag -width "/var/db/rpki-client/roaXXX" -compact
+.Bl -tag -width "/var/db/rpki-client/openbgpd" -compact
 .It Pa /etc/rpki/*.tal
 default TAL files used unless
 .Fl t Ar tal
 is specified.
 .It Pa /var/cache/rpki-client
 cached repository data.
-.It Pa /var/db/rpki-client/openbsd
+.It Pa /var/db/rpki-client/openbgpd
 default roa-set output file.
 .El
 .Sh EXIT STATUS

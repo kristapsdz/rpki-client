@@ -21,50 +21,52 @@
 #include <err.h>
 #include <fcntl.h>
 #include <signal.h>
-#include <stdlib.h>
 #include <stdint.h>
 #include <string.h>
+#include <limits.h>
 #include <unistd.h>
 
-#include <openssl/ssl.h>
+#include <openssl/x509v3.h>
 
 #include "extern.h"
 
-char		*outputdir = _PATH_ROA_DIR;
-FILE		*output = NULL;
-char		output_tmpname[PATH_MAX];
-char		output_name[PATH_MAX];
+char		*outputdir;
+char		 output_tmpname[PATH_MAX];
+char		 output_name[PATH_MAX];
 
-int		outformats;
+int		 outformats;
 
 struct outputs {
-	int	format;
+	int	 format;
 	char	*name;
-	int	(*fn)(FILE *, struct vrp_tree *);
+	int	(*fn)(FILE *, struct vrp_tree *, void *);
 } outputs[] = {
 	{ FORMAT_OPENBGPD, "openbgpd", output_bgpd },
 	{ FORMAT_BIRD, "bird", output_bird },
 	{ FORMAT_CSV, "csv", output_csv },
 	{ FORMAT_JSON, "json", output_json },
-	{ 0, NULL }
+	{ 0, NULL, NULL }
 };
 
 void		 sig_handler(int);
 void		 set_signal_handler(void);
 
 int
-outputfiles(struct vrp_tree *v)
+outputfiles(struct vrp_tree *v, const char *bird_output)
 {
-	int i, rc = 0;
+	int 	 i, rc = 0;
+	void	*arg;
+	FILE	*fout;
 
 	atexit(output_cleantmp);
 	set_signal_handler();
 
 	for (i = 0; outputs[i].name; i++) {
-		FILE *fout;
-
 		if (!(outformats & outputs[i].format))
 			continue;
+
+		arg = (outputs[i].format & FORMAT_BIRD) ?
+                        (void *)bird_output : NULL;
 
 		fout = output_createtmp(outputs[i].name);
 		if (fout == NULL) {
@@ -72,7 +74,7 @@ outputfiles(struct vrp_tree *v)
 			rc = 1;
 			continue;
 		}
-		if ((*outputs[i].fn)(fout, v) != 0) {
+		if ((*outputs[i].fn)(fout, v, arg) != 0) {
 			logx("output for %s format failed", outputs[i].name);
 			fclose(fout);
 			output_cleantmp();
@@ -82,7 +84,7 @@ outputfiles(struct vrp_tree *v)
 		output_finish(fout);
 	}
 
-	return (rc);
+	return rc;
 }
 
 FILE *
@@ -106,7 +108,7 @@ output_createtmp(char *name)
 	f = fdopen(fd, "w");
 	if (f == NULL)
 		err(1, "fdopen");
-	return (f);
+	return f;
 }
 
 void

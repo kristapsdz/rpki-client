@@ -30,23 +30,25 @@ output_json(FILE *out, struct vrp_tree *vrps, void *arg)
 	int		 first = 1;
 
 	if (fprintf(out, "{\n\t\"roas\": [\n") < 0)
-		return (-1);
+		return -1;
 
 	RB_FOREACH(v, vrp_tree, vrps) {
 		if (first)
 			first = 0;
-		else if (fprintf(out, ",\n") < 0)
-			return (-1);
+		else {
+			if (fprintf(out, ",\n") < 0)
+				return -1;
+		}
 
 		ip_addr_print(&v->addr, v->afi, buf, sizeof(buf));
 
 		if (fprintf(out, "\t\t{ \"asn\": \"AS%u\", \"prefix\": \"%s\", "
 		    "\"maxLength\": %u, \"ta\": \"%s\" }",
 		    v->asid, buf, v->maxlength, v->tal) < 0)
-			return (-1);
+			return -1;
 	}
 
 	if (fprintf(out, "\n\t]\n}\n") < 0)
-		return (-1);
-	return (0);
+		return -1;
+	return 0;
 }
