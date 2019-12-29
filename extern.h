@@ -384,7 +384,7 @@ extern int	 outformats;
 #define FORMAT_JSON	0x08
 extern char	*outputdir;
 
-int		 outputfiles(struct vrp_tree *, const char *);
+int		 outputfiles(struct vrp_tree *v);
 FILE		*output_createtmp(char *);
 void		 output_cleantmp(void);
 void		 output_finish(FILE *);
