@@ -42,6 +42,7 @@
  * SUCH DAMAGE.
  */
 #include "config.h"
+#include "site.h"
 
 #include <sys/queue.h>
 #include <sys/socket.h>
@@ -57,7 +58,7 @@
 #include <fts.h>
 #include <inttypes.h>
 #include <poll.h>
-#ifdef PRIVDROP
+#if RPKI_PRIVDROP == 1
 # include <pwd.h>
 # ifdef __linux__
 #  include <grp.h>
@@ -1325,7 +1326,7 @@ entity_process(int proc, int rsync, struct stats *st,
 }
 
 /*
- * Assign filenames ending in ".tal" in "/etc/rpki" into "tals",
+ * Assign filenames ending in ".tal" in RPKI_TAL_DIR into "tals",
  * returning the number of files found and filled-in.
  * This may be zero.
  * Don't exceded "max" filenames.
@@ -1333,7 +1334,7 @@ entity_process(int proc, int rsync, struct stats *st,
 static size_t
 tal_load_default(const char *tals[], size_t max)
 {
-	static const char *confdir = "/etc/rpki";
+	static const char *confdir = RPKI_TAL_DIR;
 	size_t s = 0;
 	char *path;
 	DIR *dirp;
@@ -1371,7 +1372,7 @@ main(int argc, char *argv[])
 	struct repotab	 rt;
 	struct stats	 stats;
 	struct roa	**out = NULL;
-	char		*rsync_prog = RSYNC;
+	char		*rsync_prog = RPKI_RSYNC_COMMAND;
 	char		*bind_addr = NULL;
 	const char	*cachedir = NULL;
 	const char	*tals[TALSZ_MAX];
@@ -1383,13 +1384,13 @@ main(int argc, char *argv[])
 	 * privileges to the user named PRIVDROP.
 	 */
 
-#ifdef PRIVDROP
+#if RPKI_PRIVDROP == 1
 	if (getuid() == 0) {
 		struct passwd *pw;
 
-		pw = getpwnam(PRIVDROP);
+		pw = getpwnam(RPKI_PRIVDROP_USER);
 		if (!pw)
-			errx(1, "no " PRIVDROP " user to revoke to");
+			errx(1, "no " RPKI_PRIVDROP_USER " user to revoke to");
 		if (setgroups(1, &pw->pw_gid) == -1 ||
 		    setresgid(pw->pw_gid, pw->pw_gid, pw->pw_gid) == -1 ||
 		    setresuid(pw->pw_uid, pw->pw_uid, pw->pw_uid) == -1)
@@ -1470,7 +1471,7 @@ main(int argc, char *argv[])
 	if (talsz == 0)
 		talsz = tal_load_default(tals, TALSZ_MAX);
 	if (talsz == 0)
-		err(1, "no TAL files found in %s", "/etc/rpki");
+		err(1, "no TAL files found in %s", RPKI_TAL_DIR);
 
 	memset(&rt, 0, sizeof(struct repotab));
 	memset(&stats, 0, sizeof(struct stats));

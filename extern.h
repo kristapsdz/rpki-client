@@ -396,7 +396,4 @@ int		 output_json(FILE *, struct vrp_tree *, void *arg);
 void		 logx(const char *fmt, ...)
 			__attribute__((format(printf, 1, 2)));
 
-#define		RPKI_PATH_OUT_DIR	"/var/db/rpki-client"
-#define		RPKI_PATH_BASE_DIR	"/var/cache/rpki-client"
-
 #endif /* ! EXTERN_H */
