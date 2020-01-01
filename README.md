@@ -92,10 +92,20 @@ There are some in the [tals](tals) directory of this system, but you can
 download them on your own.
 For default operation, load these into */etc/rpki*.
 
+These default paths are set as
+`RPKI_PATH_BASE_DIR`, `RPKI_PATH_OUT_DIR`, and `RPKI_TAL_DIR`,
+respectively, in the
+[Makefile](https://github.com/kristapsdz/rpki-client/blob/master/Makefile).
+Alternatively, override the variables when invoking `make`, e.g.,
+
+```
+% make RPKI_TAL_DIR=/etc/tals
+```
+
 You'll also need [openrsync(1)](https://man.openbsd.org/openrsync.1) or
 [rsync](https://rsync.samba.org/) as specified with the **-e** argument.
-To hardcode an alternate rsync implementation, override the `RSYNC`
-variable in the
+To hardcode an alternate rsync implementation, set the
+`RPKI_RSYNC_PROGRAM` value in the
 [Makefile](https://github.com/kristapsdz/rpki-client/blob/master/Makefile).
 
 In the following, the first uses a custom TAL file, while the second
@@ -322,13 +332,14 @@ this additional protection is not available.
 
 ## Privilege dropping
 
-If the `PRIVDROP` macro is defined in the
-[Makefile](https://github.com/kristapsdz/rpki-client/blob/master/Makefile), it
-is used as the username into which to privilege-drop.
+If the `RPKI_PRIVDROP` macro evaluates to 1 as set in the
+[Makefile](https://github.com/kristapsdz/rpki-client/blob/master/Makefile),
+the `RPKI_PRIVDROP_USER` is used as the username into which to
+privilege-drop.
 On OpenBSD, this is *_rpki-client*.
 Privilege dropping only occurs when running the utility as root.
 
-If the `PRIVDROP` macro is not defined, no privilege dropping occurs.
+If `RPKI_PRIVDROP` is set to 0, no privilege dropping occurs.
 
 ## Pledge
 
