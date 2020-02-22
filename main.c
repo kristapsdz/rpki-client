@@ -1685,7 +1685,7 @@ main(int argc, char *argv[])
 
 usage:
 	fprintf(stderr,
-	    "usage: rpki-client [-Bcfjnov] [-b bind_addr] [-d cachedir]"
+	    "usage: rpki-client [-Bcfjnov] [-b sourceaddr] [-d cachedir]"
 	    " [-e rsync_prog]\n"
 	    "            [-T table] [-t tal] [outputdir]\n");
 	return 1;
