@@ -60,7 +60,7 @@ site.h: Makefile
 	 echo "#define RPKI_PATH_OUT_DIR \"${RPKI_PATH_OUT_DIR}\"" ; \
 	 echo "#define RPKI_PATH_BASE_DIR \"${RPKI_PATH_BASE_DIR}\"" ; \
 	 echo "#define RPKI_PRIVDROP ${RPKI_PRIVDROP}" ; \
-	 echo "#define RPKI_PRIVDROP_USER \"${RPKI_PROVDROP_USER}\"" ; \
+	 echo "#define RPKI_PRIVDROP_USER \"${RPKI_PRIVDROP_USER}\"" ; \
 	 echo "#define RPKI_TAL_DIR \"${RPKI_TAL_DIR}\"" ; ) >$@
 
 site.sed: Makefile
