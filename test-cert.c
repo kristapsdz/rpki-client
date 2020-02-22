@@ -32,8 +32,6 @@
 
 #include "extern.h"
 
-int	 verbose;
-
 static void
 cert_print(const struct cert *p)
 {

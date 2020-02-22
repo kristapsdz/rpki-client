@@ -29,8 +29,6 @@
 
 #include "extern.h"
 
-int	verbose;
-
 static void
 roa_print(const struct roa *p)
 {
