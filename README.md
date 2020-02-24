@@ -223,7 +223,7 @@ processed.
 ## Trust anchor validation
 
 A trust anchor is an X509 ([RFC
-6487](https://tools.ietf.org/html/rfc6487) certificate given by the TAL
+6487](https://tools.ietf.org/html/rfc6487)) certificate given by the TAL
 file.
 Beyond the usual certificate parsing in [cert.c](cert.c), the trust
 anchor files also have a number of additional constraints imposed in
@@ -292,7 +292,7 @@ A "stale" ROA (time validity has elapsed) is also ignored.
 
 ## Certificate validation
 
-X509 certificates ([RFC 6487](https://tools.ietf.org/html/rfc6487) certificate
+X509 certificates ([RFC 6487](https://tools.ietf.org/html/rfc6487)) certificate
 are the mainstay of RPKI's validation.
 They are parsed in [cert.c](cert.c) with further validation being
 performed in [validate.c](validate.c).
