@@ -15,7 +15,7 @@
 # ACTION OF CONTRACT, NEGLIGENCE OR OTHER TORTIOUS ACTION, ARISING OUT OF
 # OR IN CONNECTION WITH THE USE OR PERFORMANCE OF THIS SOFTWARE.
 
-OCONFIGURE_VERSION="0.1.13"
+OCONFIGURE_VERSION="0.1.17"
 
 #
 # This script outputs two files: config.h and Makefile.configure.
@@ -137,6 +137,7 @@ HAVE_CAPSICUM=
 HAVE_ENDIAN_H=
 HAVE_ERR=
 HAVE_EXPLICIT_BZERO=
+HAVE_GETEXECNAME=
 HAVE_GETPROGNAME=
 HAVE_INFTIM=
 HAVE_MD5=
@@ -297,6 +298,7 @@ runtest capsicum	CAPSICUM			  || true
 runtest endian_h	ENDIAN_H			  || true
 runtest err		ERR				  || true
 runtest explicit_bzero	EXPLICIT_BZERO			  || true
+runtest getexecname	GETEXECNAME			  || true
 runtest getprogname	GETPROGNAME			  || true
 runtest INFTIM		INFTIM				  || true
 runtest md5		MD5 "" "" "-lmd"		  || true
@@ -337,6 +339,8 @@ exec > config.h
 # Start with prologue.
 
 cat << __HEREDOC__
+#ifndef OCONFIGURE_CONFIG_H
+#define OCONFIGURE_CONFIG_H
 #ifdef __cplusplus
 #error "Do not use C++: this is a C application."
 #endif
@@ -388,6 +392,7 @@ cat << __HEREDOC__
 #define HAVE_ENDIAN_H ${HAVE_ENDIAN_H}
 #define HAVE_ERR ${HAVE_ERR}
 #define HAVE_EXPLICIT_BZERO ${HAVE_EXPLICIT_BZERO}
+#define HAVE_GETEXECNAME ${HAVE_GETEXECNAME}
 #define HAVE_GETPROGNAME ${HAVE_GETPROGNAME}
 #define HAVE_INFTIM ${HAVE_INFTIM}
 #define HAVE_MD5 ${HAVE_MD5}
@@ -457,6 +462,9 @@ if [ ${HAVE_SECCOMP_FILTER} -eq 1 ]; then
 			;;
 		arm*)
 			echo "#define SECCOMP_AUDIT_ARCH AUDIT_ARCH_ARM"
+			;;
+		aarch64)
+			echo "#define SECCOMP_AUDIT_ARCH AUDIT_ARCH_AARCH64"
 			;;
 	esac
 fi
@@ -1929,6 +1937,10 @@ name##_RB_MINMAX(struct name *head, int val)				\\
 	     (x) = (y))
 __HEREDOC__
 fi
+
+cat << __HEREDOC__
+#endif /*!OCONFIGURE_CONFIG_H*/
+__HEREDOC__
 
 echo "config.h: written" 1>&2
 echo "config.h: written" 1>&3
