@@ -105,7 +105,7 @@ Alternatively, override the variables when invoking `make`, e.g.,
 You'll also need [openrsync(1)](https://man.openbsd.org/openrsync.1) or
 [rsync](https://rsync.samba.org/) as specified with the **-e** argument.
 To hardcode an alternate rsync implementation, set the
-`RPKI_RSYNC_PROGRAM` value in the
+`RPKI_RSYNC_COMMAND` value in the
 [Makefile](https://github.com/kristapsdz/rpki-client/blob/master/Makefile).
 
 In the following, the first uses a custom TAL file, while the second
