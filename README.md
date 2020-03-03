@@ -54,34 +54,6 @@ defaulting to */usr/local*.
 # make install
 ```
 
-It may be necessary to pass `pkg-config` values for OpenSSL to the
-configure script.
-
-```
-% ./configure CPPFLAGS="`pkg-config --cflags openssl`" \
-> LDFLAGS="`pkg-config --libs-only-L openssl`" \
-> LDADD="`pkg-config --libs-only-l openssl`"
-```
-
-On OpenBSD, the package is `eopenssl11`, but using `pkg-config` for this
-will produce the wrong values for OpenBSD 6.6 and before.  You'll need
-to hardcode the values yourself.  On FreeBSD, you'll need to install
-both the `openssl111` and `pkgconf` packages.
-
-If you're packaging the software, these may be put directly into a
-*configure.local* script, which overrides the variables during
-configuration.  For example:
-
-```
-CPPFLAGS="`pkg-config --cflags openssl`"
-# FreeBSD's make(1) doesn't respect CPPFLAGS.
-# CFLAGS="${CFLAGS} `pkg-config --cflags openssl`"
-LDFLAGS="`pkg-config --libs-only-L openssl`"
-LDADD="`pkg-config --libs-only-l openssl`"
-```
-
-Most Linux systems additionally need `-lresolv` for `LDADD`.
-
 Next, you'll need the */var/cache/rpki-client* directory in place.
 It must be writable by the operator of **rpki-client**.  The default
 output directory is */var/db/rpki-client*, which must also be writable

@@ -48,10 +48,17 @@ BINS			= rpki-client \
 			  test-roa \
 			  test-tal
 
+# OpenBSD uses the "eopenssl11" package.
+# Most other operating systems use just "openssl".
+
+PKGNAME_OPENSSL		!= if [ "`uname -s`" = "OpenBSD" ]; then echo "eopenssl11"; else echo "openssl" ; fi
+PKG_OPENSSL		?= $(PKGNAME_OPENSSL)
+CFLAGS			+= `pkg-config --cflags $(PKG_OPENSSL)`
+LDADD			+= `pkg-config --libs $(PKG_OPENSSL)`
+LDADD			+= $(LDADD_B64_NTOP)
+
 # This is for situations of (char *) and (const char []).
 # It's for the clang compiler (I don't know the gcc one).
-
-CFLAGS	+= -Wno-incompatible-pointer-types-discards-qualifiers
 
 all: $(BINS) rpki-client.install.8
 
