@@ -46,13 +46,27 @@ It was funded by [NetNod](https://www.netnod.se),
 First, you'll need a recent [OpenSSL](https://www.openssl.org/) library
 (version 1.1 and above) on your operating system.  At this point, just
 run the following.  The installation rule will install into `PREFIX`,
-defaulting to */usr/local*.
+defaulting to */usr/local*, which you may override:
 
 ```
-% ./configure
+% ./configure PREFIX=/opt/local
 % make
 # make install
 ```
+
+If your `pkg-config` for OpenSSL 1.1 and above isn't `openssl` (or
+`eopenssl11` for OpenBSD), pass the proper name as a build option.
+For example, using `openssl111`:
+
+```
+% ./configure
+% make PKG_OPENSSL=openssl111
+```
+
+This value may also be hard-coded in the
+[Makefile](https://github.com/kristapsdz/rpki-client/blob/master/Makefile).
+**If your system consistently uses a different package name, please
+raise an issue to let us know.**
 
 Next, you'll need the */var/cache/rpki-client* directory in place.
 It must be writable by the operator of **rpki-client**.  The default
