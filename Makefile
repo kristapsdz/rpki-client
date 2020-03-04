@@ -115,6 +115,19 @@ clean:
 distclean: clean
 	rm -f config.h config.log Makefile.configure
 
+distcheck:
+	mandoc -Tlint -Werror rpki-client.8
+	rm -rf .distcheck
+	mkdir .distcheck
+	cp *.c extern.h rpki-client.8 configure Makefile .distcheck
+	( cd .distcheck && ./configure PREFIX=prefix )
+	( cd .distcheck && $(MAKE) )
+	( cd .distcheck && $(MAKE) install )
+	rm -rf .distcheck
+
+regress:
+	# Do nothing.
+
 $(ALLOBJS): extern.h config.h site.h
 
 rpki-client.install.8: rpki-client.8 site.sed
