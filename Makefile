@@ -30,42 +30,44 @@ PKG_OPENSSL		?= $(PKGNAME_OPENSSL)
 
 # You don't want to change anything after this.
 
-OBJS	 = as.o \
-	   cert.o \
-	   cms.o \
-	   compats.o \
-	   crl.o \
-	   io.o \
-	   ip.o \
-	   log.o \
-	   mft.o \
-	   output.o \
-	   output-bird.o \
-	   output-bgpd.o \
-	   output-csv.o \
-	   output-json.o \
-	   roa.o \
-	   rsync.o \
-	   tal.o \
-	   validate.o \
-	   x509.o
-ALLOBJS	 = $(OBJS) \
-	   main.o \
-	   test-cert.o \
-	   test-mft.o \
-	   test-roa.o \
-	   test-tal.o
-BINS	 = rpki-client \
-	   test-cert \
-	   test-mft \
-	   test-roa \
-	   test-tal
-CFLAGS	+= `pkg-config --cflags $(PKG_OPENSSL)`
-LDADD	+= `pkg-config --libs $(PKG_OPENSSL)`
+OBJS		 = as.o \
+		   cert.o \
+		   cms.o \
+		   compats.o \
+		   crl.o \
+		   io.o \
+		   ip.o \
+		   log.o \
+		   mft.o \
+		   output.o \
+		   output-bird.o \
+		   output-bgpd.o \
+		   output-csv.o \
+		   output-json.o \
+		   roa.o \
+		   rsync.o \
+		   tal.o \
+		   validate.o \
+		   x509.o
+ALLOBJS		 = $(OBJS) \
+		   main.o \
+		   test-cert.o \
+		   test-mft.o \
+		   test-roa.o \
+		   test-tal.o
+BINS		 = rpki-client \
+		   test-cert \
+		   test-mft \
+		   test-roa \
+		   test-tal
+CFLAGS_OPENSSL	!= pkg-config --cflags $(PKG_OPENSSL) 2>/dev/null || echo ""
+LIBS_OPENSSL	!= pkg-config --libs $(PKG_OPENSSL) 2>/dev/null || echo "-lssl -lcrypto"
+CFLAGS		+= $(CFLAGS_OPENSSL)
+LDADD		+= $(LIBS_OPENSSL)
 
 # Linux needs its -lresolv for b64_* functions.
 
-LDADD	+= $(LDADD_B64_NTOP)
+LDADD		+= $(LDADD_B64_NTOP)
 
 all: $(BINS) rpki-client.install.8
 
@@ -95,19 +97,19 @@ uninstall:
 	rm -f $(DESTDIR)$(MANDIR)/man8/rpki-client.8
 
 rpki-client: $(OBJS) main.o
-	$(CC) -o $@ main.o $(OBJS) $(LDADD)
+	$(CC) -o $@ main.o $(OBJS) $(LDFLAGS) $(LDADD)
 
 test-tal: $(OBJS) test-tal.o
-	$(CC) -o $@ test-tal.o $(OBJS) $(LDADD)
+	$(CC) -o $@ test-tal.o $(OBJS) $(LDFLAGS) $(LDADD)
 
 test-mft: $(OBJS) test-mft.o
-	$(CC) -o $@ test-mft.o $(OBJS) $(LDADD)
+	$(CC) -o $@ test-mft.o $(OBJS) $(LDFLAGS) $(LDADD)
 
 test-roa: $(OBJS) test-roa.o
-	$(CC) -o $@ test-roa.o $(OBJS) $(LDADD)
+	$(CC) -o $@ test-roa.o $(OBJS) $(LDFLAGS) $(LDADD)
 
 test-cert: $(OBJS) test-cert.o
-	$(CC) -o $@ test-cert.o $(OBJS) $(LDADD)
+	$(CC) -o $@ test-cert.o $(OBJS) $(LDFLAGS) $(LDADD)
 
 clean:
 	rm -f $(BINS) $(ALLOBJS) rpki-client.install.8 site.sed site.h
