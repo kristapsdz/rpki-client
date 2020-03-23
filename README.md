@@ -20,7 +20,7 @@ certificate sections must be labelled "Critical").
 
 The system runs on modern UNIX operating systems with the the
 [OpenSSL](https://www.openssl.org) external library installed, version
-1.1.1d and above.
+1.1.1c and above.
 See [Portability](#portability) for details.
 The reference operating system is [OpenBSD](https://www.openbsd.org),
 which we strongly suggest for all installations for security reasons.
@@ -44,7 +44,7 @@ It was funded by [NetNod](https://www.netnod.se),
 # Installation
 
 First, you'll need a recent [OpenSSL](https://www.openssl.org/) library
-(version 1.1.1d and above) on your operating system.  At this point, just
+(version 1.1.1c and above) on your operating system.  At this point, just
 run the following.  The installation rule will install into `PREFIX`,
 defaulting to */usr/local*, which you may override:
 
@@ -54,7 +54,7 @@ defaulting to */usr/local*, which you may override:
 # make install
 ```
 
-If your `pkg-config` for OpenSSL 1.1.1d and above isn't `openssl` (or
+If your `pkg-config` for OpenSSL 1.1.1c and above isn't `openssl` (or
 `eopenssl11` for OpenBSD), pass the proper name as a build option.
 For example, using `openssl111`:
 
