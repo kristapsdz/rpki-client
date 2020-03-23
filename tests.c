@@ -40,6 +40,9 @@ main(void)
 }
 #endif /* TEST_CAPSICUM */
 #if TEST_ENDIAN_H
+#ifdef __linux__
+# define _DEFAULT_SOURCE
+#endif
 #include <endian.h>
 
 int
@@ -331,6 +334,17 @@ main(void)
 	return(EFAULT == errno ? 0 : 1);
 }
 #endif /* TEST_SECCOMP_FILTER */
+#if TEST_SETRESUID
+#define _GNU_SOURCE /* linux */
+#include <sys/types.h>
+#include <unistd.h>
+
+int
+main(void)
+{
+	return setresuid(-1, -1, -1) == -1;
+}
+#endif /* TEST_SETRESUID */
 #if TEST_SOCK_NONBLOCK
 /*
  * Linux doesn't (always?) have this.
@@ -346,6 +360,13 @@ main(void)
 	return 0;
 }
 #endif /* TEST_SOCK_NONBLOCK */
+#if TEST_STATIC
+int
+main(void)
+{
+	return 0; /* not meant to do anything */
+}
+#endif /* TEST_STATIC */
 #if TEST_STRLCAT
 #include <string.h>
 
@@ -457,6 +478,16 @@ main(void)
 	return !htole32(23);
 }
 #endif /* TEST_SYS_ENDIAN_H */
+#if TEST_SYS_MKDEV_H
+#include <sys/types.h>
+#include <sys/mkdev.h>
+
+int
+main(void)
+{
+	return !minor(0);
+}
+#endif /* TEST_SYS_MKDEV_H */
 #if TEST_SYS_QUEUE
 #include <sys/queue.h>
 #include <stddef.h>
@@ -487,6 +518,15 @@ main(void)
 	return 0;
 }
 #endif /* TEST_SYS_QUEUE */
+#if TEST_SYS_SYSMACROS_H
+#include <sys/sysmacros.h>
+
+int
+main(void)
+{
+	return !minor(0);
+}
+#endif /* TEST_SYS_SYSMACROS_H */
 #if TEST_SYS_TREE
 #include <sys/tree.h>
 #include <stdlib.h>
@@ -547,19 +587,3 @@ main(void)
 	return waitpid(WAIT_ANY, &st, WNOHANG) != -1;
 }
 #endif /* TEST_WAIT_ANY */
-#if TEST_ZLIB
-#include <stddef.h>
-#include <zlib.h>
-
-int
-main(void)
-{
-	gzFile		 gz;
-
-	if (NULL == (gz = gzopen("/dev/null", "w")))
-		return(1);
-	gzputs(gz, "foo");
-	gzclose(gz);
-	return(0);
-}
-#endif /* TEST_ZLIB */
