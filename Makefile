@@ -66,8 +66,9 @@ CFLAGS		+= $(CFLAGS_OPENSSL)
 LDADD		+= $(LIBS_OPENSSL)
 
 # Linux needs its -lresolv for b64_* functions.
+# IllumOS needs its socket library.
 
-LDADD		+= $(LDADD_B64_NTOP)
+LDADD		+= $(LDADD_B64_NTOP) $(LDADD_LIB_SOCKET)
 
 all: $(BINS) rpki-client.install.8
 
