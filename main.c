@@ -57,7 +57,6 @@
 #include <dirent.h>
 #include <fcntl.h>
 #include <fnmatch.h>
-#include <fts.h>
 #include <inttypes.h>
 #include <poll.h>
 #if RPKI_PRIVDROP == 1
