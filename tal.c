@@ -112,7 +112,7 @@ tal_parse_buffer(const char *fn, char *buf)
 	}
 
 	/* Now the BASE64-encoded public key. */
-	sz = ((sz + 2) / 3) * 4 + 1;
+	sz = ((sz + 3) / 4) * 3 + 1;
 	if ((b64 = malloc(sz)) == NULL)
 		err(1, NULL);
 	if ((b64sz = b64_pton(buf, b64, sz)) < 0)
@@ -154,8 +154,8 @@ tal_parse(const char *fn, char *buf)
 	if (p == NULL)
 		return NULL;
 
+	/* extract the TAL basename (without .tal suffix) */
 	/* 
-	 * Extract the TAL basename (without .tal suffix).
 	 * On non-OpenBSD we do a manual cast because POSIX basename
 	 * accepts a non-const argument.
 	 */

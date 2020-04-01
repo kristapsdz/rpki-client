@@ -1317,7 +1317,7 @@ auth_find(struct auth_tree *auths, const char *aki)
 static inline int
 authcmp(struct auth *a, struct auth *b)
 {
-        return strcmp(a->cert->ski, b->cert->ski);
+	return strcmp(a->cert->ski, b->cert->ski);
 }
 
 RB_GENERATE(auth_tree, auth, entry, authcmp);

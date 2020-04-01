@@ -1013,7 +1013,7 @@ proc_parser_crl(struct entity *entp, X509_STORE *store,
 		crl->x509_crl = x509_crl;
 
 		if (RB_INSERT(crl_tree, crlt, crl) != NULL) {
-			warnx("%s: dup aki %s", __func__, crl->aki);
+			warnx("%s: duplicate AKI %s", entp->uri, crl->aki);
 			free_crl(crl);
 		}
 	}

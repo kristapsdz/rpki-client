@@ -382,18 +382,17 @@ extern int	 outformats;
 #define FORMAT_BIRD	0x02
 #define FORMAT_CSV	0x04
 #define FORMAT_JSON	0x08
-extern char	*outputdir;
+extern char*	 outputdir;
 
 int		 outputfiles(struct vrp_tree *v, const char *);
-FILE		*output_createtmp(char *);
-void		 output_cleantmp(void);
-void		 output_finish(FILE *);
 int		 output_bgpd(FILE *, struct vrp_tree *, void *arg);
-int		 output_bird(FILE *, struct vrp_tree *, void *arg);
+int		 output_bird1v4(FILE *, struct vrp_tree *, void *arg);
+int		 output_bird1v6(FILE *, struct vrp_tree *, void *arg);
+int		 output_bird2(FILE *, struct vrp_tree *, void *arg);
 int		 output_csv(FILE *, struct vrp_tree *, void *arg);
 int		 output_json(FILE *, struct vrp_tree *, void *arg);
 
-void		 logx(const char *fmt, ...)
-			__attribute__((format(printf, 1, 2)));
+void	logx(const char *fmt, ...)
+		    __attribute__((format(printf, 1, 2)));
 
 #endif /* ! EXTERN_H */
