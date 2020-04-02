@@ -27,6 +27,9 @@ which we strongly suggest for all installations for security reasons.
 It will support [LibreSSL](https://www.libressl.org/) once the library
 gains CMS parsing.
 
+It has been tested on OpenBSD, FreeBSD, Linux (glibc and musl), Solaris,
+and IllumOS.  NetBSD and Mac OS X require some portability work.
+
 See the [TODO](TODO.md) file for open questions regarding RPKI operation
 in general.
 
