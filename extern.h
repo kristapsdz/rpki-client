@@ -279,6 +279,7 @@ struct cert	*cert_read(int);
 void		 mft_buffer(char **, size_t *, size_t *, const struct mft *);
 void		 mft_free(struct mft *);
 struct mft	*mft_parse(X509 **, const char *, int);
+int		 mft_check(const char *, struct mft *);
 struct mft	*mft_read(int);
 
 void		 roa_buffer(char **, size_t *, size_t *, const struct roa *);

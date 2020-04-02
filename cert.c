@@ -931,12 +931,18 @@ cert_parse_inner(X509 **xp, const char *fn, const unsigned char *dgst, int ta)
 	ASN1_OBJECT	*obj;
 	struct parse	 p;
 	BIO		*bio = NULL, *shamd;
+	FILE		*f;
 	EVP_MD		*md;
 	char		 mdbuf[EVP_MAX_MD_SIZE];
 
 	*xp = NULL;
 
-	if ((bio = BIO_new_file(fn, "rb")) == NULL) {
+	if ((f = fopen(fn, "rb")) == NULL) {
+		warn("%s", fn);
+		return NULL;
+	}
+
+	if ((bio = BIO_new_fp(f, BIO_CLOSE)) == NULL) {
 		if (verbose > 0)
 			cryptowarnx("%s: BIO_new_file", fn);
 		return NULL;
