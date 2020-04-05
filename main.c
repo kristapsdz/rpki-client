@@ -1383,7 +1383,7 @@ main(int argc, char *argv[])
 	char		*bind_addr = NULL;
 	const char	*cachedir = NULL;
 	const char	*tals[TALSZ_MAX];
-	const char	*bird_tablename = "roa";
+	const char	*bird_tablename = "ROAS";
 	struct vrp_tree	 v = RB_INITIALIZER(&v);
 
 	/* 
