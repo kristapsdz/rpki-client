@@ -18,10 +18,14 @@ To wit, it implements RPKI components necessary for validating route
 statements and omits superfluities (such as, for example, which X509
 certificate sections must be labelled "Critical").
 
-The system runs on modern UNIX operating systems with the the
+The system runs on most modern UNIX operating systems with the the
 [OpenSSL](https://www.openssl.org) external library installed, version
 1.1.1c and above.
+Beyond that it requires only
+[BSD make](https://man.openbsd.org/make), usually called `bmake` on systems
+where [GNU make](https://www.gnu.org/software/make) is the default.
 See [Portability](#portability) for details.
+
 The reference operating system is [OpenBSD](https://www.openbsd.org),
 which we strongly suggest for all installations for security reasons.
 It will support [LibreSSL](https://www.libressl.org/) once the library
@@ -309,9 +313,16 @@ and thousands of entries.  These take quite some time to parse.
 
 The **rpki-client** is portable to the extent that it will compile and
 run on most modern UNIX systems.
-To date it is known to compile on GNU/Linux, FreeBSD, and OpenBSD.
+To date it is known to compile on GNU/Linux (musl, glibc), FreeBSD, 
+OpenBSD, and IllumOS (OmniOS).  Portability efforst are underway to NetBSD,
+Darwin (Mac OS X), and Solaris, all of which are missing
+[ppoll(2)](https://man.openbsd.org/ppoll) and in the latter case,
+[mkostemp](https://man.openbsd.org/mkostemp).
+
 It uses [oconfigure](https://github.com/kristapsdz/oconfigure) for its
-compatibility layer.
+compatibility layer and
+[minci](https://kristaps.bsd.lv/cgi-bin/minci.cgi?project-name=rpki-client)
+for continuous integration.
 
 However, the system depends heavily on OpenBSD's security mechanisms
 (only enabled on OpenBSD installations) to safely and securely parse
