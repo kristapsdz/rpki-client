@@ -17,7 +17,7 @@
 #include "config.h"
 
 #ifdef __FreeBSD__
-# define _WITH_GETLINE
+# define _WITH_GETLINE /* getline() */
 #endif
 
 #include <netinet/in.h>
@@ -147,7 +147,7 @@ struct tal *
 tal_parse(const char *fn, char *buf)
 {
 	struct tal	*p;
-	char		*d;
+	const char	*d;
 	size_t		 dlen;
 
 	p = tal_parse_buffer(fn, buf);
@@ -155,19 +155,11 @@ tal_parse(const char *fn, char *buf)
 		return NULL;
 
 	/* extract the TAL basename (without .tal suffix) */
-	/* 
-	 * On non-OpenBSD we do a manual cast because POSIX basename
-	 * accepts a non-const argument.
-	 */
-
-#ifndef __OpenBSD__
-	d = basename((char *)fn);
-#else
-	d = basename(fn);
-#endif
-
+	d = strrchr(fn, '/');
 	if (d == NULL)
-		err(1, "%s: basename", fn);
+		d = fn;
+	else
+		d++;
 	dlen = strlen(d);
 	if (strcasecmp(d + dlen - 4, ".tal") == 0)
 		dlen -= 4;

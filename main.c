@@ -1236,11 +1236,6 @@ out:
 
 	free(b);
 
-	EVP_cleanup();
-	CRYPTO_cleanup_all_ex_data();
-	/*ERR_remove_state(0);*/
-	ERR_free_strings();
-
 	exit(rc);
 }
 
@@ -1682,18 +1677,12 @@ main(int argc, char *argv[])
 		roa_free(out[i]);
 	free(out);
 
-#if 0
-	EVP_cleanup();
-	CRYPTO_cleanup_all_ex_data();
-	ERR_free_strings();
-#endif
-
 	return rc;
 
 usage:
 	fprintf(stderr,
 	    "usage: rpki-client [-Bcfjnov] [-b sourceaddr] [-d cachedir]"
 	    " [-e rsync_prog]\n"
-	    "            [-T table] [-t tal] [outputdir]\n");
+	    "                   [-T table] [-t tal] [outputdir]\n");
 	return 1;
 }

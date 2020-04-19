@@ -144,7 +144,7 @@ output_cleantmp(void)
  * Signal handler that clears the temporary files.
  */
 static void
-sig_handler(int sig __unused)
+sig_handler(int sig)
 {
 	output_cleantmp();
 	_exit(2);
